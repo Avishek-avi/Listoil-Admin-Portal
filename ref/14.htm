@@ -1,0 +1,2039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listoil Admin Panel - Members Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Include the same base styles from the previous pages */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease;
+        }
+        
+        /* Light theme styles */
+        .light-theme {
+            background: linear-gradient(135deg, #f8f9f7 0%, #eef2ef 100%);
+        }
+        
+        .light-theme .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .light-theme .input-field {
+            background-color: #ffffff;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+        
+        .light-theme .input-field:focus {
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        
+        .light-theme .btn-primary {
+            background: linear-gradient(to right, #2563eb, #1d4ed8);
+            color: #ffffff;
+        }
+        
+        .light-theme .btn-primary:hover {
+            background: linear-gradient(to right, #1d4ed8, #1e40af);
+        }
+        
+        .light-theme .text-primary {
+            color: #1f2937;
+        }
+        
+        .light-theme .text-secondary {
+            color: #6b7280;
+        }
+        
+        .light-theme .text-tertiary {
+            color: #9ca3af;
+        }
+        
+        .light-theme .text-accent {
+            color: #2563eb;
+        }
+        
+        .light-theme .text-accent:hover {
+            color: #1d4ed8;
+        }
+        
+        /* Dark theme styles */
+        .dark-theme {
+            background-color: #000000;
+        }
+        
+        .dark-theme .glass-effect {
+            background: rgba(28, 28, 30, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 56, 58, 0.3);
+        }
+        
+        .dark-theme .input-field {
+            background-color: #1c1c1e;
+            border: 1px solid #38383a;
+            color: #ffffff;
+        }
+        
+        .dark-theme .input-field:focus {
+            border-color: #007aff;
+            outline: none;
+        }
+        
+        .dark-theme .btn-primary {
+            background-color: #007aff;
+            color: #ffffff;
+        }
+        
+        .dark-theme .btn-primary:hover {
+            background-color: #0051d5;
+        }
+        
+        .dark-theme .text-primary {
+            color: #ffffff;
+        }
+        
+        .dark-theme .text-secondary {
+            color: #f2f2f7;
+        }
+        
+        .dark-theme .text-tertiary {
+            color: #8e8e93;
+        }
+        
+        .dark-theme .text-accent {
+            color: #007aff;
+        }
+        
+        .dark-theme .text-accent:hover {
+            color: #0051d5;
+        }
+
+        /* Card elevation / shadow system for cleaner separation */
+        :root {
+            --card-bg: #ffffff;
+            --card-border: rgba(16,24,40,0.04);
+            --card-shadow: 0 6px 18px rgba(16,24,40,0.06);
+            --card-shadow-hover: 0 10px 30px rgba(16,24,40,0.08);
+        }
+
+        .widget-card,
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--card-shadow);
+            transition: box-shadow 200ms ease, transform 160ms ease;
+            border-radius: 12px;
+        }
+
+        .widget-card:hover,
+        .stat-card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-4px);
+        }
+
+        /* Slightly subtler appearance in dark theme */
+        .dark-theme .widget-card,
+        .dark-theme .stat-card {
+            background: #141416 !important;
+            border-color: rgba(255,255,255,0.03) !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6) !important;
+        }
+
+        /* Sidebar styles */
+        .sidebar {
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .sidebar {
+            background-color: #1c1c1e;
+            border-right: 1px solid #38383a;
+        }
+        
+        .top-bar {
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .top-bar {
+            background-color: #1c1c1e;
+            border-bottom: 1px solid #38383a;
+        }
+        
+        .sidebar-item {
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .sidebar-item.active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+        
+        .sidebar-item.active i {
+            color: #3b82f6;
+        }
+        
+        .dark-theme .sidebar-item.active {
+            background-color: #2c2c2e;
+            color: #007aff;
+        }
+        
+        .dark-theme .sidebar-item.active i {
+            color: #007aff;
+        }
+        
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+        
+        .notification.success {
+            background-color: #10b981;
+        }
+        
+        .notification.error {
+            background-color: #ef4444;
+        }
+        
+        /* Tab styles */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 1.5rem;
+        }
+        
+        .dark-theme .tabs {
+            border-bottom-color: #38383a;
+        }
+        
+        .tab {
+            padding: 0.75rem 1rem;
+            font-weight: 500;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .dark-theme .tab {
+            color: #8e8e93;
+        }
+        
+        .tab:hover {
+            color: #374151;
+        }
+        
+        .dark-theme .tab:hover {
+            color: #f2f2f7;
+        }
+        
+        .tab.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .dark-theme .tab.active {
+            color: #007aff;
+            border-bottom-color: #007aff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Badge styles */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .badge-primary {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+        
+        .dark-theme .badge-primary {
+            background-color: rgba(0, 122, 255, 0.2);
+            color: #007aff;
+        }
+        
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+        
+        .dark-theme .badge-success {
+            background-color: rgba(52, 199, 89, 0.2);
+            color: #34c759;
+        }
+        
+        .badge-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+        
+        .dark-theme .badge-warning {
+            background-color: rgba(255, 149, 0, 0.2);
+            color: #ff9500;
+        }
+        
+        .badge-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        
+        .dark-theme .badge-danger {
+            background-color: rgba(255, 59, 48, 0.2);
+            color: #ff3b30;
+        }
+        
+        /* Member card styles */
+        .member-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .dark-theme .member-card {
+            border-color: #38383a;
+        }
+        
+        .member-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .member-card.selected {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+        
+        .dark-theme .member-card.selected {
+            background-color: rgba(0, 122, 255, 0.1);
+        }
+        
+        /* KYC Status indicator */
+        .kyc-pending {
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .kyc-approved {
+            border-left: 4px solid #10b981;
+        }
+        
+        .kyc-rejected {
+            border-left: 4px solid #ef4444;
+        }
+        
+        /* IMPROVED Action buttons styles */
+        .actions-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .action-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .action-dropdown-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 1px solid transparent;
+            background-color: #f3f4f6;
+            color: #374151;
+            min-width: 100px;
+        }
+        
+        .action-dropdown-toggle:hover {
+            background-color: #e5e7eb;
+            transform: translateY(-1px);
+        }
+        
+        .dark-theme .action-dropdown-toggle {
+            background-color: #374151;
+            color: #f3f4f6;
+        }
+        
+        .dark-theme .action-dropdown-toggle:hover {
+            background-color: #4b5563;
+        }
+        
+        .action-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            z-index: 50;
+            min-width: 160px;
+            margin-top: 0.25rem;
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+        }
+        
+        .dark-theme .action-dropdown-menu {
+            background-color: #1f2937;
+            border-color: #374151;
+        }
+        
+        .action-dropdown-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .action-dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 0.5rem 1rem;
+            text-align: left;
+            font-size: 0.875rem;
+            color: #374151;
+            transition: all 0.2s ease;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+        
+        .dark-theme .action-dropdown-item {
+            color: #f3f4f6;
+        }
+        
+        .action-dropdown-item:hover {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        
+        .dark-theme .action-dropdown-item:hover {
+            background-color: #374151;
+            color: #f3f4f6;
+        }
+        
+        .action-dropdown-item:first-child {
+            border-radius: 0.5rem 0.5rem 0 0;
+        }
+        
+        .action-dropdown-item:last-child {
+            border-radius: 0 0 0.5rem 0.5rem;
+        }
+        
+        .action-dropdown-item.danger {
+            color: #dc2626;
+        }
+        
+        .action-dropdown-item.danger:hover {
+            background-color: #fef2f2;
+            color: #b91c1c;
+        }
+        
+        .dark-theme .action-dropdown-item.danger {
+            color: #ef4444;
+        }
+        
+        .dark-theme .action-dropdown-item.danger:hover {
+            background-color: #7f1d1d;
+            color: #fca5a5;
+        }
+        
+        .action-dropdown-item.warning {
+            color: #d97706;
+        }
+        
+        .action-dropdown-item.warning:hover {
+            background-color: #fffbeb;
+            color: #92400e;
+        }
+        
+        .dark-theme .action-dropdown-item.warning {
+            color: #f59e0b;
+        }
+        
+        .dark-theme .action-dropdown-item.warning:hover {
+            background-color: #78350f;
+            color: #fcd34d;
+        }
+        
+        .action-dropdown-item.success {
+            color: #059669;
+        }
+        
+        .action-dropdown-item.success:hover {
+            background-color: #ecfdf5;
+            color: #047857;
+        }
+        
+        .dark-theme .action-dropdown-item.success {
+            color: #10b981;
+        }
+        
+        .dark-theme .action-dropdown-item.success:hover {
+            background-color: #064e3b;
+            color: #6ee7b7;
+        }
+        
+        .status-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            align-items: center;
+        }
+        
+        /* Form styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .dark-theme .form-label {
+            color: #f2f2f7;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-input {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-input:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-select {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-select:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        
+        .modal.show .modal-content {
+            transform: scale(1);
+        }
+        
+        .dark-theme .modal-content {
+            background: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        /* Responsive adjustments for mobile / small screens */
+        @media (max-width: 992px) {
+            /* Stack main layout vertically */
+            .flex.h-screen {
+                display: block;
+                height: auto;
+            }
+
+            .sidebar.w-64 {
+                width: 100% !important;
+                position: relative !important;
+                height: auto !important;
+                border-right: none !important;
+            }
+
+            .sidebar { width: 100% !important; }
+
+            .sidebar .p-6 { padding: 12px !important; }
+
+            .flex-1.overflow-y-auto {
+                width: 100% !important;
+                padding: 0 !important;
+            }
+
+            .top-bar .px-6.py-4 {
+                padding: 10px !important;
+            }
+
+            .widget-card, .stat-card, .widget-card .p-6 {
+                padding: 12px !important;
+                margin: 0 8px 12px 8px;
+            }
+
+            /* Make tables horizontally scrollable */
+            .overflow-x-auto, table { width: 100%; overflow-x: auto; display: block; }
+
+            .min-w-full { min-width: 640px; }
+        }
+
+        @media (max-width: 640px) {
+            /* Mobile specific tweaks */
+            .grid.grid-cols-1.lg\:grid-cols-2 { grid-template-columns: 1fr !important; }
+
+            /* Transform sidebar into a compact icon-only bottom bar */
+            .sidebar {
+                position: fixed !important;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: auto !important;
+                width: 100% !important;
+                height: 56px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                padding: 0 !important;
+                background: rgba(28,28,30,0.98);
+                border-top: 1px solid rgba(56,56,58,0.6);
+                z-index: 70;
+            }
+
+            /* Keep the logo visible in the compact bar */
+            .sidebar .p-6, .sidebar .p-4 { display: none; }
+            .sidebar .sidebar-logo { display: block; height: 32px; margin: 0 12px; }
+
+            /* If the logo is inside a .p-6 wrapper, make sure it shows in compact layout */
+            .sidebar > .p-6 { display: flex !important; align-items: center; justify-content: center; }
+
+            .sidebar nav { display: flex; gap: 6px; align-items: center; }
+
+            .sidebar .sidebar-item {
+                width: 56px;
+                height: 56px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                margin: 0 4px;
+                font-size: 0; /* hide text label */
+            }
+
+            .sidebar .sidebar-item i { font-size: 18px; }
+
+            .sidebar .sidebar-item.active { background: rgba(255,255,255,0.04); border-radius: 8px; color: #fff; }
+
+            /* Ensure top bar remains compact */
+            .top-bar .px-6.py-4 { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+
+            .w-full.max-w-md.mx-auto.mt-20 { margin-top: 12px !important; padding: 0 12px; }
+
+            .stat-card { padding: 10px !important; }
+
+            .widget-card .h-64 { height: 300px !important; }
+
+            .text-2xl { font-size: 1.25rem !important; }
+            
+            /* Tabs on mobile */
+            .tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            
+            .tab {
+                display: inline-block;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            /* Mobile action buttons */
+            .actions-container {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.25rem;
+            }
+            
+            .action-dropdown-toggle {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen light-theme">
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+    
+    <!-- Members Page -->
+    <div id="members-page" class="page active">
+        <div class="flex h-screen">
+            <!-- Sidebar -->
+            <div class="sidebar w-64 flex flex-col">
+                <div class="p-6 border-b border-custom">
+                    <img src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png" alt="Listoil Logo" class="h-10 sidebar-logo">
+                </div>
+                <div class="flex-1 overflow-y-auto py-4">
+                                        <nav class="px-2 space-y-1">
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Program</p>
+                        <a href="2.htm" data-page="dashboard" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tachometer-alt mr-3"></i>
+                            Dashboard
+                        </a>
+                        <a href="3.htm" data-page="masters-config" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-cogs mr-3"></i>
+                            Masters & Config
+                        </a>
+                        <a href="14.htm" data-page="members" class="sidebar-item active flex items-center px-4 py-3 text-sm font-medium rounded-lg">
+                            <i class="fas fa-users mr-3"></i>
+                            Members
+                        </a>
+                        <!-- <a href="4.htm" data-page="schemes-campaigns" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-bullhorn mr-3"></i>
+                            Schemes & Campaigns
+                        </a> -->
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Operations</p>
+                        <a href="5.htm" data-page="qr-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-qrcode mr-3"></i>
+                            QR Management
+                        </a>
+                        <a href="12.htm" data-page="process" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tasks mr-3"></i>
+                            Process
+                        </a>
+                        <a href="6.htm" data-page="communication" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-broadcast-tower mr-3"></i>
+                            Communication
+                        </a>
+                        <a href="13.htm" data-page="tickets" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-ticket-alt mr-3"></i>
+                            Tickets
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Insights</p>
+                        <a href="9.htm" data-page="mis-analytics" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-chart-line mr-3"></i>
+                            MIS & Analytics
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">System</p>
+                        <a href="10.htm" data-page="role-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-user-shield mr-3"></i>
+                            Role Management
+                        </a>
+                        <a href="15.htm" data-page="configuration" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-sliders-h mr-3"></i>
+                            Configuration
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-custom">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-opacity-20 flex items-center justify-center">
+                                <span class="text-blue-800 dark:text-blue-400 font-medium">A</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-primary">Admin User</p>
+                            <p class="text-xs text-tertiary">admin@listoil.com</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1 overflow-y-auto">
+                <!-- Top Bar -->
+                <div class="top-bar">
+                    <div class="px-6 py-4 flex items-center justify-between">
+                        <div>
+                            <h1 class="text-2xl font-bold text-primary">Members Management</h1>
+                            <p class="text-sm text-3">Manage users, KYC verification, and account controls</p>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition" id="add-member-btn">
+                                <i class="fas fa-user-plus mr-2"></i> Add Member
+                            </button>
+                            <div class="relative">
+                                <button class="p-2 text-tertiary relative">
+                                    <i class="fas fa-bell"></i>
+                                    <span class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500"></span>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <button class="p-2 text-tertiary">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </div>
+                            <button id="logout-btn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Members Content -->
+                    <div class="p-6">
+                        <!-- Tabs -->
+                        <div class="tabs">
+                            <button class="tab active" id="retailer-tab">Retailer</button>
+                            <button class="tab" id="mechanic-tab">Mechanic</button>
+                            <button class="tab" id="support-tab">Support / Call Centre</button>
+                        </div>
+                        
+                        <!-- Tab Contents -->
+                        <!-- Mechanics Tab Content -->
+                        <div id="mechanic-content" class="tab-content">
+                            <!-- Statistics -->
+                            <div class="grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-tertiary">Total Members</h4>
+                                        <i class="fas fa-user-hard-hat text-blue-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">1,247</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-green-600">+47</span>
+                                        <span class="text-tertiary ml-2">this month</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">KYC Pending</h4>
+                                        <i class="fas fa-clock text-orange-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">28</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-orange-600">+5</span>
+                                        <span class="text-3 ml-2">today</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">KYC Approved</h4>
+                                        <i class="fas fa-check-circle text-green-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">1,189</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-green-600">95.3%</span>
+                                        <span class="text-3 ml-2">approval rate</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">Active Today</h4>
+                                        <i class="fas fa-bolt text-yellow-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">342</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-blue-600">+12%</span>
+                                        <span class="text-3 ml-2">from yesterday</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Filters -->
+                            <div class="widget-card rounded-xl shadow p-4 mb-6">
+                                <div class="flex flex-wrap gap-4 items-center">
+                                    <div class="flex-1 min-w-[200px]">
+                                        <input type="text" placeholder="Search mechanics..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                                    </div>
+                                    <select class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                                        <option>All Status</option>
+                                        <option>KYC Pending</option>
+                                        <option>KYC Approved</option>
+                                        <option>KYC Rejected</option>
+                                        <option>Blocked</option>
+                                    </select>
+                                    <select class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                                        <option>All Regions</option>
+                                        <option>North</option>
+                                        <option>South</option>
+                                        <option>East</option>
+                                        <option>West</option>
+                                    </select>
+                                    <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                                        <i class="fas fa-filter mr-2"></i> Apply Filters
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Mechanics List -->
+                            <div class="widget-card rounded-xl shadow p-6">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="text-lg font-semibold text-primary">Mechanics List</h3>
+                                    <div class="flex space-x-2">
+                                        <button class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                            <i class="fas fa-download mr-1"></i> Export
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Mechanic</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Contact</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Region</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">KYC Status</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Joined</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <!-- KYC Pending Mechanic -->
+                                            <tr class="kyc-pending">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                                                            <span class="text-blue-800 font-medium">RK</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-sm font-medium text-primary">Ramesh Kumar</p>
+                                                            <p class="text-xs text-3">ID: MEC-2847</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p>9876543210</p>
+                                                    <p class="text-xs">ramesh.k@email.com</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">North Delhi</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="badge badge-warning">Pending</span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">Oct 24, 2023</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="actions-container">
+                                                        <!-- KYC Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-user-check mr-2"></i> KYC
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item success" onclick="approveKYC('MEC-2847', 'Ramesh Kumar', this)">
+                                                                    <i class="fas fa-check mr-2"></i> Approve KYC
+                                                                </button>
+                                                                <button class="action-dropdown-item danger" onclick="rejectKYC('MEC-2847', 'Ramesh Kumar', this)">
+                                                                    <i class="fas fa-times mr-2"></i> Reject KYC
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="viewKYCDocuments('MEC-2847', 'Ramesh Kumar')">
+                                                                    <i class="fas fa-file-alt mr-2"></i> View Documents
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- Block Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-ban mr-2"></i> Block
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item warning" onclick="blockAction('scan', 'MEC-2847', 'Ramesh Kumar', this)">
+                                                                    <i class="fas fa-qrcode mr-2"></i> Block Scan
+                                                                </button>
+                                                                <button class="action-dropdown-item warning" onclick="blockAction('redemption', 'MEC-2847', 'Ramesh Kumar', this)">
+                                                                    <i class="fas fa-gift mr-2"></i> Block Redemption
+                                                                </button>
+                                                                <button class="action-dropdown-item danger" onclick="blockAction('account', 'MEC-2847', 'Ramesh Kumar', this)">
+                                                                    <i class="fas fa-user-lock mr-2"></i> Block Account
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            
+                                            <!-- KYC Approved Mechanic -->
+                                            <tr class="kyc-approved">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                                            <span class="text-green-800 font-medium">SP</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-sm font-medium text-primary">Suresh Patel</p>
+                                                            <p class="text-xs text-3">ID: MEC-2846</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p>9876543209</p>
+                                                    <p class="text-xs">suresh.p@email.com</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">West Mumbai</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="badge badge-success">Approved</span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">Oct 15, 2023</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="actions-container">
+                                                        <!-- Block Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-ban mr-2"></i> Block
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item warning" onclick="blockAction('scan', 'MEC-2846', 'Suresh Patel', this)">
+                                                                    <i class="fas fa-qrcode mr-2"></i> Block Scan
+                                                                </button>
+                                                                <button class="action-dropdown-item warning" onclick="blockAction('redemption', 'MEC-2846', 'Suresh Patel', this)">
+                                                                    <i class="fas fa-gift mr-2"></i> Block Redemption
+                                                                </button>
+                                                                <button class="action-dropdown-item danger" onclick="blockAction('account', 'MEC-2846', 'Suresh Patel', this)">
+                                                                    <i class="fas fa-user-lock mr-2"></i> Block Account
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- More Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-ellipsis-h mr-2"></i> More
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item" onclick="viewDetails('MEC-2846', 'Suresh Patel')">
+                                                                    <i class="fas fa-eye mr-2"></i> View Details
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="editMember('MEC-2846', 'Suresh Patel')">
+                                                                    <i class="fas fa-edit mr-2"></i> Edit Member
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="sendMessage('MEC-2846', 'Suresh Patel')">
+                                                                    <i class="fas fa-envelope mr-2"></i> Send Message
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            
+                                            <!-- Blocked Mechanic -->
+                                            <tr class="kyc-approved">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                                                            <span class="text-red-800 font-medium">MJ</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-sm font-medium text-primary">Mahesh Jain</p>
+                                                            <p class="text-xs text-3">ID: MEC-2845</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p>9876543208</p>
+                                                    <p class="text-xs">mahesh.j@email.com</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">East Kolkata</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="badge badge-success">Approved</span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">Sep 28, 2023</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="status-badges">
+                                                        <span class="badge badge-danger">Scan Blocked</span>
+                                                    </div>
+                                                    <div class="actions-container mt-2">
+                                                        <!-- Unblock Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-unlock mr-2"></i> Unblock
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item success" onclick="unblockAction('scan', 'MEC-2845', 'Mahesh Jain', this)">
+                                                                    <i class="fas fa-qrcode mr-2"></i> Unblock Scan
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- More Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-ellipsis-h mr-2"></i> More
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item" onclick="viewDetails('MEC-2845', 'Mahesh Jain')">
+                                                                    <i class="fas fa-eye mr-2"></i> View Details
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="editMember('MEC-2845', 'Mahesh Jain')">
+                                                                    <i class="fas fa-edit mr-2"></i> Edit Member
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="sendMessage('MEC-2845', 'Mahesh Jain')">
+                                                                    <i class="fas fa-envelope mr-2"></i> Send Message
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Pagination -->
+                                <div class="flex justify-between items-center mt-6">
+                                    <div class="text-sm text-3">
+                                        Showing 1 to 3 of 1,247 mechanics
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">Previous</button>
+                                        <button class="px-3 py-1 bg-blue-600 text-white rounded-md text-sm">1</button>
+                                        <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">2</button>
+                                        <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">3</button>
+                                        <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">Next</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Retailers Tab Content -->
+                        <div id="retailer-content" class="tab-content active">
+                            <!-- Statistics -->
+                            <div class="grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-tertiary">Total Members</h4>
+                                        <i class="fas fa-store text-purple-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">856</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-green-600">+23</span>
+                                        <span class="text-tertiary ml-2">this month</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">KYC Pending</h4>
+                                        <i class="fas fa-clock text-orange-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">15</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-orange-600">+3</span>
+                                        <span class="text-3 ml-2">today</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">KYC Approved</h4>
+                                        <i class="fas fa-check-circle text-green-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">831</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-green-600">97.1%</span>
+                                        <span class="text-3 ml-2">approval rate</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">Active Today</h4>
+                                        <i class="fas fa-shopping-cart text-blue-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">428</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-blue-600">+8%</span>
+                                        <span class="text-3 ml-2">from yesterday</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Retailers List -->
+                            <div class="widget-card rounded-xl shadow p-6">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="text-lg font-semibold text-primary">Retailers List</h3>
+                                    <div class="flex space-x-2">
+                                        <button class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                            <i class="fas fa-download mr-1"></i> Export
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Retailer</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Store</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Contact</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">KYC Status</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <tr class="kyc-pending">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                                                            <span class="text-purple-800 font-medium">AS</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-sm font-medium text-primary">Amit Sharma</p>
+                                                            <p class="text-xs text-3">ID: RET-3847</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p class="font-medium">Sharma Electronics</p>
+                                                    <p class="text-xs">GK-1, New Delhi</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p>9876543211</p>
+                                                    <p class="text-xs">amit@sharma.com</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="badge badge-warning">Pending</span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="actions-container">
+                                                        <!-- KYC Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-user-check mr-2"></i> KYC
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item success" onclick="approveKYC('RET-3847', 'Amit Sharma', this)">
+                                                                    <i class="fas fa-check mr-2"></i> Approve KYC
+                                                                </button>
+                                                                <button class="action-dropdown-item danger" onclick="rejectKYC('RET-3847', 'Amit Sharma', this)">
+                                                                    <i class="fas fa-times mr-2"></i> Reject KYC
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="viewKYCDocuments('RET-3847', 'Amit Sharma')">
+                                                                    <i class="fas fa-file-alt mr-2"></i> View Documents
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr class="kyc-approved">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                                            <span class="text-green-800 font-medium">PG</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-sm font-medium text-primary">Pooja Gupta</p>
+                                                            <p class="text-xs text-3">ID: RET-3846</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p class="font-medium">Gupta Store</p>
+                                                    <p class="text-xs">Andheri, Mumbai</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p>9876543212</p>
+                                                    <p class="text-xs">pooja@gupta.com</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="badge badge-success">Approved</span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="actions-container">
+                                                        <!-- Block Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-ban mr-2"></i> Block
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item warning" onclick="blockAction('invoice-sync', 'RET-3846', 'Pooja Gupta', this)">
+                                                                    <i class="fas fa-file-invoice mr-2"></i> Block Invoice Sync
+                                                                </button>
+                                                                <button class="action-dropdown-item warning" onclick="blockAction('redemption', 'RET-3846', 'Pooja Gupta', this)">
+                                                                    <i class="fas fa-gift mr-2"></i> Block Redemption
+                                                                </button>
+                                                                <button class="action-dropdown-item danger" onclick="blockAction('account', 'RET-3846', 'Pooja Gupta', this)">
+                                                                    <i class="fas fa-user-lock mr-2"></i> Block Account
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- More Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-ellipsis-h mr-2"></i> More
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item" onclick="viewDetails('RET-3846', 'Pooja Gupta')">
+                                                                    <i class="fas fa-eye mr-2"></i> View Details
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="editMember('RET-3846', 'Pooja Gupta')">
+                                                                    <i class="fas fa-edit mr-2"></i> Edit Member
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="sendMessage('RET-3846', 'Pooja Gupta')">
+                                                                    <i class="fas fa-envelope mr-2"></i> Send Message
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Staff Tab Content -->
+                        <div id="support-content" class="tab-content">
+                            <!-- Statistics -->
+                            <div class="grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-tertiary">Total Staff</h4>
+                                        <i class="fas fa-user-tie text-indigo-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">42</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-green-600">+2</span>
+                                        <span class="text-tertiary ml-2">this month</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">Active Staff</h4>
+                                        <i class="fas fa-user-check text-green-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">38</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-green-600">90.5%</span>
+                                        <span class="text-3 ml-2">active rate</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">On Leave</h4>
+                                        <i class="fas fa-calendar-times text-orange-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">4</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-orange-600">2</span>
+                                        <span class="text-3 ml-2">on sick leave</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="text-sm font-medium text-3">Departments</h4>
+                                        <i class="fas fa-sitemap text-blue-500"></i>
+                                    </div>
+                                    <p class="text-2xl font-bold text-primary mb-1">6</p>
+                                    <div class="flex items-center text-sm">
+                                        <span class="text-blue-600">Sales</span>
+                                        <span class="text-3 ml-2">largest team</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Staff List -->
+                            <div class="widget-card rounded-xl shadow p-6">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="text-lg font-semibold text-primary">Staff Members</h3>
+                                    <div class="flex space-x-2">
+                                        <button class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                            <i class="fas fa-download mr-1"></i> Export
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Staff</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Role</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Department</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Contact</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Status</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <tr>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                                                            <span class="text-indigo-800 font-medium">AK</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-sm font-medium text-primary">Arun Kumar</p>
+                                                            <p class="text-xs text-3">ID: STF-001</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">Sales Manager</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">Sales</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p>9876543201</p>
+                                                    <p class="text-xs">arun@listoil.com</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="badge badge-success">Active</span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="actions-container">
+                                                        <!-- Staff Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-cog mr-2"></i> Actions
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item" onclick="viewDetails('STF-001', 'Arun Kumar')">
+                                                                    <i class="fas fa-eye mr-2"></i> View Details
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="editMember('STF-001', 'Arun Kumar')">
+                                                                    <i class="fas fa-edit mr-2"></i> Edit Staff
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="sendMessage('STF-001', 'Arun Kumar')">
+                                                                    <i class="fas fa-envelope mr-2"></i> Send Message
+                                                                </button>
+                                                                <button class="action-dropdown-item warning" onclick="deactivateStaff('STF-001', 'Arun Kumar', this)">
+                                                                    <i class="fas fa-user-slash mr-2"></i> Deactivate
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            
+                                            <tr>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                                                            <span class="text-purple-800 font-medium">SP</span>
+                                                        </div>
+                                                        <div>
+                                                            <p class="text-sm font-medium text-primary">Swati Patel</p>
+                                                            <p class="text-xs text-3">ID: STF-002</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">Support Executive</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">Support</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
+                                                    <p>9876543202</p>
+                                                    <p class="text-xs">swati@listoil.com</p>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="badge badge-warning">On Leave</span>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="actions-container">
+                                                        <!-- Staff Actions Dropdown -->
+                                                        <div class="action-dropdown">
+                                                            <button class="action-dropdown-toggle" onclick="toggleDropdown(this)">
+                                                                <i class="fas fa-cog mr-2"></i> Actions
+                                                                <i class="fas fa-chevron-down ml-2"></i>
+                                                            </button>
+                                                            <div class="action-dropdown-menu">
+                                                                <button class="action-dropdown-item" onclick="viewDetails('STF-002', 'Swati Patel')">
+                                                                    <i class="fas fa-eye mr-2"></i> View Details
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="editMember('STF-002', 'Swati Patel')">
+                                                                    <i class="fas fa-edit mr-2"></i> Edit Staff
+                                                                </button>
+                                                                <button class="action-dropdown-item" onclick="sendMessage('STF-002', 'Swati Patel')">
+                                                                    <i class="fas fa-envelope mr-2"></i> Send Message
+                                                                </button>
+                                                                <button class="action-dropdown-item success" onclick="activateStaff('STF-002', 'Swati Patel', this)">
+                                                                    <i class="fas fa-user-check mr-2"></i> Activate
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Member Details Modal -->
+    <div id="member-details-modal" class="modal">
+        <div class="modal-content" style="max-width:600px;">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-primary">Member Details</h3>
+                <button class="text-gray-500 hover:text-gray-700" onclick="document.getElementById('member-details-modal').classList.remove('show')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="member-details-body" class="grid grid-cols-2 gap-4 text-sm">
+                <div><span class="text-xs text-tertiary">Member ID</span><p class="font-medium text-primary" id="md-id">—</p></div>
+                <div><span class="text-xs text-tertiary">Name</span><p class="font-medium text-primary" id="md-name">—</p></div>
+                <div><span class="text-xs text-tertiary">Phone</span><p class="text-secondary" id="md-phone">—</p></div>
+                <div><span class="text-xs text-tertiary">DOB</span><p class="text-secondary" id="md-dob">—</p></div>
+                <div><span class="text-xs text-tertiary">Gender</span><p class="text-secondary" id="md-gender">—</p></div>
+                <div><span class="text-xs text-tertiary">Store / Workshop Name</span><p class="text-secondary" id="md-store">—</p></div>
+                <div class="col-span-2"><span class="text-xs text-tertiary">Location / Address</span><p class="text-secondary" id="md-address">—</p></div>
+                <div><span class="text-xs text-tertiary">Points Balance</span><p class="font-medium text-primary" id="md-points">—</p></div>
+                <div><span class="text-xs text-tertiary">Total Earnings</span><p class="font-medium text-primary" id="md-earnings">—</p></div>
+                <div><span class="text-xs text-tertiary">Bank Status</span><p id="md-bank-status">—</p></div>
+                <div><span class="text-xs text-tertiary">Bank Account Details</span><p class="text-secondary" id="md-bank">—</p></div>
+            </div>
+            <div class="flex justify-end mt-6 space-x-2">
+                <button class="btn btn-secondary" onclick="document.getElementById('member-details-modal').classList.remove('show')">Close</button>
+                <button class="btn btn-primary" onclick="document.getElementById('member-details-modal').classList.remove('show'); openEditMember()"><i class="fas fa-edit mr-2"></i> Edit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Member Modal -->
+    <div id="edit-member-modal" class="modal">
+        <div class="modal-content" style="max-width:600px;">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-primary">Edit Member</h3>
+                <button class="text-gray-500 hover:text-gray-700" onclick="document.getElementById('edit-member-modal').classList.remove('show')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="edit-member-form">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-input bg-gray-100" disabled value="Suresh Patel">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="text" class="form-input bg-gray-100" disabled value="+91 9876543210">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">DOB</label>
+                        <input type="date" class="form-input bg-gray-100" disabled value="1990-05-15">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Gender</label>
+                        <input type="text" class="form-input bg-gray-100" disabled value="Male">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Store / Workshop Name</label>
+                        <input type="text" class="form-input" value="Patel Auto Works">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Address Line 1</label>
+                        <input type="text" class="form-input" value="Shop No. 12, MG Road">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Address Line 2</label>
+                        <input type="text" class="form-input" value="Near Railway Station">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">City</label>
+                        <input type="text" class="form-input" value="Ahmedabad">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">State</label>
+                        <input type="text" class="form-input" value="Gujarat">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Pincode</label>
+                        <input type="text" class="form-input" value="380001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Bank Account</label>
+                        <input type="text" class="form-input bg-gray-100" disabled value="XXXX1234">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">IFSC</label>
+                        <input type="text" class="form-input bg-gray-100" disabled value="SBIN0001234">
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 mt-4">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-member-modal').classList.remove('show')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- KYC Documents Modal -->
+    <div id="kyc-modal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-primary">KYC Documents</h3>
+                <button class="text-gray-500 hover:text-gray-700" id="close-kyc-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="font-medium mb-2">Aadhaar Card</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                        <i class="fas fa-file-image text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-sm text-gray-600">Click to view document</p>
+                    </div>
+                    <div class="flex justify-center space-x-2 mt-2">
+                        <button class="px-3 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200"><i class="fas fa-check mr-1"></i>Approve</button>
+                        <button class="px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200"><i class="fas fa-times mr-1"></i>Reject</button>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-medium mb-2">PAN Card</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                        <i class="fas fa-file-image text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-sm text-gray-600">Click to view document</p>
+                    </div>
+                    <div class="flex justify-center space-x-2 mt-2">
+                        <button class="px-3 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200"><i class="fas fa-check mr-1"></i>Approve</button>
+                        <button class="px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200"><i class="fas fa-times mr-1"></i>Reject</button>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-medium mb-2">Address Proof</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                        <i class="fas fa-file-image text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-sm text-gray-600">Click to view document</p>
+                    </div>
+                    <div class="flex justify-center space-x-2 mt-2">
+                        <button class="px-3 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200"><i class="fas fa-check mr-1"></i>Approve</button>
+                        <button class="px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200"><i class="fas fa-times mr-1"></i>Reject</button>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-medium mb-2">Business License</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                        <i class="fas fa-file-image text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-sm text-gray-600">Click to view document</p>
+                    </div>
+                    <div class="flex justify-center space-x-2 mt-2">
+                        <button class="px-3 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200"><i class="fas fa-check mr-1"></i>Approve</button>
+                        <button class="px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200"><i class="fas fa-times mr-1"></i>Reject</button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+                <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition" id="close-kyc-btn">Close</button>
+                <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition" id="approve-kyc-modal-btn">Approve KYC</button>
+                <button class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition" id="reject-kyc-modal-btn">Reject KYC</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Logout button
+        document.getElementById('logout-btn').addEventListener('click', function() {
+            showNotification('Logging out...', 'success');
+            setTimeout(() => {
+                window.location.href = '1.htm';
+            }, 1000);
+        });
+        
+        // Add member button
+        document.getElementById('add-member-btn').addEventListener('click', function() {
+            showNotification('Opening member registration form...', 'success');
+        });
+        
+        // Sidebar navigation - links navigate via href attributes
+        
+        // Tab functionality
+        document.getElementById('retailer-tab').addEventListener('click', function() {
+            showTab('retailer');
+        });
+        
+        document.getElementById('mechanic-tab').addEventListener('click', function() {
+            showTab('mechanic');
+        });
+        
+        document.getElementById('support-tab').addEventListener('click', function() {
+            showTab('support');
+        });
+        
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.getElementById('retailer-content').classList.remove('active');
+            document.getElementById('mechanic-content').classList.remove('active');
+            document.getElementById('support-content').classList.remove('active');
+            
+            // Remove active class from all tabs
+            document.getElementById('retailer-tab').classList.remove('active');
+            document.getElementById('mechanic-tab').classList.remove('active');
+            document.getElementById('support-tab').classList.remove('active');
+            
+            // Show selected tab content
+            document.getElementById(`${tabName}-content`).classList.add('active');
+            
+            // Add active class to selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        // KYC Modal
+        const kycModal = document.getElementById('kyc-modal');
+        const closeKycModal = document.getElementById('close-kyc-modal');
+        const closeKycBtn = document.getElementById('close-kyc-btn');
+        
+        closeKycModal.addEventListener('click', function() {
+            kycModal.classList.remove('show');
+        });
+        
+        closeKycBtn.addEventListener('click', function() {
+            kycModal.classList.remove('show');
+        });
+        
+        // Dropdown toggle function
+        function toggleDropdown(button) {
+            const dropdown = button.nextElementSibling;
+            const allDropdowns = document.querySelectorAll('.action-dropdown-menu');
+            
+            // Close all other dropdowns
+            allDropdowns.forEach(d => {
+                if (d !== dropdown) {
+                    d.classList.remove('show');
+                }
+            });
+            
+            // Toggle current dropdown
+            dropdown.classList.toggle('show');
+        }
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.action-dropdown')) {
+                document.querySelectorAll('.action-dropdown-menu').forEach(d => {
+                    d.classList.remove('show');
+                });
+            }
+        });
+        
+        // KYC Actions
+        function approveKYC(userId, userName, button) {
+            showNotification(`Approving KYC for ${userName} (${userId})...`, 'success');
+            
+            // Update UI
+            const row = button.closest('tr');
+            row.classList.remove('kyc-pending');
+            row.classList.add('kyc-approved');
+            const statusBadge = row.querySelector('.badge-warning');
+            if (statusBadge) {
+                statusBadge.className = 'badge badge-success';
+                statusBadge.textContent = 'Approved';
+            }
+            
+            // Update dropdown to show block actions
+            const dropdown = button.closest('.action-dropdown-menu');
+            dropdown.innerHTML = `
+                <button class="action-dropdown-item warning" onclick="blockAction('scan', '${userId}', '${userName}', this)">
+                    <i class="fas fa-qrcode mr-2"></i> Block Scan
+                </button>
+                <button class="action-dropdown-item warning" onclick="blockAction('redemption', '${userId}', '${userName}', this)">
+                    <i class="fas fa-gift mr-2"></i> Block Redemption
+                </button>
+                <button class="action-dropdown-item danger" onclick="blockAction('account', '${userId}', '${userName}', this)">
+                    <i class="fas fa-user-lock mr-2"></i> Block Account
+                </button>
+            `;
+            
+            // Close dropdown
+            dropdown.classList.remove('show');
+        }
+        
+        function rejectKYC(userId, userName, button) {
+            showNotification(`Rejecting KYC for ${userName} (${userId})...`, 'error');
+            
+            // Update UI
+            const row = button.closest('tr');
+            row.classList.remove('kyc-pending');
+            row.classList.add('kyc-rejected');
+            const statusBadge = row.querySelector('.badge-warning');
+            if (statusBadge) {
+                statusBadge.className = 'badge badge-danger';
+                statusBadge.textContent = 'Rejected';
+            }
+            
+            // Remove KYC dropdown
+            const kycDropdown = button.closest('.action-dropdown');
+            kycDropdown.remove();
+            
+            // Close dropdown
+            button.closest('.action-dropdown-menu').classList.remove('show');
+        }
+        
+        function viewKYCDocuments(userId, userName) {
+            kycModal.classList.add('show');
+            showNotification(`Loading KYC documents for ${userName}...`, 'success');
+        }
+        
+        // Block Actions
+        function blockAction(blockType, userId, userName, button) {
+            const blockMessages = {
+                'scan': 'Blocking scan transactions',
+                'redemption': 'Blocking redemption',
+                'account': 'Blocking account'
+            };
+            
+            showNotification(`${blockMessages[blockType]} for ${userName} (${userId})...`, 'warning');
+            
+            // Update UI
+            const row = button.closest('tr');
+            const actionsCell = row.querySelector('td:last-child');
+            
+            // Add status badge
+            const statusBadges = actionsCell.querySelector('.status-badges') || 
+                               actionsCell.querySelector('.actions-container').parentElement;
+            
+            if (!statusBadges.querySelector('.status-badges')) {
+                const badgesContainer = document.createElement('div');
+                badgesContainer.className = 'status-badges';
+                actionsCell.insertBefore(badgesContainer, actionsCell.firstChild);
+            }
+            
+            const badgesContainer = statusBadges.querySelector('.status-badges') || statusBadges;
+            const badgeText = blockType.charAt(0).toUpperCase() + blockType.slice(1) + ' Blocked';
+            
+            // Check if badge already exists
+            if (!badgesContainer.querySelector(`[data-block-type="${blockType}"]`)) {
+                const badge = document.createElement('span');
+                badge.className = 'badge badge-danger';
+                badge.setAttribute('data-block-type', blockType);
+                badge.textContent = badgeText;
+                badgesContainer.appendChild(badge);
+            }
+            
+            // Update dropdown to show unblock action
+            const dropdown = button.closest('.action-dropdown-menu');
+            dropdown.innerHTML = `
+                <button class="action-dropdown-item success" onclick="unblockAction('${blockType}', '${userId}', '${userName}', this)">
+                    <i class="fas fa-unlock mr-2"></i> Unblock ${blockType.charAt(0).toUpperCase() + blockType.slice(1)}
+                </button>
+            `;
+            
+            // Close dropdown
+            dropdown.classList.remove('show');
+        }
+        
+        function unblockAction(blockType, userId, userName, button) {
+            showNotification(`Unblocking ${blockType} for ${userName} (${userId})...`, 'success');
+            
+            // Update UI
+            const row = button.closest('tr');
+            const actionsCell = row.querySelector('td:last-child');
+            
+            // Remove status badge
+            const badge = actionsCell.querySelector(`[data-block-type="${blockType}"]`);
+            if (badge) badge.remove();
+            
+            // Update dropdown to show block actions again
+            const dropdown = button.closest('.action-dropdown-menu');
+            dropdown.innerHTML = `
+                <button class="action-dropdown-item warning" onclick="blockAction('${blockType}', '${userId}', '${userName}', this)">
+                    <i class="fas fa-ban mr-2"></i> Block ${blockType.charAt(0).toUpperCase() + blockType.slice(1)}
+                </button>
+            `;
+            
+            // Close dropdown
+            dropdown.classList.remove('show');
+        }
+        
+        // Other Actions
+        function viewDetails(userId, userName) {
+            document.getElementById('md-id').textContent = userId;
+            document.getElementById('md-name').textContent = userName;
+            document.getElementById('md-phone').textContent = '+91 98765XXXXX';
+            document.getElementById('md-dob').textContent = '15-May-1990';
+            document.getElementById('md-gender').textContent = 'Male';
+            document.getElementById('md-store').textContent = 'Patel Auto Works';
+            document.getElementById('md-address').textContent = 'Shop No. 12, MG Road, Ahmedabad, Gujarat 380001';
+            document.getElementById('md-points').textContent = '2,450';
+            document.getElementById('md-earnings').textContent = '₹12,350';
+            document.getElementById('md-bank-status').innerHTML = '<span class="badge badge-success">Verified</span>';
+            document.getElementById('md-bank').textContent = 'SBI — XXXX1234';
+            document.getElementById('member-details-modal').classList.add('show');
+        }
+
+        function openEditMember() {
+            document.getElementById('edit-member-modal').classList.add('show');
+        }
+
+        // Edit member form submission
+        document.getElementById('edit-member-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            showNotification('Member details updated successfully', 'success');
+            document.getElementById('edit-member-modal').classList.remove('show');
+        });
+        
+        function editMember(userId, userName) {
+            openEditMember();
+        }
+        
+        function sendMessage(userId, userName) {
+            showNotification(`Opening message composer for ${userName} (${userId})...`, 'success');
+        }
+        
+        function deactivateStaff(userId, userName, button) {
+            showNotification(`Deactivating staff ${userName} (${userId})...`, 'warning');
+            
+            // Update UI
+            const row = button.closest('tr');
+            const statusBadge = row.querySelector('.badge-success');
+            if (statusBadge) {
+                statusBadge.className = 'badge badge-danger';
+                statusBadge.textContent = 'Inactive';
+            }
+            
+            // Update button
+            button.className = 'action-dropdown-item success';
+            button.setAttribute('onclick', `activateStaff('${userId}', '${userName}', this)`);
+            button.innerHTML = '<i class="fas fa-user-check mr-2"></i> Activate';
+            
+            // Close dropdown
+            button.closest('.action-dropdown-menu').classList.remove('show');
+        }
+        
+        function activateStaff(userId, userName, button) {
+            showNotification(`Activating staff ${userName} (${userId})...`, 'success');
+            
+            // Update UI
+            const row = button.closest('tr');
+            const statusBadge = row.querySelector('.badge-danger');
+            if (statusBadge) {
+                statusBadge.className = 'badge badge-success';
+                statusBadge.textContent = 'Active';
+            }
+            
+            // Update button
+            button.className = 'action-dropdown-item warning';
+            button.setAttribute('onclick', `deactivateStaff('${userId}', '${userName}', this)`);
+            button.innerHTML = '<i class="fas fa-user-slash mr-2"></i> Deactivate';
+            
+            // Close dropdown
+            button.closest('.action-dropdown-menu').classList.remove('show');
+        }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the first tab
+            showTab('retailer');
+            // Defensive: ensure Admin tab content has no Block Scan options
+        });
+    </script>
+</body>
+</html>

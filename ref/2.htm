@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listoil Admin Panel - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <style>
+        /* Include the same base styles from the previous pages */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease;
+        }
+        
+        /* Light theme styles */
+        .light-theme {
+            background: linear-gradient(135deg, #f8f9f7 0%, #eef2ef 100%);
+        }
+        
+        .light-theme .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .light-theme .input-field {
+            background-color: #ffffff;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+        
+        .light-theme .input-field:focus {
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        
+        .light-theme .btn-primary {
+            background: linear-gradient(to right, #2563eb, #1d4ed8);
+            color: #ffffff;
+        }
+        
+        .light-theme .btn-primary:hover {
+            background: linear-gradient(to right, #1d4ed8, #1e40af);
+        }
+        
+        .light-theme .text-primary {
+            color: #1f2937;
+        }
+        
+        .light-theme .text-secondary {
+            color: #6b7280;
+        }
+        
+        .light-theme .text-tertiary {
+            color: #9ca3af;
+        }
+        
+        .light-theme .text-accent {
+            color: #2563eb;
+        }
+        
+        .light-theme .text-accent:hover {
+            color: #1d4ed8;
+        }
+        
+        /* Dark theme styles */
+        .dark-theme {
+            background-color: #000000;
+        }
+        
+        .dark-theme .glass-effect {
+            background: rgba(28, 28, 30, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 56, 58, 0.3);
+        }
+        
+        .dark-theme .input-field {
+            background-color: #1c1c1e;
+            border: 1px solid #38383a;
+            color: #ffffff;
+        }
+        
+        .dark-theme .input-field:focus {
+            border-color: #007aff;
+            outline: none;
+        }
+        
+        .dark-theme .btn-primary {
+            background-color: #007aff;
+            color: #ffffff;
+        }
+        
+        .dark-theme .btn-primary:hover {
+            background-color: #0051d5;
+        }
+        
+        .dark-theme .text-primary {
+            color: #ffffff;
+        }
+        
+        .dark-theme .text-secondary {
+            color: #f2f2f7;
+        }
+        
+        .dark-theme .text-tertiary {
+            color: #8e8e93;
+        }
+        
+        .dark-theme .text-accent {
+            color: #007aff;
+        }
+        
+        .dark-theme .text-accent:hover {
+            color: #0051d5;
+        }
+
+        /* Card elevation / shadow system for cleaner separation */
+        :root {
+            --card-bg: #ffffff;
+            --card-border: rgba(16,24,40,0.04);
+            --card-shadow: 0 6px 18px rgba(16,24,40,0.06);
+            --card-shadow-hover: 0 10px 30px rgba(16,24,40,0.08);
+        }
+
+        .widget-card,
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--card-shadow);
+            transition: box-shadow 200ms ease, transform 160ms ease;
+            border-radius: 12px;
+        }
+
+        .widget-card:hover,
+        .stat-card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-4px);
+        }
+
+        /* Slightly subtler appearance in dark theme */
+        .dark-theme .widget-card,
+        .dark-theme .stat-card {
+            background: #141416 !important;
+            border-color: rgba(255,255,255,0.03) !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6) !important;
+        }
+
+        /* Sidebar styles */
+        .sidebar {
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .sidebar {
+            background-color: #1c1c1e;
+            border-right: 1px solid #38383a;
+        }
+        
+        .top-bar {
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .top-bar {
+            background-color: #1c1c1e;
+            border-bottom: 1px solid #38383a;
+        }
+        
+        .sidebar-item {
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .sidebar-item.active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+        
+        .sidebar-item.active i {
+            color: #3b82f6;
+        }
+        
+        .dark-theme .sidebar-item.active {
+            background-color: #2c2c2e;
+            color: #007aff;
+        }
+        
+        .dark-theme .sidebar-item.active i {
+            color: #007aff;
+        }
+        
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+        
+        .notification.success {
+            background-color: #10b981;
+        }
+        
+        .notification.error {
+            background-color: #ef4444;
+        }
+        
+        /* Badge styles */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .badge-primary {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+        
+        .dark-theme .badge-primary {
+            background-color: rgba(0, 122, 255, 0.2);
+            color: #007aff;
+        }
+        
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+        
+        .dark-theme .badge-success {
+            background-color: rgba(52, 199, 89, 0.2);
+            color: #34c759;
+        }
+        
+        .badge-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+        
+        .dark-theme .badge-warning {
+            background-color: rgba(255, 149, 0, 0.2);
+            color: #ff9500;
+        }
+        
+        .badge-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        
+        .dark-theme .badge-danger {
+            background-color: rgba(255, 59, 48, 0.2);
+            color: #ff3b30;
+        }
+        
+        /* Progress bar styles */
+        .progress-bar {
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .dark-theme .progress-bar {
+            background-color: #38383a;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #3b82f6;
+            border-radius: 4px;
+        }
+        
+        .dark-theme .progress-fill {
+            background-color: #007aff;
+        }
+
+        /* Date filter styles */
+        .date-filter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .date-filter input {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            font-size: 0.75rem;
+        }
+
+        .dark-theme .date-filter input {
+            background-color: #38383a;
+            border-color: #6366f1;
+            color: #ffffff;
+        }
+
+        .date-filter button {
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        .date-filter button:hover {
+            background-color: #2563eb;
+        }
+
+        .dark-theme .date-filter button {
+            background-color: #007aff;
+        }
+
+        .dark-theme .date-filter button:hover {
+            background-color: #0051d5;
+        }
+
+        /* Status indicator styles */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-active {
+            background-color: #10b981;
+        }
+
+        .status-blocked {
+            background-color: #ef4444;
+        }
+
+        .status-pending {
+            background-color: #f59e0b;
+        }
+
+        .status-approved {
+            background-color: #3b82f6;
+        }
+
+        /* ─── RBAC Dashboard Elements ────────────────────────────── */
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(59,130,246,0.12);
+            color: #2563eb;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .dark-theme .role-badge { background: rgba(0,122,255,0.2); color: #60a5fa; }
+
+        .scope-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 9px;
+            border-radius: 20px;
+            background: rgba(16,185,129,0.12);
+            color: #059669;
+            font-size: 0.72rem;
+            font-weight: 500;
+        }
+        .dark-theme .scope-tag { background: rgba(52,199,89,0.15); color: #34c759; }
+
+        .segment-border-retailer { border-left: 4px solid #7c3aed !important; }
+        .segment-border-mechanic { border-left: 4px solid #2563eb !important; }
+
+        .kpi-micro { cursor: default; }
+        .kpi-micro:hover { transform: translateY(-3px); box-shadow: var(--card-shadow-hover); }
+
+        .perf-tab { cursor: pointer; transition: all 150ms ease; }
+        .perf-tab.active-retailer { background: #7c3aed !important; color: #fff !important; }
+        .perf-tab.active-mechanic { background: #2563eb !important; color: #fff !important; }
+
+        .pending-item { transition: filter 150ms ease; cursor: pointer; }
+        .pending-item:hover { filter: brightness(0.96); }
+
+        .activity-dot {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* RBAC filter bar */
+        .rbac-bar { border: 1px solid rgba(16,24,40,0.06); }
+        .dark-theme .rbac-bar { border-color: rgba(255,255,255,0.06); }
+
+        /* filter locked state */
+        select[data-locked="true"] {
+            pointer-events: none;
+            opacity: 0.6;
+            background-color: #f3f4f6;
+        }
+        .dark-theme select[data-locked="true"] { background-color: #2c2c2e; }
+
+        /* ─── Responsive Layout ─────────────────────────────────── */
+
+        /* Sidebar overlay backdrop (mobile) */
+        #sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 49;
+        }
+        #sidebar-overlay.active { display: block; }
+
+        /* Hamburger button — hidden on desktop */
+        #hamburger-btn {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            color: inherit;
+            font-size: 1.25rem;
+        }
+
+        /* Logout/action text — hide label on small screens */
+        .topbar-action-label { display: inline; }
+
+        /* ── Tablet (≤1024px) ─────────────────────────────────── */
+        @media (max-width: 1024px) {
+            /* Main wrapper no longer full-viewport-height lockdown */
+            .flex.h-screen {
+                height: 100dvh;
+                overflow: hidden;
+            }
+
+            /* Sidebar slides in from left as a drawer */
+            .sidebar.w-64 {
+                position: fixed !important;
+                top: 0;
+                left: -260px;
+                width: 260px !important;
+                height: 100% !important;
+                z-index: 50;
+                transition: left 0.25s ease;
+                overflow-y: auto;
+            }
+            .sidebar.w-64.open { left: 0 !important; }
+
+            #hamburger-btn { display: inline-flex; align-items: center; }
+
+            /* Main content fills full width */
+            .flex-1.overflow-y-auto { width: 100% !important; }
+
+            /* Slightly tighter padding */
+            .p-6 { padding: 1rem !important; }
+
+            .top-bar .px-6 { padding-left: 1rem !important; padding-right: 1rem !important; }
+
+            /* Tables scroll horizontally */
+            .overflow-x-auto { overflow-x: auto !important; }
+            table { min-width: 600px; }
+        }
+
+        /* ── Small tablet / large phone (≤768px) ─────────────── */
+        @media (max-width: 768px) {
+            /* Stack 2-col grids */
+            .grid.lg\:grid-cols-2,
+            .grid.lg\:grid-cols-3 {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* lg:col-span-2 should not span on mobile */
+            .lg\:col-span-2 { grid-column: span 1 !important; }
+
+            /* Top bar: hide long labels */
+            .topbar-action-label { display: none; }
+
+            /* Reduce heading size */
+            h1.text-2xl { font-size: 1.15rem !important; }
+            .text-2xl { font-size: 1.15rem !important; }
+
+            /* Charts */
+            .h-64 { height: 220px !important; }
+
+            /* Date filter wraps */
+            .date-filter { flex-wrap: wrap; }
+            .date-filter input { flex: 1 1 120px; }
+
+            /* Top bar actions — collapse to icon-only */
+            #topbar-logout-label,
+            #topbar-refresh-label { display: none; }
+        }
+
+        /* ── Mobile (≤480px) ──────────────────────────────────── */
+        @media (max-width: 480px) {
+            .p-6 { padding: 0.75rem !important; }
+
+            .widget-card.rounded-xl, .stat-card { border-radius: 10px !important; }
+
+            .grid.md\:grid-cols-2,
+            .grid.md\:grid-cols-3,
+            .grid.lg\:grid-cols-4 {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* Charts taller on phones for readability */
+            .h-64 { height: 200px !important; }
+
+            /* Tables */
+            table { min-width: 480px; }
+
+            /* Prevent top bar icons from squishing */
+            .top-bar .flex.items-center.space-x-4 { gap: 6px !important; }
+
+            .top-bar button.px-4 { padding: 6px 10px !important; font-size: 0.75rem !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen light-theme">
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Sidebar overlay (mobile) -->
+    <div id="sidebar-overlay"></div>
+    
+    <!-- Dashboard Page -->
+    <div id="dashboard-page" class="page active">
+        <div class="flex h-screen">
+            <!-- Sidebar -->
+            <div class="sidebar w-64 flex flex-col">
+                <div class="p-6 border-b border-custom">
+                    <img src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png" alt="Listoil Logo" class="h-10 sidebar-logo">
+                </div>
+                <div class="flex-1 overflow-y-auto py-4">
+                                        <nav class="px-2 space-y-1">
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Program</p>
+                        <a href="2.htm" data-page="dashboard" class="sidebar-item active flex items-center px-4 py-3 text-sm font-medium rounded-lg">
+                            <i class="fas fa-tachometer-alt mr-3"></i>
+                            Dashboard
+                        </a>
+                        <a href="3.htm" data-page="masters-config" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-cogs mr-3"></i>
+                            Masters & Config
+                        </a>
+                        <a href="14.htm" data-page="members" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-users mr-3"></i>
+                            Members
+                        </a>
+                        <!-- <a href="4.htm" data-page="schemes-campaigns" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-bullhorn mr-3"></i>
+                            Schemes & Campaigns
+                        </a> -->
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Operations</p>
+                        <a href="5.htm" data-page="qr-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-qrcode mr-3"></i>
+                            QR Management
+                        </a>
+                        <a href="12.htm" data-page="process" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tasks mr-3"></i>
+                            Process
+                        </a>
+                        <a href="6.htm" data-page="communication" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-broadcast-tower mr-3"></i>
+                            Communication
+                        </a>
+                        <a href="13.htm" data-page="tickets" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-ticket-alt mr-3"></i>
+                            Tickets
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Insights</p>
+                        <a href="9.htm" data-page="mis-analytics" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-chart-line mr-3"></i>
+                            MIS & Analytics
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">System</p>
+                        <a href="10.htm" data-page="role-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-user-shield mr-3"></i>
+                            Role Management
+                        </a>
+                        <a href="15.htm" data-page="configuration" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-sliders-h mr-3"></i>
+                            Configuration
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-custom">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-opacity-20 flex items-center justify-center">
+                                <span class="text-blue-800 dark:text-blue-400 font-medium">A</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-primary">Admin User</p>
+                            <p class="text-xs text-tertiary">admin@listoil.com</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1 overflow-y-auto">
+                <!-- Top Bar -->
+                <div class="top-bar">
+                    <div class="px-6 py-4 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <button id="hamburger-btn" aria-label="Toggle navigation">
+                                <i class="fas fa-bars"></i>
+                            </button>
+                            <div>
+                                <h1 class="text-2xl font-bold text-primary">Dashboard</h1>
+                                <p class="text-sm text-3">Welcome back! Here's your loyalty program overview</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition" id="refresh-btn">
+                                <i class="fas fa-sync-alt mr-2"></i><span id="topbar-refresh-label">Refresh</span>
+                            </button>
+                            <div class="relative">
+                                <button class="p-2 text-tertiary relative">
+                                    <i class="fas fa-bell"></i>
+                                    <span class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500"></span>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <button class="p-2 text-tertiary">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </div>
+                            <button id="logout-btn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
+                                <i class="fas fa-sign-out-alt mr-2"></i><span id="topbar-logout-label">Logout</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard Content -->
+                    <div class="p-6">
+
+                        <!-- ① RBAC Context & Filter Bar -->
+                        <div class="widget-card rbac-bar rounded-xl p-4 mb-6">
+                            <div class="flex flex-wrap gap-4 items-center justify-between">
+                                <!-- Left: current role context -->
+                                <div class="flex items-center gap-3 flex-wrap">
+                                    <div class="role-badge" id="role-badge-label">
+                                        <i class="fas fa-user-shield mr-2"></i>
+                                        <span id="current-role-label">Admin</span>
+                                    </div>
+                                    <div class="scope-tag" id="scope-tag">
+                                        <i class="fas fa-globe mr-1"></i>
+                                        <span id="scope-label">National View</span>
+                                    </div>
+                                </div>
+                                <!-- Right: filters -->
+                                <div class="flex flex-wrap gap-3 items-end">
+                                    <div>
+                                        <label class="text-xs text-tertiary block mb-1">View As Role</label>
+                                        <select id="role-switcher" class="text-sm border border-gray-300 rounded-lg px-2 py-1.5">
+                                            <option value="admin">Admin</option>
+                                            <option value="tsm">TSM (State)</option>
+                                            <option value="sr">SR (City)</option>
+                                            <option value="support">Support / Call Center</option>
+                                            <option value="crm">CRM (Evolve)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-tertiary block mb-1">State</label>
+                                        <select id="state-filter" class="text-sm border border-gray-300 rounded-lg px-2 py-1.5">
+                                            <option value="">All States</option>
+                                            <option value="MH">Maharashtra</option>
+                                            <option value="DL">Delhi</option>
+                                            <option value="GJ">Gujarat</option>
+                                            <option value="UP">Uttar Pradesh</option>
+                                            <option value="KA">Karnataka</option>
+                                            <option value="TN">Tamil Nadu</option>
+                                            <option value="RJ">Rajasthan</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-tertiary block mb-1">City</label>
+                                        <select id="city-filter" class="text-sm border border-gray-300 rounded-lg px-2 py-1.5">
+                                            <option value="">All Cities</option>
+                                            <option value="MUM">Mumbai</option>
+                                            <option value="PUN">Pune</option>
+                                            <option value="DEL">Delhi</option>
+                                            <option value="AHM">Ahmedabad</option>
+                                            <option value="BLR">Bangalore</option>
+                                            <option value="CHN">Chennai</option>
+                                            <option value="JPR">Jaipur</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-tertiary block mb-1">Period</label>
+                                        <select id="period-filter" class="text-sm border border-gray-300 rounded-lg px-2 py-1.5">
+                                            <option>This Month</option>
+                                            <option>Last 30 Days</option>
+                                            <option>Last Quarter</option>
+                                            <option>This Year</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <button id="apply-filters-btn" class="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
+                                            <i class="fas fa-filter mr-1"></i> Apply
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ② Program Health KPIs (6 compact cards) -->
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                            <div class="widget-card kpi-micro rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-medium text-tertiary">Total Enrolled</span>
+                                    <i class="fas fa-users text-blue-500 text-sm"></i>
+                                </div>
+                                <p id="kpi-enrolled-val" class="text-xl font-bold text-primary">13,703</p>
+                                <p id="kpi-enrolled-sub" class="text-xs text-green-600 mt-1"><i class="fas fa-arrow-up mr-1"></i>+70 this week</p>
+                            </div>
+                            <div class="widget-card kpi-micro rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-medium text-tertiary">Active (30d)</span>
+                                    <i class="fas fa-user-check text-green-500 text-sm"></i>
+                                </div>
+                                <p id="kpi-active-val" class="text-xl font-bold text-primary">8,921</p>
+                                <p id="kpi-active-sub" class="text-xs text-tertiary mt-1">65% engagement</p>
+                            </div>
+                            <div class="widget-card kpi-micro rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-medium text-tertiary">Points Issued</span>
+                                    <i class="fas fa-coins text-yellow-500 text-sm"></i>
+                                </div>
+                                <p id="kpi-points-val" class="text-xl font-bold text-primary">24.4L</p>
+                                <p id="kpi-points-sub" class="text-xs text-green-600 mt-1"><i class="fas fa-arrow-up mr-1"></i>+18.7%</p>
+                            </div>
+                            <div class="widget-card kpi-micro rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-medium text-tertiary">Redeemed</span>
+                                    <i class="fas fa-gift text-purple-500 text-sm"></i>
+                                </div>
+                                <p id="kpi-redeemed-val" class="text-xl font-bold text-primary">18.0L</p>
+                                <p id="kpi-redeemed-sub" class="text-xs text-tertiary mt-1">73.8% burn rate</p>
+                            </div>
+                            <div class="widget-card kpi-micro rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-medium text-tertiary">KYC Pending</span>
+                                    <i class="fas fa-clock text-orange-500 text-sm"></i>
+                                </div>
+                                <p id="kpi-kyc-val" class="text-xl font-bold text-orange-500">43</p>
+                                <p id="kpi-kyc-sub" class="text-xs text-red-500 mt-1"><i class="fas fa-exclamation-circle mr-1"></i>8 urgent</p>
+                            </div>
+                            <div class="widget-card kpi-micro rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-medium text-tertiary">Redemption Q</span>
+                                    <i class="fas fa-hourglass-half text-red-500 text-sm"></i>
+                                </div>
+                                <p id="kpi-redq-val" class="text-xl font-bold text-red-500">27</p>
+                                <p id="kpi-redq-sub" class="text-xs text-tertiary mt-1">₹68,400 value</p>
+                            </div>
+                        </div>
+
+                        <!-- ③ Segment Overview: Retailers vs Mechanics -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+                            <!-- Retailer Panel -->
+                            <div class="widget-card segment-border-retailer rounded-xl p-5">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center">
+                                        <div class="w-9 h-9 bg-violet-100 rounded-lg flex items-center justify-center mr-3">
+                                            <i class="fas fa-store text-violet-600"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-base font-semibold text-primary">Retailers</h3>
+                                            <p class="text-xs text-tertiary">Invoice sync · Points via purchase</p>
+                                        </div>
+                                    </div>
+                                    <span class="badge" style="background:rgba(124,58,237,0.1);color:#6d28d9;font-size:0.7rem;">Invoice-based</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 mb-4">
+                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">Enrolled</p>
+                                        <p id="ret-enrolled-val" class="text-lg font-bold text-primary">856</p>
+                                        <p id="ret-enrolled-sub" class="text-xs text-green-600">+23 this month</p>
+                                    </div>
+                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">Active (Invoiced)</p>
+                                        <p id="ret-active-val" class="text-lg font-bold text-primary">612</p>
+                                        <p id="ret-active-sub" class="text-xs text-tertiary">71.5% active rate</p>
+                                    </div>
+                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">Invoice Value</p>
+                                        <p id="ret-invoice-val" class="text-lg font-bold text-primary">₹1.2Cr</p>
+                                        <p id="ret-invoice-sub" class="text-xs text-green-600">+12% vs last month</p>
+                                    </div>
+                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">Points Issued</p>
+                                        <p id="ret-points-val" class="text-lg font-bold text-primary">9.6L</p>
+                                        <p id="ret-points-sub" class="text-xs text-tertiary">via invoice sync</p>
+                                    </div>
+                                </div>
+                                <!-- KYC & block status -->
+                                <div class="flex flex-wrap gap-3 text-xs pt-2 border-t border-gray-100">
+                                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>KYC Approved: <strong id="ret-kyc-approved">831</strong></span>
+                                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-orange-400 inline-block"></span>KYC Pending: <strong id="ret-kyc-pending">15</strong></span>
+                                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>Blocked: <strong id="ret-blocked">10</strong></span>
+                                    <span class="flex items-center gap-1.5 ml-auto text-tertiary"><i class="fas fa-file-invoice mr-1"></i>Sync failures: <strong id="ret-sync-fail" class="text-red-500 ml-1">12</strong></span>
+                                </div>
+                            </div>
+
+                            <!-- Mechanic Panel -->
+                            <div class="widget-card segment-border-mechanic rounded-xl p-5">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center">
+                                        <div class="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                            <i class="fas fa-user-hard-hat text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-base font-semibold text-primary">Mechanics</h3>
+                                            <p class="text-xs text-tertiary">QR scan · Points per scan</p>
+                                        </div>
+                                    </div>
+                                    <span class="badge badge-primary" style="font-size:0.7rem;">Scan-based</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 mb-4">
+                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">Enrolled</p>
+                                        <p id="mec-enrolled-val" class="text-lg font-bold text-primary">12,847</p>
+                                        <p id="mec-enrolled-sub" class="text-xs text-green-600">+47 this month</p>
+                                    </div>
+                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">Active (Scanned)</p>
+                                        <p id="mec-active-val" class="text-lg font-bold text-primary">8,309</p>
+                                        <p id="mec-active-sub" class="text-xs text-tertiary">64.7% active rate</p>
+                                    </div>
+                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">QR Scans (30d)</p>
+                                        <p id="mec-scans-val" class="text-lg font-bold text-primary">24,832</p>
+                                        <p id="mec-scans-sub" class="text-xs text-green-600">+15.2% this period</p>
+                                    </div>
+                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                        <p class="text-xs text-tertiary mb-1">Points Issued</p>
+                                        <p id="mec-points-val" class="text-lg font-bold text-primary">14.8L</p>
+                                        <p id="mec-points-sub" class="text-xs text-tertiary">via QR scan</p>
+                                    </div>
+                                </div>
+                                <!-- KYC & block status -->
+                                <div class="flex flex-wrap gap-3 text-xs pt-2 border-t border-gray-100">
+                                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>KYC Approved: <strong id="mec-kyc-approved">1,189</strong></span>
+                                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-orange-400 inline-block"></span>KYC Pending: <strong id="mec-kyc-pending">28</strong></span>
+                                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>Blocked: <strong id="mec-blocked">42</strong></span>
+                                    <span class="flex items-center gap-1.5 ml-auto text-tertiary"><i class="fas fa-exclamation-triangle mr-1 text-red-400"></i>Fraud flags: <strong id="mec-fraud-flags" class="text-red-500 ml-1">5</strong></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ④ Charts Row -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            <!-- Enrollment Trend -->
+                            <div class="widget-card rounded-xl p-5">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 class="text-base font-semibold text-primary">Enrollment Trend</h3>
+                                        <p class="text-xs text-tertiary">Retailers vs Mechanics registrations</p>
+                                    </div>
+                                    <select id="enrollment-period" class="text-xs border border-gray-300 rounded px-2 py-1">
+                                        <option>Last 6 Months</option>
+                                        <option>Last 12 Months</option>
+                                    </select>
+                                </div>
+                                <div class="h-56">
+                                    <canvas id="enrollmentTrendChart"></canvas>
+                                </div>
+                            </div>
+                            <!-- Points Flow -->
+                            <div class="widget-card rounded-xl p-5">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 class="text-base font-semibold text-primary">Points Flow by Segment</h3>
+                                        <p class="text-xs text-tertiary">Issued (Retailer + Mechanic) vs Redeemed</p>
+                                    </div>
+                                    <select id="points-period" class="text-xs border border-gray-300 rounded px-2 py-1">
+                                        <option>Last 6 Months</option>
+                                        <option>Last 12 Months</option>
+                                    </select>
+                                </div>
+                                <div class="h-56">
+                                    <canvas id="pointsFlowChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ⑤ Bottom Row: Top Performers | Pending Actions | Activity Feed -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                            <!-- Top Performers (tabbed) -->
+                            <div class="widget-card rounded-xl p-5">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base font-semibold text-primary">Top Performers</h3>
+                                    <div class="flex text-xs border border-gray-200 rounded-lg overflow-hidden">
+                                        <button id="perf-retailer-btn" class="perf-tab active-retailer px-3 py-1" onclick="switchPerformers('retailer')">Retailers</button>
+                                        <button id="perf-mechanic-btn" class="perf-tab px-3 py-1 text-gray-600 hover:bg-gray-50" onclick="switchPerformers('mechanic')">Mechanics</button>
+                                    </div>
+                                </div>
+
+                                <!-- Retailer Top 5 -->
+                                <div id="perf-retailer-list" class="space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
+                                            <div><p class="text-sm font-medium text-primary">Sharma Lubricants</p><p class="text-xs text-tertiary">Mumbai · RET-3847</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹4.8L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
+                                            <div><p class="text-sm font-medium text-primary">Patel Hardware</p><p class="text-xs text-tertiary">Pune · RET-3201</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹3.9L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center flex-shrink-0">3</span>
+                                            <div><p class="text-sm font-medium text-primary">Gupta Auto Parts</p><p class="text-xs text-tertiary">Delhi · RET-2991</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹3.2L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0">4</span>
+                                            <div><p class="text-sm font-medium text-primary">Singh Auto Store</p><p class="text-xs text-tertiary">Ahmedabad · RET-2780</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹2.7L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0">5</span>
+                                            <div><p class="text-sm font-medium text-primary">Kumar Engines</p><p class="text-xs text-tertiary">Bangalore · RET-2654</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹2.1L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                    </div>
+                                </div>
+
+                                <!-- Mechanic Top 5 (hidden) -->
+                                <div id="perf-mechanic-list" class="space-y-3 hidden">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
+                                            <div><p class="text-sm font-medium text-primary">Ramesh Kumar</p><p class="text-xs text-tertiary">Delhi · MEC-2847</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-blue-600">2,450 pts</p><p class="text-xs text-tertiary">142 scans</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
+                                            <div><p class="text-sm font-medium text-primary">Suresh Patel</p><p class="text-xs text-tertiary">Mumbai · MEC-2846</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-blue-600">2,180 pts</p><p class="text-xs text-tertiary">127 scans</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center flex-shrink-0">3</span>
+                                            <div><p class="text-sm font-medium text-primary">Vijay Singh</p><p class="text-xs text-tertiary">Bangalore · MEC-2712</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-blue-600">1,920 pts</p><p class="text-xs text-tertiary">111 scans</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0">4</span>
+                                            <div><p class="text-sm font-medium text-primary">Anil Sharma</p><p class="text-xs text-tertiary">Pune · MEC-2634</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-blue-600">1,740 pts</p><p class="text-xs text-tertiary">98 scans</p></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0">5</span>
+                                            <div><p class="text-sm font-medium text-primary">Mohit Verma</p><p class="text-xs text-tertiary">Ahmedabad · MEC-2590</p></div>
+                                        </div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-blue-600">1,560 pts</p><p class="text-xs text-tertiary">89 scans</p></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Pending Actions -->
+                            <div class="widget-card rounded-xl p-5">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base font-semibold text-primary">Pending Actions</h3>
+                                    <span id="pending-total-badge" class="badge badge-warning">87 items</span>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="pending-item flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fas fa-id-card text-orange-500 w-4"></i>
+                                            <div><p class="text-sm font-medium">KYC Approvals</p><p id="pending-kyc-sub" class="text-xs text-tertiary">28 Mechanics · 15 Retailers</p></div>
+                                        </div>
+                                        <span id="pending-kyc-badge" class="badge badge-warning">43</span>
+                                    </div>
+                                    <div class="pending-item flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fas fa-gift text-red-500 w-4"></i>
+                                            <div><p class="text-sm font-medium">Redemption Queue</p><p id="pending-redq-sub" class="text-xs text-tertiary">₹68,400 total value</p></div>
+                                        </div>
+                                        <span id="pending-redq-badge" class="badge badge-danger">27</span>
+                                    </div>
+                                    <div class="pending-item flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fas fa-file-invoice text-yellow-600 w-4"></i>
+                                            <div><p class="text-sm font-medium">Invoice Sync Failures</p><p class="text-xs text-tertiary">Retailer invoices rejected</p></div>
+                                        </div>
+                                        <span id="pending-syncfail-badge" class="badge badge-warning">12</span>
+                                    </div>
+                                    <div class="pending-item flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fas fa-exclamation-triangle text-red-600 w-4"></i>
+                                            <div><p class="text-sm font-medium">Fraud Alerts</p><p class="text-xs text-tertiary">Unusual scan patterns</p></div>
+                                        </div>
+                                        <span id="pending-fraud-badge" class="badge badge-danger">5</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Program Activity Feed -->
+                            <div class="widget-card rounded-xl p-5">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base font-semibold text-primary">Program Activity</h3>
+                                    <button class="text-xs text-blue-600 hover:text-blue-800">View All</button>
+                                </div>
+                                <div class="space-y-3">
+                                    <div class="flex gap-3">
+                                        <div class="activity-dot bg-green-100 mt-0.5"><i class="fas fa-user-plus text-green-600 text-xs"></i></div>
+                                        <div><p class="text-sm font-medium text-primary">3 new mechanics enrolled</p><p class="text-xs text-tertiary">Mumbai · 12 mins ago</p></div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="activity-dot bg-violet-100 mt-0.5"><i class="fas fa-file-invoice text-violet-600 text-xs"></i></div>
+                                        <div><p class="text-sm font-medium text-primary">Invoice synced — ₹45,200</p><p class="text-xs text-tertiary">Sharma Lubricants · 25 mins ago</p></div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="activity-dot bg-yellow-100 mt-0.5"><i class="fas fa-qrcode text-yellow-600 text-xs"></i></div>
+                                        <div><p class="text-sm font-medium text-primary">148 QR scans in last hour</p><p class="text-xs text-tertiary">All regions · live</p></div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="activity-dot bg-red-100 mt-0.5"><i class="fas fa-gift text-red-500 text-xs"></i></div>
+                                        <div><p class="text-sm font-medium text-primary">Redemption approved — 2,500 pts</p><p class="text-xs text-tertiary">Ramesh Kumar · 1 hr ago</p></div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="activity-dot bg-orange-100 mt-0.5"><i class="fas fa-check-circle text-orange-500 text-xs"></i></div>
+                                        <div><p class="text-sm font-medium text-primary">KYC approved — Pooja Gupta</p><p class="text-xs text-tertiary">Retailer · RET-3846 · 2 hrs ago</p></div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="activity-dot bg-blue-100 mt-0.5"><i class="fas fa-bullhorn text-blue-500 text-xs"></i></div>
+                                        <div><p class="text-sm font-medium text-primary">Campaign "Monsoon Bonus" live</p><p class="text-xs text-tertiary">All mechanics · 3 hrs ago</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Logout button
+        document.getElementById('logout-btn').addEventListener('click', function() {
+            showNotification('Logging out...', 'success');
+            setTimeout(() => {
+                window.location.href = '1.htm';
+            }, 1000);
+        });
+        
+        // Refresh button
+        document.getElementById('refresh-btn').addEventListener('click', function() {
+            showNotification('Dashboard refreshed successfully', 'success');
+            renderDashboardValues();
+        });
+        
+        // Sidebar navigation - links navigate via href attributes
+        
+        // ── Top Performers tab switcher ───────────────────────────
+        function switchPerformers(segment) {
+            const retailerList = document.getElementById('perf-retailer-list');
+            const mechanicList = document.getElementById('perf-mechanic-list');
+            const rBtn = document.getElementById('perf-retailer-btn');
+            const mBtn = document.getElementById('perf-mechanic-btn');
+
+            if (segment === 'retailer') {
+                retailerList.classList.remove('hidden');
+                mechanicList.classList.add('hidden');
+                rBtn.classList.add('active-retailer');
+                rBtn.classList.remove('active-mechanic');
+                mBtn.classList.remove('active-retailer', 'active-mechanic');
+                mBtn.style.background = '';
+                mBtn.style.color = '';
+            } else {
+                mechanicList.classList.remove('hidden');
+                retailerList.classList.add('hidden');
+                mBtn.classList.add('active-mechanic');
+                mBtn.classList.remove('active-retailer');
+                rBtn.classList.remove('active-retailer', 'active-mechanic');
+                rBtn.style.background = '';
+                rBtn.style.color = '';
+            }
+        }
+
+        // ── Dashboard Data Model ──────────────────────────────────
+        const NATIONAL_BASE = {
+            enrolled: 13703, active: 8921,
+            pointsIssued: 244,   // tenths of L  (244 → 24.4L)
+            redeemed: 180,       // tenths of L  (180 → 18.0L)
+            kycPending: 43, redQueue: 27, redQueueVal: 68400,
+            ret: { enrolled: 856, active: 612, invoiceLakh: 120, points: 96,
+                   kycApproved: 831, kycPending: 15, blocked: 10, syncFail: 12 },
+            mec: { enrolled: 12847, active: 8309, scans: 24832, points: 148,
+                   kycApproved: 1189, kycPending: 28, blocked: 42, fraudFlags: 5 },
+            charts: {
+                enrollment: {
+                    retailers: [750, 778, 795, 812, 833, 856],
+                    mechanics: [10200, 10800, 11200, 11700, 12300, 12847]
+                },
+                pointsFlow: {
+                    retIssued:  [72000, 78000, 81000, 88000, 92000, 96000],
+                    mecIssued:  [105000, 118000, 124000, 138000, 143000, 148000],
+                    redeemed:   [65000, 74000, 80000, 90000, 97000, 104000]
+                }
+            }
+        };
+
+        // Scope multipliers: how much of national data each role sees
+        const SCOPE_FACTOR  = { admin: 1.0, tsm: 0.14, sr: 0.035, support: 1.0, crm: 1.0 };
+        // Period multipliers for flow/activity metrics (points, scans, invoice value)
+        const PERIOD_FLOW   = { 'This Month': 1, 'Last 30 Days': 1, 'Last Quarter': 3, 'This Year': 12 };
+        // Period multipliers for stock/count metrics (enrolled, pending counts)
+        const PERIOD_STOCK  = { 'This Month': 1, 'Last 30 Days': 1, 'Last Quarter': 1.15, 'This Year': 1.4 };
+
+        let _currentRole   = 'admin';
+        let _currentPeriod = 'This Month';
+
+        function _sc(val, sf, pf) { return Math.round(val * sf * pf); }
+
+        function _fmtN(n)  { return Number(n).toLocaleString('en-IN'); }
+        function _fmtL(t)  { return (t / 10).toFixed(1) + 'L'; }          // tenths-of-L → "24.4L"
+        function _fmtCr(l) {                                               // lakh amount → display
+            if (l >= 100) return '₹' + (l / 100).toFixed(1) + 'Cr';
+            if (l >= 1)   return '₹' + l.toFixed(1) + 'L';
+            return '₹' + Math.round(l * 100) + 'K';
+        }
+        function _fmtRs(v) {
+            if (v >= 10000000) return '₹' + (v / 10000000).toFixed(1) + 'Cr';
+            if (v >= 100000)   return '₹' + (v / 100000).toFixed(1) + 'L';
+            return '₹' + Math.round(v).toLocaleString('en-IN');
+        }
+        function _setText(id, html) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (typeof html === 'number') el.textContent = html;
+            else el.innerHTML = String(html);
+        }
+
+        function renderDashboardValues() {
+            var sf  = SCOPE_FACTOR[_currentRole]   || 1;
+            var pf  = PERIOD_FLOW[_currentPeriod]  || 1;
+            var psf = PERIOD_STOCK[_currentPeriod] || 1;
+            var B   = NATIONAL_BASE;
+
+            // ── KPI row ───────────────────────────────────────────
+            var enrolled     = _sc(B.enrolled,     sf, psf);
+            var active       = _sc(B.active,       sf, psf);
+            var pointsIssued = _sc(B.pointsIssued, sf, pf);
+            var redeemed     = _sc(B.redeemed,     sf, pf);
+            var kycPending   = Math.max(1, _sc(B.kycPending, sf, psf));
+            var redQueue     = Math.max(1, _sc(B.redQueue,   sf, psf));
+            var redQueueVal  = _sc(B.redQueueVal,  sf, pf);
+
+            _setText('kpi-enrolled-val', _fmtN(enrolled));
+            _setText('kpi-enrolled-sub', '<i class="fas fa-arrow-up mr-1"></i>+' + Math.max(1, Math.round(enrolled * 0.0051)) + ' this week');
+            _setText('kpi-active-val',   _fmtN(active));
+            _setText('kpi-active-sub',   Math.round(active / enrolled * 100) + '% engagement');
+            _setText('kpi-points-val',   _fmtL(pointsIssued));
+            _setText('kpi-points-sub',   '<i class="fas fa-arrow-up mr-1"></i>+' + (sf < 0.1 ? '12.3' : sf < 0.5 ? '15.1' : '18.7') + '%');
+            _setText('kpi-redeemed-val', _fmtL(redeemed));
+            _setText('kpi-redeemed-sub', Math.round(redeemed / pointsIssued * 100) + '% burn rate');
+            _setText('kpi-kyc-val',      kycPending);
+            _setText('kpi-kyc-sub',      '<i class="fas fa-exclamation-circle mr-1"></i>' + Math.max(1, Math.round(kycPending * 0.18)) + ' urgent');
+            _setText('kpi-redq-val',     redQueue);
+            _setText('kpi-redq-sub',     _fmtRs(redQueueVal) + ' value');
+
+            // ── Retailer segment ──────────────────────────────────
+            var retEnrolled = Math.max(1, _sc(B.ret.enrolled,    sf, psf));
+            var retActive   = Math.max(1, _sc(B.ret.active,      sf, psf));
+            var retInvoice  = Math.max(0.1, B.ret.invoiceLakh * sf * pf);
+            var retPoints   = Math.max(1, _sc(B.ret.points,      sf, pf));
+            var retKycApp   = Math.max(1, _sc(B.ret.kycApproved, sf, psf));
+            var retKycPend  = Math.max(0, _sc(B.ret.kycPending,  sf, psf));
+            var retBlocked  = Math.max(0, _sc(B.ret.blocked,     sf, psf));
+            var retSyncFail = Math.max(0, _sc(B.ret.syncFail,    sf, pf));
+
+            _setText('ret-enrolled-val',   _fmtN(retEnrolled));
+            _setText('ret-enrolled-sub',   '+' + Math.max(1, Math.round(retEnrolled * 0.027)) + ' this month');
+            _setText('ret-active-val',     _fmtN(retActive));
+            _setText('ret-active-sub',     Math.round(retActive / retEnrolled * 100) + '% active rate');
+            _setText('ret-invoice-val',    _fmtCr(retInvoice));
+            _setText('ret-invoice-sub',    '+' + (sf < 0.1 ? '8' : '12') + '% vs last month');
+            _setText('ret-points-val',     _fmtL(retPoints));
+            _setText('ret-kyc-approved',   _fmtN(retKycApp));
+            _setText('ret-kyc-pending',    retKycPend);
+            _setText('ret-blocked',        retBlocked);
+            _setText('ret-sync-fail',      retSyncFail);
+
+            // ── Mechanic segment ──────────────────────────────────
+            var mecEnrolled = Math.max(1, _sc(B.mec.enrolled,    sf, psf));
+            var mecActive   = Math.max(1, _sc(B.mec.active,      sf, psf));
+            var mecScans    = Math.max(1, _sc(B.mec.scans,       sf, pf));
+            var mecPoints   = Math.max(1, _sc(B.mec.points,      sf, pf));
+            var mecKycApp   = Math.max(1, _sc(B.mec.kycApproved, sf, psf));
+            var mecKycPend  = Math.max(0, _sc(B.mec.kycPending,  sf, psf));
+            var mecBlocked  = Math.max(0, _sc(B.mec.blocked,     sf, psf));
+            var mecFraud    = Math.max(0, _sc(B.mec.fraudFlags,  sf, pf));
+
+            _setText('mec-enrolled-val',   _fmtN(mecEnrolled));
+            _setText('mec-enrolled-sub',   '+' + Math.max(1, Math.round(mecEnrolled * 0.0037)) + ' this month');
+            _setText('mec-active-val',     _fmtN(mecActive));
+            _setText('mec-active-sub',     Math.round(mecActive / mecEnrolled * 100) + '% active rate');
+            _setText('mec-scans-val',      _fmtN(mecScans));
+            _setText('mec-scans-sub',      '+' + (sf < 0.1 ? '11.4' : '15.2') + '% this period');
+            _setText('mec-points-val',     _fmtL(mecPoints));
+            _setText('mec-kyc-approved',   _fmtN(mecKycApp));
+            _setText('mec-kyc-pending',    mecKycPend);
+            _setText('mec-blocked',        mecBlocked);
+            _setText('mec-fraud-flags',    mecFraud);
+
+            // ── Pending Actions ───────────────────────────────────
+            var pendKyc      = Math.max(1, _sc(B.kycPending,      sf, psf));
+            var pendRedQ     = Math.max(1, _sc(B.redQueue,         sf, psf));
+            var pendSync     = Math.max(0, _sc(B.ret.syncFail,     sf, pf));
+            var pendFraud    = Math.max(0, _sc(B.mec.fraudFlags,   sf, pf));
+            var pendTotal    = pendKyc + pendRedQ + pendSync + pendFraud;
+            var pendMecKyc   = Math.max(0, _sc(B.mec.kycPending,  sf, psf));
+            var pendRetKyc   = Math.max(0, _sc(B.ret.kycPending,  sf, psf));
+
+            _setText('pending-total-badge',    pendTotal + ' items');
+            _setText('pending-kyc-badge',      pendKyc);
+            _setText('pending-kyc-sub',        pendMecKyc + ' Mechanics · ' + pendRetKyc + ' Retailers');
+            _setText('pending-redq-badge',     pendRedQ);
+            _setText('pending-redq-sub',       _fmtRs(redQueueVal) + ' total value');
+            _setText('pending-syncfail-badge', pendSync);
+            _setText('pending-fraud-badge',    pendFraud);
+
+            // ── Charts ────────────────────────────────────────────
+            _renderCharts(sf, pf, psf);
+        }
+
+        function _renderCharts(sf, pf, psf) {
+            var B = NATIONAL_BASE;
+            if (enrollmentTrendChart) {
+                enrollmentTrendChart.data.datasets[0].data = B.charts.enrollment.retailers.map(function(v) { return Math.round(v * sf * psf); });
+                enrollmentTrendChart.data.datasets[1].data = B.charts.enrollment.mechanics.map(function(v) { return Math.round(v * sf * psf); });
+                try { enrollmentTrendChart.update(); } catch(e) {}
+            }
+            if (pointsFlowChart) {
+                pointsFlowChart.data.datasets[0].data = B.charts.pointsFlow.retIssued.map(function(v) { return Math.round(v * sf * pf); });
+                pointsFlowChart.data.datasets[1].data = B.charts.pointsFlow.mecIssued.map(function(v) { return Math.round(v * sf * pf); });
+                pointsFlowChart.data.datasets[2].data = B.charts.pointsFlow.redeemed.map(function(v) { return Math.round(v * sf * pf); });
+                try { pointsFlowChart.update(); } catch(e) {}
+            }
+        }
+
+        // ── RBAC config ───────────────────────────────────────────
+        const RBAC_CONFIG = {
+            admin:   { label: 'Admin',                scope: 'National View', stateLock: false, cityLock: false, stateValue: '', cityValue: '' },
+            tsm:     { label: 'TSM',                  scope: 'State View',   stateLock: true,  cityLock: false, stateValue: 'MH', cityValue: '' },
+            sr:      { label: 'SR',                   scope: 'City View',    stateLock: true,  cityLock: true,  stateValue: 'MH', cityValue: 'MUM' },
+            support: { label: 'Support / Call Center', scope: 'National View', stateLock: false, cityLock: false, stateValue: '', cityValue: '' },
+            crm:     { label: 'CRM (Evolve)',           scope: 'National View', stateLock: false, cityLock: false, stateValue: '', cityValue: '' }
+        };
+
+        function applyRBACRole(role) {
+            _currentRole = role;
+            var cfg = RBAC_CONFIG[role] || RBAC_CONFIG.admin;
+            var stateEl = document.getElementById('state-filter');
+            var cityEl  = document.getElementById('city-filter');
+
+            // Update badge and scope tag
+            document.getElementById('current-role-label').textContent = cfg.label;
+            document.getElementById('scope-label').textContent = cfg.scope;
+
+            // Lock / unlock filters
+            stateEl.value = cfg.stateValue;
+            cityEl.value  = cfg.cityValue;
+            stateEl.setAttribute('data-locked', cfg.stateLock);
+            cityEl.setAttribute('data-locked', cfg.cityLock);
+
+            renderDashboardValues();
+            showNotification('Dashboard filtered for: ' + cfg.label + ' — ' + cfg.scope, 'success');
+        }
+
+        document.getElementById('role-switcher').addEventListener('change', function() {
+            applyRBACRole(this.value);
+        });
+
+        document.getElementById('apply-filters-btn').addEventListener('click', function() {
+            var periodEl = document.getElementById('period-filter');
+            _currentPeriod = periodEl.value || 'This Month';
+            var state  = document.getElementById('state-filter').value;
+            var city   = document.getElementById('city-filter').value;
+            var parts  = [];
+            if (state) parts.push(document.getElementById('state-filter').options[document.getElementById('state-filter').selectedIndex].text);
+            if (city)  parts.push(document.getElementById('city-filter').options[document.getElementById('city-filter').selectedIndex].text);
+            parts.push(_currentPeriod);
+            renderDashboardValues();
+            showNotification('Dashboard updated: ' + parts.join(' · '), 'success');
+        });
+
+        // ── Chart init ────────────────────────────────────────────
+        let enrollmentTrendChart, pointsFlowChart;
+
+        function waitForCanvasReady(canvas, maxAttempts, interval) {
+            maxAttempts = maxAttempts || 20;
+            interval    = interval    || 100;
+            return new Promise(function(resolve) {
+                if (!canvas) return resolve(false);
+                var attempts = 0;
+                function check() {
+                    var rect = canvas.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) return resolve(true);
+                    attempts++;
+                    if (attempts >= maxAttempts) return resolve(false);
+                    setTimeout(check, interval);
+                }
+                check();
+            });
+        }
+
+        async function initCharts() {
+            // ── Enrollment Trend (line) ───────────────────────────
+            const enrollCtx = document.getElementById('enrollmentTrendChart');
+            if (enrollCtx) {
+                const ok = await waitForCanvasReady(enrollCtx, 30, 100);
+                if (ok && !enrollmentTrendChart) {
+                    enrollmentTrendChart = new Chart(enrollCtx, {
+                        type: 'line',
+                        data: {
+                            labels: ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'],
+                            datasets: [
+                                {
+                                    label: 'Retailers',
+                                    data: [750, 778, 795, 812, 833, 856],
+                                    borderColor: '#7c3aed',
+                                    backgroundColor: 'rgba(124,58,237,0.08)',
+                                    tension: 0.4,
+                                    fill: true,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6
+                                },
+                                {
+                                    label: 'Mechanics',
+                                    data: [10200, 10800, 11200, 11700, 12300, 12847],
+                                    borderColor: '#2563eb',
+                                    backgroundColor: 'rgba(37,99,235,0.08)',
+                                    tension: 0.4,
+                                    fill: true,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    yAxisID: 'y2'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
+                            plugins: {
+                                legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 11 } } }
+                            },
+                            scales: {
+                                y:  { beginAtZero: false, position: 'left',  title: { display: true, text: 'Retailers', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                                y2: { beginAtZero: false, position: 'right', title: { display: true, text: 'Mechanics', font: { size: 10 } }, grid: { drawOnChartArea: false } },
+                                x:  { grid: { display: false } }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // ── Points Flow (grouped bar) ─────────────────────────
+            const flowCtx = document.getElementById('pointsFlowChart');
+            if (flowCtx) {
+                const ok = await waitForCanvasReady(flowCtx, 30, 100);
+                if (ok && !pointsFlowChart) {
+                    pointsFlowChart = new Chart(flowCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'],
+                            datasets: [
+                                {
+                                    label: 'Retailer Points Issued',
+                                    data: [72000, 78000, 81000, 88000, 92000, 96000],
+                                    backgroundColor: 'rgba(124,58,237,0.75)',
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: 'Mechanic Points Issued',
+                                    data: [105000, 118000, 124000, 138000, 143000, 148000],
+                                    backgroundColor: 'rgba(37,99,235,0.75)',
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: 'Points Redeemed',
+                                    data: [65000, 74000, 80000, 90000, 97000, 104000],
+                                    backgroundColor: 'rgba(249,115,22,0.75)',
+                                    borderRadius: 4
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
+                            plugins: {
+                                legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 11 } } }
+                            },
+                            scales: {
+                                x: { grid: { display: false } },
+                                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' },
+                                     ticks: { callback: function(v) { return (v/1000) + 'K'; } } }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // ── Page init ─────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts().then(function() { renderDashboardValues(); });
+            // Auto-refresh every 60 seconds (reduced noise)
+            setInterval(function() {
+                renderDashboardValues();
+            }, 60000);
+        });
+
+        // ── Sidebar hamburger toggle ──────────────────────────────
+        (function() {
+            const hamburger = document.getElementById('hamburger-btn');
+            const sidebar   = document.querySelector('.sidebar.w-64');
+            const overlay   = document.getElementById('sidebar-overlay');
+
+            function openSidebar() {
+                sidebar.classList.add('open');
+                overlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+            function closeSidebar() {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+
+            if (hamburger) hamburger.addEventListener('click', function() {
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+            });
+            if (overlay) overlay.addEventListener('click', closeSidebar);
+
+            // Close sidebar when a nav link is clicked on mobile
+            document.querySelectorAll('.sidebar-item').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 1024) closeSidebar();
+                });
+            });
+
+            // On resize: if desktop, remove drawer state
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 1024) closeSidebar();
+            });
+        })();
+    </script>
+</body>
+</html>

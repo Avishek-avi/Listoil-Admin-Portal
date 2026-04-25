@@ -1,0 +1,1536 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listoil Admin Panel - MIS & Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Include the same base styles from the previous pages */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease;
+        }
+        
+        /* Light theme styles */
+        .light-theme {
+            background: linear-gradient(135deg, #f8f9f7 0%, #eef2ef 100%);
+        }
+        
+        .light-theme .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .light-theme .input-field {
+            background-color: #ffffff;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+        
+        .light-theme .input-field:focus {
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        
+        .light-theme .btn-primary {
+            background: linear-gradient(to right, #2563eb, #1d4ed8);
+            color: #ffffff;
+        }
+        
+        .light-theme .btn-primary:hover {
+            background: linear-gradient(to right, #1d4ed8, #1e40af);
+        }
+        
+        .light-theme .text-primary {
+            color: #1f2937;
+        }
+        
+        .light-theme .text-secondary {
+            color: #6b7280;
+        }
+        
+        .light-theme .text-tertiary {
+            color: #9ca3af;
+        }
+        
+        .light-theme .text-accent {
+            color: #2563eb;
+        }
+        
+        .light-theme .text-accent:hover {
+            color: #1d4ed8;
+        }
+        
+        /* Dark theme styles */
+        .dark-theme {
+            background-color: #000000;
+        }
+        
+        .dark-theme .glass-effect {
+            background: rgba(28, 28, 30, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 56, 58, 0.3);
+        }
+        
+        .dark-theme .input-field {
+            background-color: #1c1c1e;
+            border: 1px solid #38383a;
+            color: #ffffff;
+        }
+        
+        .dark-theme .input-field:focus {
+            border-color: #007aff;
+            outline: none;
+        }
+        
+        .dark-theme .btn-primary {
+            background-color: #007aff;
+            color: #ffffff;
+        }
+        
+        .dark-theme .btn-primary:hover {
+            background-color: #0051d5;
+        }
+        
+        .dark-theme .text-primary {
+            color: #ffffff;
+        }
+        
+        .dark-theme .text-secondary {
+            color: #f2f2f7;
+        }
+        
+        .dark-theme .text-tertiary {
+            color: #8e8e93;
+        }
+        
+        .dark-theme .text-accent {
+            color: #007aff;
+        }
+        
+        .dark-theme .text-accent:hover {
+            color: #0051d5;
+        }
+
+        /* Card elevation / shadow system for cleaner separation */
+        :root {
+            --card-bg: #ffffff;
+            --card-border: rgba(16,24,40,0.04);
+            --card-shadow: 0 6px 18px rgba(16,24,40,0.06);
+            --card-shadow-hover: 0 10px 30px rgba(16,24,40,0.08);
+        }
+
+        .widget-card,
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--card-shadow);
+            transition: box-shadow 200ms ease, transform 160ms ease;
+            border-radius: 12px;
+        }
+
+        .widget-card:hover,
+        .stat-card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-4px);
+        }
+
+        /* Slightly subtler appearance in dark theme */
+        .dark-theme .widget-card,
+        .dark-theme .stat-card {
+            background: #141416 !important;
+            border-color: rgba(255,255,255,0.03) !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6) !important;
+        }
+
+        /* Sidebar styles */
+        .sidebar {
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .sidebar {
+            background-color: #1c1c1e;
+            border-right: 1px solid #38383a;
+        }
+        
+        .top-bar {
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .top-bar {
+            background-color: #1c1c1e;
+            border-bottom: 1px solid #38383a;
+        }
+        
+        .sidebar-item {
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .sidebar-item.active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+        
+        .sidebar-item.active i {
+            color: #3b82f6;
+        }
+        
+        .dark-theme .sidebar-item.active {
+            background-color: #2c2c2e;
+            color: #007aff;
+        }
+        
+        .dark-theme .sidebar-item.active i {
+            color: #007aff;
+        }
+        
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+        
+        .notification.success {
+            background-color: #10b981;
+        }
+        
+        .notification.error {
+            background-color: #ef4444;
+        }
+        
+        /* Tab styles */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 1.5rem;
+        }
+        
+        .dark-theme .tabs {
+            border-bottom-color: #38383a;
+        }
+        
+        .tab {
+            padding: 0.75rem 1rem;
+            font-weight: 500;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .dark-theme .tab {
+            color: #8e8e93;
+        }
+        
+        .tab:hover {
+            color: #374151;
+        }
+        
+        .dark-theme .tab:hover {
+            color: #f2f2f7;
+        }
+        
+        .tab.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .dark-theme .tab.active {
+            color: #007aff;
+            border-bottom-color: #007aff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Form styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .dark-theme .form-label {
+            color: #f2f2f7;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-input {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-input:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-select {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-select:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        /* Button styles */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background-color: #3b82f6;
+            color: #ffffff;
+            border: 1px solid #3b82f6;
+        }
+        
+        .btn-primary:hover {
+            background-color: #2563eb;
+            border-color: #2563eb;
+        }
+        
+        .dark-theme .btn-primary {
+            background-color: #007aff;
+            border-color: #007aff;
+        }
+        
+        .dark-theme .btn-primary:hover {
+            background-color: #0051d5;
+            border-color: #0051d5;
+        }
+        
+        .btn-secondary {
+            background-color: #ffffff;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #f9fafb;
+            border-color: #d1d5db;
+        }
+        
+        .dark-theme .btn-secondary {
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+            border-color: #38383a;
+        }
+        
+        .dark-theme .btn-secondary:hover {
+            background-color: #2c2c2e;
+            border-color: #38383a;
+        }
+        
+        /* Badge styles */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .badge-primary {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+        
+        .dark-theme .badge-primary {
+            background-color: rgba(0, 122, 255, 0.2);
+            color: #007aff;
+        }
+        
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+        
+        .dark-theme .badge-success {
+            background-color: rgba(52, 199, 89, 0.2);
+            color: #34c759;
+        }
+        
+        .badge-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+        
+        .dark-theme .badge-warning {
+            background-color: rgba(255, 149, 0, 0.2);
+            color: #ff9500;
+        }
+        
+        .badge-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        
+        .dark-theme .badge-danger {
+            background-color: rgba(255, 59, 48, 0.2);
+            color: #ff3b30;
+        }
+        
+        /* Table styles */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th {
+            text-align: left;
+            padding: 0.75rem;
+            font-weight: 500;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .dark-theme .data-table th {
+            color: #f2f2f7;
+            border-bottom-color: #38383a;
+        }
+        
+        .data-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .dark-theme .data-table td {
+            border-bottom-color: #38383a;
+        }
+        
+        .data-table tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        .dark-theme .data-table tr:hover {
+            background-color: #2c2c2e;
+        }
+        
+        /* Progress bar styles */
+        .progress-bar {
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .dark-theme .progress-bar {
+            background-color: #38383a;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #3b82f6;
+            border-radius: 4px;
+        }
+        
+        .dark-theme .progress-fill {
+            background-color: #007aff;
+        }
+        
+        /* KPI Card styles */
+        .kpi-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(30px, -30px);
+        }
+        
+        .kpi-card.green {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
+        .kpi-card.blue {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        }
+        
+        .kpi-card.orange {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+        
+        /* Report card styles */
+        .report-card {
+            transition: all 0.3s ease;
+        }
+        
+        .report-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .table-row:hover {
+            background-color: #f9fafb;
+        }
+        
+        /* Responsive adjustments for mobile / small screens */
+        @media (max-width: 992px) {
+            /* Stack main layout vertically */
+            .flex.h-screen {
+                display: block;
+                height: auto;
+            }
+
+            .sidebar.w-64 {
+                width: 100% !important;
+                position: relative !important;
+                height: auto !important;
+                border-right: none !important;
+            }
+
+            .sidebar { width: 100% !important; }
+
+            .sidebar .p-6 { padding: 12px !important; }
+
+            .flex-1.overflow-y-auto {
+                width: 100% !important;
+                padding: 0 !important;
+            }
+
+            .top-bar .px-6.py-4 {
+                padding: 10px !important;
+            }
+
+            .widget-card, .stat-card, .widget-card .p-6 {
+                padding: 12px !important;
+                margin: 0 8px 12px 8px;
+            }
+
+            /* Make tables horizontally scrollable */
+            .overflow-x-auto, table { width: 100%; overflow-x: auto; display: block; }
+
+            .min-w-full { min-width: 640px; }
+        }
+
+        @media (max-width: 640px) {
+            /* Mobile specific tweaks */
+            .grid.grid-cols-1.lg\:grid-cols-2 { grid-template-columns: 1fr !important; }
+
+            /* Transform sidebar into a compact icon-only bottom bar */
+            .sidebar {
+                position: fixed !important;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: auto !important;
+                width: 100% !important;
+                height: 56px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                padding: 0 !important;
+                background: rgba(28,28,30,0.98);
+                border-top: 1px solid rgba(56,56,58,0.6);
+                z-index: 70;
+            }
+
+            /* Keep the logo visible in the compact bar */
+            .sidebar .p-6, .sidebar .p-4 { display: none; }
+            .sidebar .sidebar-logo { display: block; height: 32px; margin: 0 12px; }
+
+            /* If the logo is inside a .p-6 wrapper, make sure it shows in compact layout */
+            .sidebar > .p-6 { display: flex !important; align-items: center; justify-content: center; }
+
+            .sidebar nav { display: flex; gap: 6px; align-items: center; }
+
+            .sidebar .sidebar-item {
+                width: 56px;
+                height: 56px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                margin: 0 4px;
+                font-size: 0; /* hide text label */
+            }
+
+            .sidebar .sidebar-item i { font-size: 18px; }
+
+            .sidebar .sidebar-item.active { background: rgba(255,255,255,0.04); border-radius: 8px; color: #fff; }
+
+            /* Ensure top bar remains compact */
+            .top-bar .px-6.py-4 { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+
+            .w-full.max-w-md.mx-auto.mt-20 { margin-top: 12px !important; padding: 0 12px; }
+
+            .stat-card { padding: 10px !important; }
+
+            .widget-card .h-64 { height: 300px !important; }
+
+            .text-2xl { font-size: 1.25rem !important; }
+            
+            /* Tabs on mobile */
+            .tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            
+            .tab {
+                display: inline-block;
+                padding: 0.5rem 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen light-theme">
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+    
+    <!-- MIS & Analytics Page -->
+    <div id="mis-analytics-page" class="page active">
+        <div class="flex h-screen">
+            <!-- Sidebar -->
+            <div class="sidebar w-64 flex flex-col">
+                <div class="p-6 border-b border-custom">
+                    <img src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png" alt="Listoil Logo" class="h-10 sidebar-logo">
+                </div>
+                <div class="flex-1 overflow-y-auto py-4">
+                                        <nav class="px-2 space-y-1">
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Program</p>
+                        <a href="2.htm" data-page="dashboard" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tachometer-alt mr-3"></i>
+                            Dashboard
+                        </a>
+                        <a href="3.htm" data-page="masters-config" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-cogs mr-3"></i>
+                            Masters & Config
+                        </a>
+                        <a href="14.htm" data-page="members" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-users mr-3"></i>
+                            Members
+                        </a>
+                        <!-- <a href="4.htm" data-page="schemes-campaigns" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-bullhorn mr-3"></i>
+                            Schemes & Campaigns
+                        </a> -->
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Operations</p>
+                        <a href="5.htm" data-page="qr-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-qrcode mr-3"></i>
+                            QR Management
+                        </a>
+                        <a href="12.htm" data-page="process" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tasks mr-3"></i>
+                            Process
+                        </a>
+                        <a href="6.htm" data-page="communication" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-broadcast-tower mr-3"></i>
+                            Communication
+                        </a>
+                        <a href="13.htm" data-page="tickets" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-ticket-alt mr-3"></i>
+                            Tickets
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Insights</p>
+                        <a href="9.htm" data-page="mis-analytics" class="sidebar-item active flex items-center px-4 py-3 text-sm font-medium rounded-lg">
+                            <i class="fas fa-chart-line mr-3"></i>
+                            MIS & Analytics
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">System</p>
+                        <a href="10.htm" data-page="role-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-user-shield mr-3"></i>
+                            Role Management
+                        </a>
+                        <a href="15.htm" data-page="configuration" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-sliders-h mr-3"></i>
+                            Configuration
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-custom">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-opacity-20 flex items-center justify-center">
+                                <span class="text-blue-800 dark:text-blue-400 font-medium">A</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-primary">Admin User</p>
+                            <p class="text-xs text-tertiary">admin@listoil.com</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1 overflow-y-auto">
+                <!-- Top Bar -->
+                <div class="top-bar">
+                    <div class="px-6 py-4 flex items-center justify-between">
+                        <div>
+                            <h1 class="text-2xl font-bold text-primary">MIS & Analytics</h1>
+                            <p class="text-sm text-tertiary">Management Information System and Business Analytics</p>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition" id="generate-report-btn">
+                                <i class="fas fa-file-download mr-2"></i> Generate Report
+                            </button>
+                            <div class="relative">
+                                <button class="p-2 text-tertiary relative">
+                                    <i class="fas fa-bell"></i>
+                                    <span class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500"></span>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <button class="p-2 text-tertiary">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </div>
+                            <button id="logout-btn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MIS & Analytics Content -->
+                <div class="p-6">
+                    <!-- Tabs -->
+                    <div class="tabs">
+                        <button class="tab active" id="reports-tab">Reports</button>
+                    </div>
+                    
+                    <!-- Tab Contents -->
+                    
+                    <!-- Reports Tab Content -->
+                    <div id="reports-content" class="tab-content active">
+                        <div class="flex flex-col lg:flex-row gap-6">
+                            <!-- Report Categories Sidebar -->
+                            <div class="w-full lg:w-64">
+                                <div class="widget-card rounded-xl shadow p-4">
+                                    <h3 class="text-lg font-semibold text-primary mb-4">V3 Report Types</h3>
+                                    <nav class="space-y-1" style="max-height:480px; overflow-y:auto;">
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg bg-blue-50 text-blue-700" data-category="app-login">
+                                            <i class="fas fa-sign-in-alt mr-3 text-blue-500"></i>
+                                            Application Login
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="registered-users">
+                                            <i class="fas fa-user-plus mr-3 text-gray-500"></i>
+                                            Registered Users
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="qr-transaction">
+                                            <i class="fas fa-qrcode mr-3 text-gray-500"></i>
+                                            QR Transaction
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="redemption">
+                                            <i class="fas fa-exchange-alt mr-3 text-gray-500"></i>
+                                            Redemption
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="bank-details">
+                                            <i class="fas fa-university mr-3 text-gray-500"></i>
+                                            Bank Details
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="otp">
+                                            <i class="fas fa-sms mr-3 text-gray-500"></i>
+                                            OTP
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="kyc">
+                                            <i class="fas fa-id-card mr-3 text-gray-500"></i>
+                                            KYC
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="product-wise">
+                                            <i class="fas fa-box mr-3 text-gray-500"></i>
+                                            Product Wise
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="category">
+                                            <i class="fas fa-tags mr-3 text-gray-500"></i>
+                                            Category
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="error-transaction">
+                                            <i class="fas fa-exclamation-triangle mr-3 text-gray-500"></i>
+                                            Error Transaction
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="referrals">
+                                            <i class="fas fa-share-alt mr-3 text-gray-500"></i>
+                                            Referrals
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="notification">
+                                            <i class="fas fa-bell mr-3 text-gray-500"></i>
+                                            Notification
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="blocked-member">
+                                            <i class="fas fa-user-slash mr-3 text-gray-500"></i>
+                                            Blocked Member
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="blocked-qr-scan">
+                                            <i class="fas fa-ban mr-3 text-gray-500"></i>
+                                            Blocked QR Scan
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="anomaly">
+                                            <i class="fas fa-bug mr-3 text-gray-500"></i>
+                                            Anomaly
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="tds-summary">
+                                            <i class="fas fa-file-invoice-dollar mr-3 text-gray-500"></i>
+                                            TDS Summary
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="mechanic-mapping">
+                                            <i class="fas fa-link mr-3 text-gray-500"></i>
+                                            Mechanic Mapping
+                                        </a>
+                                        <a href="#" class="report-category flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100" data-category="engagement-events">
+                                            <i class="fas fa-calendar-check mr-3 text-gray-500"></i>
+                                            Engagement Events
+                                        </a>
+                                    </nav>
+                                </div>
+                            </div>
+
+                            <!-- Report Content -->
+                            <div class="flex-1">
+                                <div class="widget-card rounded-xl shadow p-6">
+                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+                                        <div>
+                                            <h3 class="text-lg font-semibold text-primary" id="report-title">QR Scan Report</h3>
+                                            <p class="text-sm text-tertiary" id="report-description">Detailed QR transaction data</p>
+                                        </div>
+                                        <div class="mt-4 md:mt-0 flex space-x-2">
+                                            <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition" id="export-csv-btn">
+                                                <i class="fas fa-file-csv mr-2"></i> Export CSV
+                                            </button>
+                                            <button class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition" id="export-pdf-btn">
+                                                <i class="fas fa-file-pdf mr-2"></i> Export PDF
+                                            </button>
+                                            <button class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition" id="schedule-btn">
+                                                <i class="fas fa-clock mr-2"></i> Schedule
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Filters -->
+                                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">Stakeholder</label>
+                                                <select class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" id="stakeholder-filter">
+                                                    <option>All</option>
+                                                    <option>Retailers</option>
+                                                    <option>CSBs</option>
+                                                    <option>Mechanics</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                                                <select class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" id="sku-filter">
+                                                    <option>All</option>
+                                                    <option>SKU001</option>
+                                                    <option>SKU002</option>
+                                                    <option>SKU003</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">Geography</label>
+                                                <select class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" id="geography-filter">
+                                                    <option>All</option>
+                                                    <option>Delhi</option>
+                                                    <option>Mumbai</option>
+                                                    <option>Bangalore</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                                                <input type="date" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50" id="date-filter">
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 flex justify-end">
+                                            <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition" id="apply-report-filters">
+                                                Apply Filters
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Report Table -->
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stakeholder</th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Geography</th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scan Time</th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="bg-white divide-y divide-gray-200" id="report-table-body">
+                                                <tr class="table-row">
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#12345</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Retailer A</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">SKU001</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Delhi</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-10-01 10:30</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Mono</span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Success</span>
+                                                    </td>
+                                                </tr>
+                                                <tr class="table-row">
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#12346</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Mechanic B</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">SKU002</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Mumbai</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-10-01 11:15</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">Sub-mono</span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Failed</span>
+                                                    </td>
+                                                </tr>
+                                                <tr class="table-row">
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#12347</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Retailer C</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">SKU003</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Bangalore</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-10-01 12:45</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Mono</span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Success</span>
+                                                    </td>
+                                                </tr>
+                                                <tr class="table-row">
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#12348</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Retailer D</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">SKU001</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Kolkata</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-10-01 13:20</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">Sub-mono</span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                                                    </td>
+                                                </tr>
+                                                <tr class="table-row">
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#12349</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Mechanic E</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">SKU002</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Chennai</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-10-01 14:10</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Mono</span>
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Success</span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Pagination -->
+                                    <div class="flex items-center justify-between mt-6">
+                                        <div class="text-sm text-gray-700">
+                                            Showing <span class="font-medium">1</span> to <span class="font-medium">5</span> of <span class="font-medium">234</span> results
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <button class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50" disabled>
+                                                <i class="fas fa-chevron-left"></i>
+                                            </button>
+                                            <button class="px-3 py-1 rounded-lg bg-blue-600 text-white">1</button>
+                                            <button class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">2</button>
+                                            <button class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">3</button>
+                                            <span class="px-3 py-1">...</span>
+                                            <button class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">47</button>
+                                            <button class="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                                                <i class="fas fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Custom Reports tab removed -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Logout button
+        document.getElementById('logout-btn').addEventListener('click', function() {
+            showNotification('Logging out...', 'success');
+            setTimeout(() => {
+                window.location.href = '1.htm';
+            }, 1000);
+        });
+        
+        // Generate report button
+        document.getElementById('generate-report-btn').addEventListener('click', function() {
+            showNotification('Generating report...', 'success');
+        });
+        
+        // Sidebar navigation - links navigate via href attributes
+        
+        // Main tabs functionality
+        document.getElementById('reports-tab').addEventListener('click', function() {
+            document.getElementById('reports-content').classList.add('active');
+            document.getElementById('reports-tab').classList.add('active');
+        });
+        
+        // Report category selection
+        document.querySelectorAll('.report-category').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Remove active class from all categories
+                document.querySelectorAll('.report-category').forEach(cat => {
+                    cat.classList.remove('bg-blue-50', 'text-blue-700');
+                    cat.classList.add('text-gray-700');
+                });
+                
+                // Add active class to selected category
+                this.classList.remove('text-gray-700');
+                this.classList.add('bg-blue-50', 'text-blue-700');
+                
+                // Update report title and description based on category
+                const category = this.getAttribute('data-category');
+                updateReportContent(category);
+            });
+        });
+        
+        // Update report content based on selected category
+        function updateReportContent(category) {
+            const reportTitle = document.getElementById('report-title');
+            const reportDescription = document.getElementById('report-description');
+            
+            // Define report titles and descriptions for each category
+            const reportInfo = {
+                'registration': {
+                    title: 'Registration & Login Report',
+                    description: 'User registration and login activity data'
+                },
+                'referrals': {
+                    title: 'Referral Report',
+                    description: 'Referral program performance and analytics'
+                },
+                'gamification': {
+                    title: 'Gamification Report',
+                    description: 'User engagement with gamification features'
+                },
+                'compliance': {
+                    title: 'Compliance Report',
+                    description: 'Regulatory compliance and documentation'
+                },
+                'stakeholder': {
+                    title: 'Stakeholder-wise Report',
+                    description: 'Performance metrics by stakeholder type'
+                },
+                'sales': {
+                    title: 'Sales & Marketing Report',
+                    description: 'Sales performance and marketing campaign results'
+                },
+                'bank': {
+                    title: 'Bank/UPI Report',
+                    description: 'Banking and UPI transaction details'
+                }
+            };
+            
+            // Update the report title and description
+            if (reportInfo[category]) {
+                reportTitle.textContent = reportInfo[category].title;
+                reportDescription.textContent = reportInfo[category].description;
+            }
+            
+            // In a real application, this would also update the table data
+            // For now, we'll just show a notification
+            showNotification(`Loading ${reportInfo[category].title}...`, 'success');
+        }
+        
+        // Filter buttons
+        document.getElementById('apply-filters').addEventListener('click', function() {
+            showNotification('Filters applied successfully', 'success');
+        });
+        
+        document.getElementById('apply-report-filters').addEventListener('click', function() {
+            showNotification('Report filters applied successfully', 'success');
+        });
+        
+        // Export buttons
+        document.getElementById('export-csv-btn').addEventListener('click', function() {
+            showNotification('Exporting report as CSV...', 'success');
+        });
+        
+        document.getElementById('export-pdf-btn').addEventListener('click', function() {
+            showNotification('Exporting report as PDF...', 'success');
+        });
+        
+        document.getElementById('schedule-btn').addEventListener('click', function() {
+            showNotification('Opening schedule dialog...', 'success');
+        });
+        
+        // Form submissions
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                showNotification('Report generated successfully!', 'success');
+            });
+        });
+        
+        // Chart initialization
+        let revenueTrendChart, memberGrowthChart, transactionVolumeChart, categoryPerformanceChart, memberSegmentationChart, campaignPerformanceChart, channelEffectivenessChart;
+        
+        // Helper: wait until a canvas has non-zero size (visible & laid out)
+        function waitForCanvasReady(canvas, maxAttempts = 20, interval = 100) {
+            return new Promise((resolve) => {
+                if (!canvas) return resolve(false);
+                let attempts = 0;
+                const check = () => {
+                    const rect = canvas.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) return resolve(true);
+                    attempts++;
+                    if (attempts >= maxAttempts) return resolve(false);
+                    setTimeout(check, interval);
+                };
+                check();
+            });
+        }
+
+        async function initRevenueTrendChart() {
+            const revenueTrendCtx = document.getElementById('revenueTrendChart');
+            if (!revenueTrendCtx) return;
+            const ok = await waitForCanvasReady(revenueTrendCtx, 30, 100);
+            if (!ok) { console.warn('revenueTrendChart canvas not ready'); return; }
+            if (!revenueTrendChart) {
+                revenueTrendChart = new Chart(revenueTrendCtx, {
+                    type: 'line',
+                    data: { 
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'], 
+                        datasets: [
+                            { 
+                                label: 'Points Alloted', 
+                                data: [45230, 47800, 49000, 51200, 53000, 54800, 57200, 56000, 58500, 60200], 
+                                borderColor: '#3B82F6', 
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+                                tension: 0.4, 
+                                fill: true 
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                display: false
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: function(value) {
+                                        // Format points with thousand separators
+                                        try { return value.toLocaleString(); } catch(e) { return value; }
+                                    }
+                                },
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { revenueTrendChart.resize(); revenueTrendChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initMemberGrowthChart() {
+            const memberGrowthCtx = document.getElementById('memberGrowthChart');
+            if (!memberGrowthCtx) return;
+            const ok = await waitForCanvasReady(memberGrowthCtx, 30, 100);
+            if (!ok) { console.warn('memberGrowthChart canvas not ready'); return; }
+            if (!memberGrowthChart) {
+                memberGrowthChart = new Chart(memberGrowthCtx, {
+                    type: 'bar',
+                    data: { 
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'], 
+                        datasets: [
+                            { 
+                                label: 'New Members', 
+                                data: [1200, 1450, 1680, 1920, 2100, 2350, 2580, 2720, 2890, 3050], 
+                                backgroundColor: '#10B981', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                display: false
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { memberGrowthChart.resize(); memberGrowthChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initTransactionVolumeChart() {
+            const transactionVolumeCtx = document.getElementById('transactionVolumeChart');
+            if (!transactionVolumeCtx) return;
+            const ok = await waitForCanvasReady(transactionVolumeCtx, 30, 100);
+            if (!ok) { console.warn('transactionVolumeChart canvas not ready'); return; }
+            if (!transactionVolumeChart) {
+                transactionVolumeChart = new Chart(transactionVolumeCtx, {
+                    type: 'line',
+                    data: { 
+                        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], 
+                        datasets: [
+                            { 
+                                label: 'Transactions', 
+                                data: [4500, 5200, 4800, 5500], 
+                                borderColor: '#8B5CF6', 
+                                backgroundColor: 'rgba(139, 92, 246, 0.1)', 
+                                tension: 0.4, 
+                                fill: true 
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                display: false
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { transactionVolumeChart.resize(); transactionVolumeChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initCategoryPerformanceChart() {
+            const categoryPerformanceCtx = document.getElementById('categoryPerformanceChart');
+            if (!categoryPerformanceCtx) return;
+            const ok = await waitForCanvasReady(categoryPerformanceCtx, 30, 100);
+            if (!ok) { console.warn('categoryPerformanceChart canvas not ready'); return; }
+            if (!categoryPerformanceChart) {
+                categoryPerformanceChart = new Chart(categoryPerformanceCtx, {
+                    type: 'doughnut',
+                    data: { 
+                        labels: ['Engine Oils', 'Switches', 'Gear Oils', 'Fans', 'Others'], 
+                        datasets: [{ 
+                            data: [35, 25, 20, 12, 8], 
+                            backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#6B7280'], 
+                            borderWidth: 0 
+                        }] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                position: 'right', 
+                                labels: { 
+                                    boxWidth: 12, 
+                                    padding: 15 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { categoryPerformanceChart.resize(); categoryPerformanceChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initMemberSegmentationChart() {
+            const memberSegmentationCtx = document.getElementById('memberSegmentationChart');
+            if (!memberSegmentationCtx) return;
+            const ok = await waitForCanvasReady(memberSegmentationCtx, 30, 100);
+            if (!ok) { console.warn('memberSegmentationChart canvas not ready'); return; }
+            if (!memberSegmentationChart) {
+                memberSegmentationChart = new Chart(memberSegmentationCtx, {
+                    type: 'pie',
+                    data: { 
+                        labels: ['Mechanics', 'Contractors', 'Retailers', 'Others'], 
+                        datasets: [{ 
+                            data: [45, 25, 20, 10], 
+                            backgroundColor: ['#3B82F6', '#10B981', '#8B5CF6', '#6B7280'], 
+                            borderWidth: 0 
+                        }] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                position: 'bottom', 
+                                labels: { 
+                                    boxWidth: 12, 
+                                    padding: 15 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { memberSegmentationChart.resize(); memberSegmentationChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initCampaignPerformanceChart() {
+            const campaignPerformanceCtx = document.getElementById('campaignPerformanceChart');
+            if (!campaignPerformanceCtx) return;
+            const ok = await waitForCanvasReady(campaignPerformanceCtx, 30, 100);
+            if (!ok) { console.warn('campaignPerformanceChart canvas not ready'); return; }
+            if (!campaignPerformanceChart) {
+                campaignPerformanceChart = new Chart(campaignPerformanceCtx, {
+                    type: 'bar',
+                    data: { 
+                        labels: ['Diwali Special', 'New Member Welcome', 'Monsoon Offer', 'Referral Program', 'Flash Sale'], 
+                        datasets: [
+                            { 
+                                label: 'Reach', 
+                                data: [45678, 12345, 23456, 18900, 32100], 
+                                backgroundColor: '#3B82F6', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Conversions', 
+                                data: [10186, 5629, 4434, 3780, 6420], 
+                                backgroundColor: '#10B981', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                position: 'top', 
+                                labels: { 
+                                    boxWidth: 12, 
+                                    padding: 15 
+                                } 
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true,
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { campaignPerformanceChart.resize(); campaignPerformanceChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initChannelEffectivenessChart() {
+            const channelEffectivenessCtx = document.getElementById('channelEffectivenessChart');
+            if (!channelEffectivenessCtx) return;
+            const ok = await waitForCanvasReady(channelEffectivenessCtx, 30, 100);
+            if (!ok) { console.warn('channelEffectivenessChart canvas not ready'); return; }
+            if (!channelEffectivenessChart) {
+                channelEffectivenessChart = new Chart(channelEffectivenessCtx, {
+                    type: 'radar',
+                    data: { 
+                        labels: ['SMS', 'WhatsApp', 'Email', 'Push Notification', 'In-App'], 
+                        datasets: [
+                            { 
+                                label: 'Open Rate', 
+                                data: [85, 78, 65, 45, 38], 
+                                borderColor: '#3B82F6', 
+                                backgroundColor: 'rgba(59, 130, 246, 0.2)', 
+                                pointBackgroundColor: '#3B82F6'
+                            }, 
+                            { 
+                                label: 'Click Rate', 
+                                data: [25, 32, 18, 12, 8], 
+                                borderColor: '#10B981', 
+                                backgroundColor: 'rgba(16, 185, 129, 0.2)', 
+                                pointBackgroundColor: '#10B981'
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                position: 'top', 
+                                labels: { 
+                                    boxWidth: 12, 
+                                    padding: 15 
+                                } 
+                            } 
+                        }, 
+                        scales: { 
+                            r: { 
+                                beginAtZero: true,
+                                max: 100
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { channelEffectivenessChart.resize(); channelEffectivenessChart.update(); } catch(e) {}
+            }
+        }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('reports-content').classList.add('active');
+            document.getElementById('reports-tab').classList.add('active');
+        });
+    </script>
+</body>
+</html>

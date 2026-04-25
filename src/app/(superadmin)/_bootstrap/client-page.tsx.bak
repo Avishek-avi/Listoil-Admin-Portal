@@ -1,0 +1,720 @@
+// // app/bootstrap/client-page.tsx
+// "use client";
+
+// import { useSearchParams, useRouter } from "next/navigation";
+// import { useEffect, useState, useMemo, useTransition } from "react";
+// import {
+//     Tabs,
+//     Tab,
+//     Box,
+//     TextField,
+//     Button,
+//     Card,
+//     CardContent,
+//     CardHeader,
+//     Typography,
+//     MenuItem,
+//     Select,
+//     InputLabel,
+//     FormControl,
+//     Grid,
+//     IconButton,
+//     Paper,
+//     Collapse,
+//     Chip,
+//     Alert,
+//     CircularProgress,
+// } from "@mui/material";
+// import { DataGrid } from "@mui/x-data-grid";
+// import {
+//     Delete as DeleteIcon,
+//     ChevronRight as ChevronRightIcon,
+//     ExpandMore as ExpandMoreIcon,
+//     Business as BusinessIcon,
+//     Category as CategoryIcon,
+//     Inventory as InventoryIcon,
+//     LocationOn as LocationIcon,
+//     People as PeopleIcon,
+//     Settings as SettingsIcon,
+// } from "@mui/icons-material";
+
+// import {
+//     createClient,
+//     createUserTypeLevel,
+//     createUserTypeEntity,
+//     createSkuLevel,
+//     createSkuEntity,
+//     createSkuVariant,
+//     createSkuPointConfig,
+//     createLocationLevel,
+//     createLocationEntity,
+//     deleteSkuPointConfig,
+// } from "@/app/actions";
+
+// interface Props {
+//     clients: any[];
+//     userTypeLevels: any[];
+//     userTypeEntities: any[];
+//     skuLevels: any[];
+//     skuEntities: any[];
+//     skuVariants: any[];
+//     locationLevels: any[];
+//     locationEntities: any[];
+//     skuPointConfigs: any[];
+// }
+
+// // Tree Item Component
+// const TreeItem = ({ label, secondary, icon: Icon, children, depth = 0, defaultExpanded = false }: any) => {
+//     const [expanded, setExpanded] = useState(defaultExpanded);
+//     const hasChildren = children && children.length > 0;
+
+//     return (
+//         <Box sx={{ ml: depth ? 3 : 0, borderLeft: depth ? '1px dashed #ccc' : 'none' }}>
+//             <Box
+//                 sx={{
+//                     display: 'flex',
+//                     alignItems: 'center',
+//                     py: 1,
+//                     px: 1,
+//                     borderRadius: 1,
+//                     '&:hover': { bgcolor: 'action.hover' },
+//                     cursor: hasChildren ? 'pointer' : 'default',
+//                     mb: 0.5
+//                 }}
+//                 onClick={() => hasChildren && setExpanded(!expanded)}
+//             >
+//                 {hasChildren ? (
+//                     expanded ? <ExpandMoreIcon fontSize="small" sx={{ color: 'text.secondary' }} /> : <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+//                 ) : (
+//                     <Box sx={{ width: 24 }} />
+//                 )}
+//                 {Icon && <Icon sx={{ mr: 1, fontSize: 18, color: 'primary.main', opacity: 0.8 }} />}
+//                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+//                     <Typography variant="body2" sx={{ fontWeight: depth === 0 ? 600 : 400 }}>
+//                         {label}
+//                     </Typography>
+//                     {secondary && (
+//                         <Chip label={secondary} size="small" sx={{ height: 18, fontSize: '0.65rem' }} variant="outlined" />
+//                     )}
+//                 </Box>
+//             </Box>
+//             {hasChildren && (
+//                 <Collapse in={expanded}>
+//                     <Box sx={{ pb: 0.5 }}>{children}</Box>
+//                 </Collapse>
+//             )}
+//         </Box>
+//     );
+// };
+
+// export default function SuperAdminClient({
+//     clients,
+//     userTypeLevels,
+//     userTypeEntities,
+//     skuLevels,
+//     skuEntities,
+//     skuVariants,
+//     locationLevels,
+//     locationEntities,
+//     skuPointConfigs
+// }: Props) {
+//     const searchParams = useSearchParams();
+//     const router = useRouter();
+//     const [isPending, startTransition] = useTransition();
+//     const urlTab = searchParams.get("tab");
+//     const initialTab = urlTab && !isNaN(parseInt(urlTab)) ? parseInt(urlTab) : 0;
+//     const [tab, setTab] = useState(initialTab);
+
+//     // Form states for controlled inputs where needed
+//     const [skuPointTarget, setSkuPointTarget] = useState("");
+
+//     useEffect(() => {
+//         const newTab = searchParams.get("tab");
+//         if (newTab && !isNaN(parseInt(newTab))) {
+//             setTab(parseInt(newTab));
+//         }
+//     }, [searchParams]);
+
+//     const handleTabChange = (_: any, newValue: number) => {
+//         setTab(newValue);
+//         router.replace(`/bootstrap?tab=${newValue}`, { scroll: false });
+//     };
+
+//     // --- SKU Data Processing ---
+//     const skuTree = useMemo(() => {
+//         const entityMap = new Map();
+//         skuEntities.forEach(e => entityMap.set(e.id, { ...e, children: [], variants: [] }));
+//         skuVariants.forEach(v => {
+//             const entity = entityMap.get(v.skuEntityId);
+//             if (entity) entity.variants.push(v);
+//         });
+
+//         const roots: any[] = [];
+//         skuEntities.forEach(e => {
+//             const node = entityMap.get(e.id);
+//             if (e.parentEntityId) {
+//                 const parent = entityMap.get(e.parentEntityId);
+//                 if (parent) parent.children.push(node);
+//                 else roots.push(node);
+//             } else {
+//                 roots.push(node);
+//             }
+//         });
+//         return roots;
+//     }, [skuEntities, skuVariants]);
+
+//     const flattenedSkuItems = useMemo(() => {
+//         const items: any[] = [];
+//         const flatten = (nodes: any[], depth = 0) => {
+//             nodes.forEach(n => {
+//                 const level = skuLevels.find(l => l.id === n.levelId);
+//                 items.push({
+//                     id: `entity-${n.id}`,
+//                     skuEntityId: n.id,
+//                     label: n.name,
+//                     depth,
+//                     levelName: level?.levelName || 'ENTITY',
+//                     code: n.code,
+//                     isEntity: true
+//                 });
+//                 n.variants.forEach((v: any) => {
+//                     items.push({
+//                         id: String(v.id),
+//                         skuVariantId: v.id,
+//                         label: v.variantName + (v.packSize ? ` (${v.packSize})` : ''),
+//                         depth: depth + 1,
+//                         levelName: 'SKU',
+//                         code: '',
+//                         isEntity: false
+//                     });
+//                 });
+//                 if (n.children.length > 0) flatten(n.children, depth + 1);
+//             });
+//         };
+//         flatten(skuTree);
+//         return items;
+//     }, [skuTree, skuLevels]);
+
+//     // --- User Type Data Processing ---
+//     const userTypeTree = useMemo(() => {
+//         const entityMap = new Map();
+//         userTypeEntities.forEach(e => entityMap.set(e.id, { ...e, children: [] }));
+//         const roots: any[] = [];
+//         userTypeEntities.forEach(e => {
+//             const node = entityMap.get(e.id);
+//             if (e.parentTypeId) {
+//                 const parent = entityMap.get(e.parentTypeId);
+//                 if (parent) parent.children.push(node);
+//                 else roots.push(node);
+//             } else {
+//                 roots.push(node);
+//             }
+//         });
+//         return roots;
+//     }, [userTypeEntities]);
+
+//     // --- Location Data Processing ---
+//     const locationTree = useMemo(() => {
+//         const entityMap = new Map();
+//         locationEntities.forEach(e => entityMap.set(e.id, { ...e, children: [] }));
+//         const roots: any[] = [];
+//         locationEntities.forEach(e => {
+//             const node = entityMap.get(e.id);
+//             if (e.parentEntityId) {
+//                 const parent = entityMap.get(e.parentEntityId);
+//                 if (parent) parent.children.push(node);
+//                 else roots.push(node);
+//             } else {
+//                 roots.push(node);
+//             }
+//         });
+//         return roots;
+//     }, [locationEntities]);
+
+//     const renderTab = () => {
+//         switch (tab) {
+//             case 0: // Client
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4}>
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Add Client</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createClient} className="space-y-4">
+//                                         <TextField name="name" label="Client Name" fullWidth required />
+//                                         <TextField name="code" label="Code (optional)" fullWidth />
+//                                         <Button type="submit" variant="contained" fullWidth>Add Client</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Paper sx={{ height: 500 }} variant="outlined">
+//                                 <DataGrid
+//                                     rows={clients}
+//                                     columns={[
+//                                         { field: 'id', headerName: 'ID', width: 80 },
+//                                         { field: 'name', headerName: 'Name', flex: 1 },
+//                                         { field: 'code', headerName: 'Code', width: 200 },
+//                                     ]}
+//                                     sx={{ border: 0 }}
+//                                 />
+//                             </Paper>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             case 1: // User Type Level
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4}>
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Add User Level</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createUserTypeLevel} className="space-y-4">
+//                                         <TextField name="levelNo" label="Level #" type="number" fullWidth required />
+//                                         <TextField name="levelName" label="Name" fullWidth required />
+//                                         <FormControl fullWidth>
+//                                             <InputLabel>Parent Level</InputLabel>
+//                                             <Select name="parentLevelId" defaultValue="">
+//                                                 <MenuItem value="">None</MenuItem>
+//                                                 {userTypeLevels.map((l) => (
+//                                                     <MenuItem key={l.id} value={l.id}>{l.levelName}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <Button type="submit" variant="contained" fullWidth>Add Level</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Paper sx={{ height: 500 }} variant="outlined">
+//                                 <DataGrid
+//                                     rows={userTypeLevels}
+//                                     columns={[
+//                                         { field: 'levelNo', headerName: 'Level #', width: 100 },
+//                                         { field: 'levelName', headerName: 'Level Name', flex: 1 },
+//                                         { field: 'parentLevelId', headerName: 'Parent ID', width: 100 },
+//                                     ]}
+//                                     sx={{ border: 0 }}
+//                                 />
+//                             </Paper>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             case 2: // User Type Entity
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4}>
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Add User Type</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createUserTypeEntity} className="space-y-4">
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Level</InputLabel>
+//                                             <Select name="levelId" defaultValue="">
+//                                                 {userTypeLevels.map((l) => (
+//                                                     <MenuItem key={l.id} value={l.id}>{l.levelName} (L{l.levelNo})</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <TextField name="typeName" label="Name" fullWidth required />
+//                                         <FormControl fullWidth>
+//                                             <InputLabel>Parent Type</InputLabel>
+//                                             <Select name="parentTypeId" defaultValue="">
+//                                                 <MenuItem value="">None (Top Level)</MenuItem>
+//                                                 {userTypeEntities.map((e) => (
+//                                                     <MenuItem key={e.id} value={e.id}>{e.typeName}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <Button type="submit" variant="contained" fullWidth>Add Type</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Card variant="outlined" sx={{ height: '100%', minHeight: 400 }}>
+//                                 <CardHeader title="User Type Hierarchy" />
+//                                 <CardContent>
+//                                     {userTypeTree.length === 0 && <Alert severity="info">No user types defined yet.</Alert>}
+//                                     {userTypeTree.map(node => (
+//                                         <RecursiveTreeItem key={node.id} node={node} icon={PeopleIcon} nameKey="typeName" />
+//                                     ))}
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             case 3: // SKU Level
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4}>
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Add SKU Level</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createSkuLevel} className="space-y-4">
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Client</InputLabel>
+//                                             <Select name="clientId" defaultValue={clients[0]?.id || ""}>
+//                                                 {clients.map((c) => (
+//                                                     <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <TextField name="levelNo" label="Level #" type="number" fullWidth required />
+//                                         <TextField name="levelName" label="Name" fullWidth required />
+//                                         <FormControl fullWidth>
+//                                             <InputLabel>Parent Level</InputLabel>
+//                                             <Select name="parentLevelId" defaultValue="">
+//                                                 <MenuItem value="">None</MenuItem>
+//                                                 {skuLevels.map((l) => (
+//                                                     <MenuItem key={l.id} value={l.id}>{l.levelName}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <Button type="submit" variant="contained" fullWidth>Add SKU Level</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Paper sx={{ height: 500 }} variant="outlined">
+//                                 <DataGrid
+//                                     rows={skuLevels}
+//                                     columns={[
+//                                         { field: 'levelNo', headerName: 'Level #', width: 100 },
+//                                         { field: 'levelName', headerName: 'Level Name', flex: 1 },
+//                                         { field: 'clientId', headerName: 'Client ID', width: 100 },
+//                                     ]}
+//                                     sx={{ border: 0 }}
+//                                 />
+//                             </Paper>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             case 4: // SKU Entity
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4}>
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Add SKU Entity</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createSkuEntity} className="space-y-4">
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Level</InputLabel>
+//                                             <Select name="levelId" defaultValue="">
+//                                                 {skuLevels.map((l) => (
+//                                                     <MenuItem key={l.id} value={l.id}>{l.levelName} (Client {l.clientId})</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <TextField name="name" label="Name" fullWidth required />
+//                                         <TextField name="code" label="Code" fullWidth />
+//                                         <FormControl fullWidth>
+//                                             <InputLabel>Parent Entity</InputLabel>
+//                                             <Select name="parentEntityId" defaultValue="">
+//                                                 <MenuItem value="">None</MenuItem>
+//                                                 {skuEntities.map((e) => (
+//                                                     <MenuItem key={e.id} value={e.id}>{e.name}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <input type="hidden" name="clientId" value={clients[0]?.id || 1} />
+//                                         <Button type="submit" variant="contained" fullWidth>Add SKU Entity</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Card variant="outlined" sx={{ height: '100%', minHeight: 400 }}>
+//                                 <CardHeader title="SKU Hierarchy View (Real-time)" />
+//                                 <CardContent>
+//                                     {skuTree.length === 0 && <Alert severity="info">No SKU entities defined.</Alert>}
+//                                     {skuTree.map(node => (
+//                                         <RecursiveSkuTreeItem key={node.id} node={node} />
+//                                     ))}
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             case 5: // SKU Variant
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4}>
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Add Final SKU (Variant)</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createSkuVariant} className="space-y-4">
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Parent Entity</InputLabel>
+//                                             <Select name="skuEntityId" defaultValue="">
+//                                                 {skuEntities.map((e) => (
+//                                                     <MenuItem key={e.id} value={e.id}>{e.name} ({e.code || 'No Code'})</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <TextField name="variantName" label="Variant Name" fullWidth required />
+//                                         <TextField name="packSize" label="Pack Size (e.g. 500g, 1L)" fullWidth />
+//                                         <TextField name="mrp" label="MRP" type="number" inputProps={{ step: "0.01" }} fullWidth required />
+//                                         <Button type="submit" variant="contained" fullWidth>Add Variant</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Paper sx={{ height: 500 }} variant="outlined">
+//                                 <DataGrid
+//                                     rows={skuVariants}
+//                                     columns={[
+//                                         { field: 'variantName', headerName: 'Variant Name', flex: 1 },
+//                                         { field: 'packSize', headerName: 'Pack Size', width: 150 },
+//                                         { field: 'mrp', headerName: 'MRP', width: 120, valueFormatter: (params: any) => `₹${params.value}` },
+//                                     ]}
+//                                     sx={{ border: 0 }}
+//                                 />
+//                             </Paper>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             case 6: // Points Config
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4}>
+//                             <Card variant="outlined" sx={{ borderLeft: 5, borderLeftColor: 'secondary.main' }}>
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Set Points Mapping</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createSkuPointConfig} className="space-y-4">
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Client</InputLabel>
+//                                             <Select name="clientId" defaultValue={clients[0]?.id || ""}>
+//                                                 {clients.map((c) => (
+//                                                     <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Apply To (Select Entity or SKU)</InputLabel>
+//                                             <Select
+//                                                 value={skuPointTarget}
+//                                                 onChange={(e) => setSkuPointTarget(e.target.value)}
+//                                                 sx={{ '& .MuiSelect-select': { display: 'flex', alignItems: 'center' } }}
+//                                             >
+//                                                 <MenuItem value="" disabled>-- Select Target --</MenuItem>
+//                                                 {flattenedSkuItems.map(f => {
+//                                                     const depth = f.depth;
+//                                                     const bgColor = f.isEntity ? (depth === 0 ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.02)') : 'transparent';
+//                                                     return (
+//                                                         <MenuItem
+//                                                             key={f.id}
+//                                                             value={f.id}
+//                                                             sx={{
+//                                                                 pl: depth * 3 + 2,
+//                                                                 bgcolor: bgColor,
+//                                                                 fontWeight: f.isEntity ? 600 : 400,
+//                                                                 py: 1
+//                                                             }}
+//                                                         >
+//                                                             <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+//                                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+//                                                                     {f.isEntity ? <CategoryIcon sx={{ fontSize: 16, color: 'primary.main' }} /> : <InventoryIcon sx={{ fontSize: 16, color: 'secondary.main' }} />}
+//                                                                     <Typography variant="body2">{f.label}</Typography>
+//                                                                 </Box>
+//                                                                 <Chip label={f.levelName} size="small" sx={{ height: 16, fontSize: '0.6rem' }} color={f.isEntity ? "primary" : "secondary"} variant="outlined" />
+//                                                             </Box>
+//                                                         </MenuItem>
+//                                                     );
+//                                                 })}
+//                                             </Select>
+//                                             <input type="hidden" name="skuEntityId" value={skuPointTarget.startsWith('entity-') ? skuPointTarget.replace('entity-', '') : ""} />
+//                                             <input type="hidden" name="skuVariantId" value={!skuPointTarget.startsWith('entity-') && skuPointTarget !== "" ? skuPointTarget : ""} />
+//                                         </FormControl>
+
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Stakeholder (User Type)</InputLabel>
+//                                             <Select name="userTypeId" defaultValue="">
+//                                                 {userTypeEntities.map((u) => (
+//                                                     <MenuItem key={u.id} value={u.id}>{u.typeName}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <TextField name="pointsPerUnit" label="Points" type="number" inputProps={{ step: "0.01" }} fullWidth required />
+//                                         <Box sx={{ p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+//                                             <Typography variant="caption" color="text.secondary">
+//                                                 * Selecting a parent entity will apply points to <strong>all variants</strong> in its sub-tree recursively.
+//                                             </Typography>
+//                                         </Box>
+//                                         <Button type="submit" variant="contained" color="secondary" fullWidth size="large">Set Points</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Paper sx={{ height: 500 }} variant="outlined">
+//                                 <DataGrid
+//                                     rows={skuPointConfigs.map(c => {
+//                                         const v = skuVariants.find(sv => sv.id === c.skuVariantId);
+//                                         const ut = userTypeEntities.find(u => u.id === c.userTypeId);
+//                                         return { ...c, variantName: v?.variantName || 'Missing SKU', typeName: ut?.typeName || 'Unknown' };
+//                                     })}
+//                                     columns={[
+//                                         { field: 'variantName', headerName: 'SKU Variant', flex: 1 },
+//                                         { field: 'typeName', headerName: 'Stakeholder', width: 180 },
+//                                         { field: 'pointsPerUnit', headerName: 'Points', width: 100, align: 'right' },
+//                                         {
+//                                             field: 'actions', headerName: '', width: 70, sortable: false, renderCell: (params) => (
+//                                                 <IconButton onClick={() => {
+//                                                     if (confirm('Delete config?')) {
+//                                                         startTransition(async () => {
+//                                                             await deleteSkuPointConfig(params.row.id);
+//                                                         });
+//                                                     }
+//                                                 }} size="small" color="error">
+//                                                     <DeleteIcon fontSize="small" />
+//                                                 </IconButton>
+//                                             )
+//                                         }
+//                                     ]}
+//                                     sx={{ border: 0 }}
+//                                 />
+//                             </Paper>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             case 7: // Location
+//                 return (
+//                     <Grid container spacing={3}>
+//                         <Grid item xs={12} md={4} className="space-y-4">
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle2" fontWeight={700}>Location Level</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createLocationLevel} className="space-y-4">
+//                                         <TextField name="levelNo" label="Level #" type="number" fullWidth required size="small" />
+//                                         <TextField name="levelName" label="Name" fullWidth required size="small" />
+//                                         <input type="hidden" name="clientId" value={clients[0]?.id || 1} />
+//                                         <Button type="submit" variant="outlined" fullWidth size="small">Add Level</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+
+//                             <Card variant="outlined">
+//                                 <CardHeader title={<Typography variant="subtitle1" fontWeight={700}>Add Location Entity</Typography>} />
+//                                 <CardContent>
+//                                     <form action={createLocationEntity} className="space-y-4">
+//                                         <FormControl fullWidth required>
+//                                             <InputLabel>Level</InputLabel>
+//                                             <Select name="levelId" defaultValue="">
+//                                                 {locationLevels.map((l) => (
+//                                                     <MenuItem key={l.id} value={l.id}>{l.levelName}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <TextField name="name" label="Name" fullWidth required />
+//                                         <TextField name="code" label="Code" fullWidth />
+//                                         <FormControl fullWidth>
+//                                             <InputLabel>Parent Entity</InputLabel>
+//                                             <Select name="parentEntityId" defaultValue="">
+//                                                 <MenuItem value="">None</MenuItem>
+//                                                 {locationEntities.map((e) => (
+//                                                     <MenuItem key={e.id} value={e.id}>{e.name}</MenuItem>
+//                                                 ))}
+//                                             </Select>
+//                                         </FormControl>
+//                                         <input type="hidden" name="clientId" value={clients[0]?.id || 1} />
+//                                         <Button type="submit" variant="contained" fullWidth>Add Location</Button>
+//                                     </form>
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                         <Grid item xs={12} md={8}>
+//                             <Card variant="outlined" sx={{ height: '100%', minHeight: 400 }}>
+//                                 <CardHeader title="Location Hierarchy" />
+//                                 <CardContent>
+//                                     {locationTree.length === 0 && <Alert severity="info">No locations defined.</Alert>}
+//                                     {locationTree.map(node => (
+//                                         <RecursiveTreeItem key={node.id} node={node} icon={LocationIcon} nameKey="name" />
+//                                     ))}
+//                                 </CardContent>
+//                             </Card>
+//                         </Grid>
+//                     </Grid>
+//                 );
+
+//             default:
+//                 return null;
+//         }
+//     };
+
+//     return (
+//         <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+//             <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+//                 <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+//                     <Box>
+//                         <Typography variant="h4" fontWeight={800} color="text.primary">
+//                             System Bootstrap
+//                         </Typography>
+//                         <Typography variant="body2" color="text.secondary">
+//                             Configure system masters and hierarchical structures
+//                         </Typography>
+//                     </Box>
+//                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+//                         {isPending && <CircularProgress size={20} />}
+//                         <Chip label="Super Admin Mode" size="small" color="primary" />
+//                     </Box>
+//                 </Box>
+
+//                 <Paper sx={{ mb: 3, borderRadius: 2 }} variant="outlined">
+//                     <Tabs
+//                         value={tab}
+//                         onChange={handleTabChange}
+//                         variant="scrollable"
+//                         scrollButtons="auto"
+//                         sx={{
+//                             px: 1,
+//                             '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
+//                         }}
+//                     >
+//                         <Tab label="Clients" icon={<BusinessIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                         <Tab label="User Levels" icon={<SettingsIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                         <Tab label="User Types" icon={<PeopleIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                         <Tab label="SKU Levels" icon={<SettingsIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                         <Tab label="SKU Entities" icon={<CategoryIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                         <Tab label="SKU Variants" icon={<InventoryIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                         <Tab label="Points Map" icon={<InventoryIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                         <Tab label="Locations" icon={<LocationIcon sx={{ mb: '0 !important', mr: 1 }} />} iconPosition="start" />
+//                     </Tabs>
+//                 </Paper>
+
+//                 <Box>{renderTab()}</Box>
+//             </Box>
+//         </Box>
+//     );
+// }
+
+// // Recursive Tree Components
+// const RecursiveTreeItem = ({ node, icon, nameKey }: any) => (
+//     <TreeItem label={node[nameKey]} secondary={node.code} icon={icon}>
+//         {node.children && node.children.map((child: any) => (
+//             <RecursiveTreeItem key={child.id} node={child} icon={icon} nameKey={nameKey} />
+//         ))}
+//     </TreeItem>
+// );
+
+// const RecursiveSkuTreeItem = ({ node }: any) => (
+//     <TreeItem label={node.name} secondary={node.code} icon={CategoryIcon}>
+//         {node.children && node.children.map((child: any) => (
+//             <RecursiveSkuTreeItem key={child.id} node={child} />
+//         ))}
+//         {node.variants && node.variants.map((v: any) => (
+//             <TreeItem key={v.id} label={v.variantName} secondary={`MRP: ₹${v.mrp}`} icon={InventoryIcon} />
+//         ))}
+//     </TreeItem>
+// );

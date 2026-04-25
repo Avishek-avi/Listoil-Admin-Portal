@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listoil Admin Panel - Communication</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Include the same base styles from the previous pages */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease;
+        }
+        
+        /* Light theme styles */
+        .light-theme {
+            background: linear-gradient(135deg, #f8f9f7 0%, #eef2ef 100%);
+        }
+        
+        .light-theme .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .light-theme .input-field {
+            background-color: #ffffff;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+        
+        .light-theme .input-field:focus {
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+        
+        .light-theme .btn-primary {
+            background: linear-gradient(to right, #2563eb, #1d4ed8);
+            color: #ffffff;
+        }
+        
+        .light-theme .btn-primary:hover {
+            background: linear-gradient(to right, #1d4ed8, #1e40af);
+        }
+        
+        .light-theme .text-primary {
+            color: #1f2937;
+        }
+        
+        .light-theme .text-secondary {
+            color: #6b7280;
+        }
+        
+        .light-theme .text-tertiary {
+            color: #9ca3af;
+        }
+        
+        .light-theme .text-accent {
+            color: #2563eb;
+        }
+        
+        .light-theme .text-accent:hover {
+            color: #1d4ed8;
+        }
+        
+        /* Dark theme styles */
+        .dark-theme {
+            background-color: #000000;
+        }
+        
+        .dark-theme .glass-effect {
+            background: rgba(28, 28, 30, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 56, 58, 0.3);
+        }
+        
+        .dark-theme .input-field {
+            background-color: #1c1c1e;
+            border: 1px solid #38383a;
+            color: #ffffff;
+        }
+        
+        .dark-theme .input-field:focus {
+            border-color: #007aff;
+            outline: none;
+        }
+        
+        .dark-theme .btn-primary {
+            background-color: #007aff;
+            color: #ffffff;
+        }
+        
+        .dark-theme .btn-primary:hover {
+            background-color: #0051d5;
+        }
+        
+        .dark-theme .text-primary {
+            color: #ffffff;
+        }
+        
+        .dark-theme .text-secondary {
+            color: #f2f2f7;
+        }
+        
+        .dark-theme .text-tertiary {
+            color: #8e8e93;
+        }
+        
+        .dark-theme .text-accent {
+            color: #007aff;
+        }
+        
+        .dark-theme .text-accent:hover {
+            color: #0051d5;
+        }
+
+        /* Card elevation / shadow system for cleaner separation */
+        :root {
+            --card-bg: #ffffff;
+            --card-border: rgba(16,24,40,0.04);
+            --card-shadow: 0 6px 18px rgba(16,24,40,0.06);
+            --card-shadow-hover: 0 10px 30px rgba(16,24,40,0.08);
+        }
+
+        .widget-card,
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--card-shadow);
+            transition: box-shadow 200ms ease, transform 160ms ease;
+            border-radius: 12px;
+        }
+
+        .widget-card:hover,
+        .stat-card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-4px);
+        }
+
+        /* Slightly subtler appearance in dark theme */
+        .dark-theme .widget-card,
+        .dark-theme .stat-card {
+            background: #141416 !important;
+            border-color: rgba(255,255,255,0.03) !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6) !important;
+        }
+
+        /* Sidebar styles */
+        .sidebar {
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .sidebar {
+            background-color: #1c1c1e;
+            border-right: 1px solid #38383a;
+        }
+        
+        .top-bar {
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark-theme .top-bar {
+            background-color: #1c1c1e;
+            border-bottom: 1px solid #38383a;
+        }
+        
+        .sidebar-item {
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .sidebar-item.active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+        
+        .sidebar-item.active i {
+            color: #3b82f6;
+        }
+        
+        .dark-theme .sidebar-item.active {
+            background-color: #2c2c2e;
+            color: #007aff;
+        }
+        
+        .dark-theme .sidebar-item.active i {
+            color: #007aff;
+        }
+        
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+        
+        .notification.success {
+            background-color: #10b981;
+        }
+        
+        .notification.error {
+            background-color: #ef4444;
+        }
+        
+        /* Tab styles */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 1.5rem;
+        }
+        
+        .dark-theme .tabs {
+            border-bottom-color: #38383a;
+        }
+        
+        .tab {
+            padding: 0.75rem 1rem;
+            font-weight: 500;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .dark-theme .tab {
+            color: #8e8e93;
+        }
+        
+        .tab:hover {
+            color: #374151;
+        }
+        
+        .dark-theme .tab:hover {
+            color: #f2f2f7;
+        }
+        
+        .tab.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .dark-theme .tab.active {
+            color: #007aff;
+            border-bottom-color: #007aff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Form styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .dark-theme .form-label {
+            color: #f2f2f7;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-input {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-input:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-select {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-select:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        .form-textarea {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-textarea {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-textarea:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        /* Button styles */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background-color: #3b82f6;
+            color: #ffffff;
+            border: 1px solid #3b82f6;
+        }
+        
+        .btn-primary:hover {
+            background-color: #2563eb;
+            border-color: #2563eb;
+        }
+        
+        .dark-theme .btn-primary {
+            background-color: #007aff;
+            border-color: #007aff;
+        }
+        
+        .dark-theme .btn-primary:hover {
+            background-color: #0051d5;
+            border-color: #0051d5;
+        }
+        
+        .btn-secondary {
+            background-color: #ffffff;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #f9fafb;
+            border-color: #d1d5db;
+        }
+        
+        .dark-theme .btn-secondary {
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+            border-color: #38383a;
+        }
+        
+        .dark-theme .btn-secondary:hover {
+            background-color: #2c2c2e;
+            border-color: #38383a;
+        }
+        
+        /* Badge styles */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .badge-primary {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+        
+        .dark-theme .badge-primary {
+            background-color: rgba(0, 122, 255, 0.2);
+            color: #007aff;
+        }
+        
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+        
+        .dark-theme .badge-success {
+            background-color: rgba(52, 199, 89, 0.2);
+            color: #34c759;
+        }
+        
+        .badge-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+        
+        .dark-theme .badge-warning {
+            background-color: rgba(255, 149, 0, 0.2);
+            color: #ff9500;
+        }
+        
+        /* Table styles */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th {
+            text-align: left;
+            padding: 0.75rem;
+            font-weight: 500;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .dark-theme .data-table th {
+            color: #f2f2f7;
+            border-bottom-color: #38383a;
+        }
+        
+        .data-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .dark-theme .data-table td {
+            border-bottom-color: #38383a;
+        }
+        
+        .data-table tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        .dark-theme .data-table tr:hover {
+            background-color: #2c2c2e;
+        }
+        
+        /* Status indicator styles */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        
+        .status-indicator.active {
+            background-color: #10b981;
+        }
+        
+        .status-indicator.inactive {
+            background-color: #ef4444;
+        }
+        
+        .status-indicator.pending {
+            background-color: #f59e0b;
+        }
+        
+        /* Progress bar styles */
+        .progress-bar {
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .dark-theme .progress-bar {
+            background-color: #38383a;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #3b82f6;
+            border-radius: 4px;
+        }
+        
+        .dark-theme .progress-fill {
+            background-color: #007aff;
+        }
+        
+        /* File upload styles */
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .file-upload input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-upload-label {
+            display: block;
+            padding: 0.75rem 1rem;
+            border: 1px dashed #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #f9fafb;
+            text-align: center;
+            color: #6b7280;
+            transition: all 0.2s ease;
+        }
+        
+        .dark-theme .file-upload-label {
+            border-color: #38383a;
+            background-color: #2c2c2e;
+            color: #8e8e93;
+        }
+        
+        .file-upload-label:hover {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+        
+        .dark-theme .file-upload-label:hover {
+            border-color: #007aff;
+            background-color: rgba(0, 122, 255, 0.1);
+        }
+        
+        /* Responsive adjustments for mobile / small screens */
+        @media (max-width: 992px) {
+            /* Stack main layout vertically */
+            .flex.h-screen {
+                display: block;
+                height: auto;
+            }
+
+            .sidebar.w-64 {
+                width: 100% !important;
+                position: relative !important;
+                height: auto !important;
+                border-right: none !important;
+            }
+
+            .sidebar { width: 100% !important; }
+
+            .sidebar .p-6 { padding: 12px !important; }
+
+            .flex-1.overflow-y-auto {
+                width: 100% !important;
+                padding: 0 !important;
+            }
+
+            .top-bar .px-6.py-4 {
+                padding: 10px !important;
+            }
+
+            .widget-card, .stat-card, .widget-card .p-6 {
+                padding: 12px !important;
+                margin: 0 8px 12px 8px;
+            }
+
+            /* Make tables horizontally scrollable */
+            .overflow-x-auto, table { width: 100%; overflow-x: auto; display: block; }
+
+            .min-w-full { min-width: 640px; }
+        }
+
+        @media (max-width: 640px) {
+            /* Mobile specific tweaks */
+            .grid.grid-cols-1.lg\:grid-cols-2 { grid-template-columns: 1fr !important; }
+
+            /* Transform sidebar into a compact icon-only bottom bar */
+            .sidebar {
+                position: fixed !important;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: auto !important;
+                width: 100% !important;
+                height: 56px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                padding: 0 !important;
+                background: rgba(28,28,30,0.98);
+                border-top: 1px solid rgba(56,56,58,0.6);
+                z-index: 70;
+            }
+
+            /* Keep the logo visible in the compact bar */
+            .sidebar .p-6, .sidebar .p-4 { display: none; }
+            .sidebar .sidebar-logo { display: block; height: 32px; margin: 0 12px; }
+
+            /* If the logo is inside a .p-6 wrapper, make sure it shows in compact layout */
+            .sidebar > .p-6 { display: flex !important; align-items: center; justify-content: center; }
+
+            .sidebar nav { display: flex; gap: 6px; align-items: center; }
+
+            .sidebar .sidebar-item {
+                width: 56px;
+                height: 56px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                margin: 0 4px;
+                font-size: 0; /* hide text label */
+            }
+
+            .sidebar .sidebar-item i { font-size: 18px; }
+
+            .sidebar .sidebar-item.active { background: rgba(255,255,255,0.04); border-radius: 8px; color: #fff; }
+
+            /* Ensure top bar remains compact */
+            .top-bar .px-6.py-4 { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+
+            .w-full.max-w-md.mx-auto.mt-20 { margin-top: 12px !important; padding: 0 12px; }
+
+            .stat-card { padding: 10px !important; }
+
+            .widget-card .h-64 { height: 300px !important; }
+
+            .text-2xl { font-size: 1.25rem !important; }
+            
+            /* Tabs on mobile */
+            .tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            
+            .tab {
+                display: inline-block;
+                padding: 0.5rem 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen light-theme">
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+    
+    <!-- Communication Page -->
+    <div id="communication-page" class="page active">
+        <div class="flex h-screen">
+            <!-- Sidebar -->
+            <div class="sidebar w-64 flex flex-col">
+                <div class="p-6 border-b border-custom">
+                    <img src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png" alt="Listoil Logo" class="h-10 sidebar-logo">
+                </div>
+                <div class="flex-1 overflow-y-auto py-4">
+                                        <nav class="px-2 space-y-1">
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Program</p>
+                        <a href="2.htm" data-page="dashboard" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tachometer-alt mr-3"></i>
+                            Dashboard
+                        </a>
+                        <a href="3.htm" data-page="masters-config" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-cogs mr-3"></i>
+                            Masters & Config
+                        </a>
+                        <a href="14.htm" data-page="members" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-users mr-3"></i>
+                            Members
+                        </a>
+                        <!-- <a href="4.htm" data-page="schemes-campaigns" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-bullhorn mr-3"></i>
+                            Schemes & Campaigns
+                        </a> -->
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Operations</p>
+                        <a href="5.htm" data-page="qr-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-qrcode mr-3"></i>
+                            QR Management
+                        </a>
+                        <a href="12.htm" data-page="process" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tasks mr-3"></i>
+                            Process
+                        </a>
+                        <a href="6.htm" data-page="communication" class="sidebar-item active flex items-center px-4 py-3 text-sm font-medium rounded-lg">
+                            <i class="fas fa-broadcast-tower mr-3"></i>
+                            Communication
+                        </a>
+                        <a href="13.htm" data-page="tickets" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-ticket-alt mr-3"></i>
+                            Tickets
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Insights</p>
+                        <a href="9.htm" data-page="mis-analytics" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-chart-line mr-3"></i>
+                            MIS & Analytics
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">System</p>
+                        <a href="10.htm" data-page="role-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-user-shield mr-3"></i>
+                            Role Management
+                        </a>
+                        <a href="15.htm" data-page="configuration" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-sliders-h mr-3"></i>
+                            Configuration
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-custom">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-opacity-20 flex items-center justify-center">
+                                <span class="text-blue-800 dark:text-blue-400 font-medium">A</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-primary">Admin User</p>
+                            <p class="text-xs text-tertiary">admin@listoil.com</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1 overflow-y-auto">
+                <!-- Top Bar -->
+                <div class="top-bar">
+                    <div class="px-6 py-4 flex items-center justify-between">
+                        <div>
+                            <h1 class="text-2xl font-bold text-primary">Communication</h1>
+                            <p class="text-sm text-tertiary">Create and manage communication campaigns and messages</p>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <!-- Create Campaign button removed -->
+                            <div class="relative">
+                                <button class="p-2 text-tertiary relative">
+                                    <i class="fas fa-bell"></i>
+                                    <span class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500"></span>
+                                </button>
+                            </div>
+                            <!-- Import Templates removed -->
+                            <div class="relative">
+                                <button class="p-2 text-tertiary">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </div>
+                            <button id="logout-btn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Communication Content -->
+                <div class="p-6">
+                    <!-- Communication Tabs per V3 -->
+                    <div class="tabs">
+                        <button class="tab active" id="campaigns-direct-tab">Campaigns & Direct</button>
+                        <button class="tab" id="notification-templates-tab">Templates</button>
+                        <button class="tab" id="event-triggers-tab">Event Triggers</button>
+                        <button class="tab" id="notification-logs-tab">Logs & History</button>
+                    </div>
+
+                    <!-- Campaigns & Direct Tab -->
+                    <div id="campaigns-direct-content" class="tab-content active">
+                        <div class="widget-card rounded-xl shadow p-6 mb-6">
+                            <h3 class="text-lg font-semibold text-primary mb-4">Compose Campaign</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="form-group">
+                                    <label class="form-label">Select Template</label>
+                                    <select class="form-select">
+                                        <option>Select a template...</option>
+                                        <option>Welcome Message</option>
+                                        <option>Points Credited</option>
+                                        <option>Campaign Announcement</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Target User Group / IDs</label>
+                                    <textarea class="form-textarea" rows="2" placeholder="Comma-separated user IDs"></textarea>
+                                </div>
+                                <div class="form-group md:col-span-2">
+                                    <label class="form-label">Custom Data (JSON)</label>
+                                    <textarea class="form-textarea" rows="2" placeholder='e.g. {"name":"John"}'></textarea>
+                                </div>
+                            </div>
+                            <div class="flex justify-end mt-4">
+                                <button class="btn btn-primary"><i class="fas fa-paper-plane mr-2"></i> Launch Campaign</button>
+                            </div>
+                        </div>
+                        <!-- Recent Campaigns Table -->
+                        <div class="widget-card rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-primary mb-4">Recent Campaigns</h3>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-custom">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Subject</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Channel</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Recipients</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm text-primary">Diwali Campaign 2026</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Push + SMS</td>
+                                            <td class="px-6 py-4"><span class="badge badge-success">Sent</span></td>
+                                            <td class="px-6 py-4 text-sm text-secondary">8,432</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">2026-04-10</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm text-primary">Points Expiry Reminder</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">SMS</td>
+                                            <td class="px-6 py-4"><span class="badge badge-warning">Scheduled</span></td>
+                                            <td class="px-6 py-4 text-sm text-secondary">2,150</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">2026-04-15</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notification Templates Tab -->
+                    <div id="notification-templates-content" class="tab-content">
+                        <div class="widget-card rounded-xl shadow p-6 mb-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-primary">Notification Templates</h3>
+                                <button class="btn btn-primary"><i class="fas fa-plus mr-2"></i> Create Template</button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-custom">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Name</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Slug</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Trigger</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm text-primary">Welcome Message</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">welcome_msg</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Registration</td>
+                                            <td class="px-6 py-4"><span class="badge badge-success">Active</span></td>
+                                            <td class="px-6 py-4 text-sm"><button class="text-blue-600 mr-2"><i class="fas fa-edit"></i></button><button class="text-green-600"><i class="fas fa-play"></i></button></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm text-primary">Points Credited</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">points_credit</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Scan Success</td>
+                                            <td class="px-6 py-4"><span class="badge badge-success">Active</span></td>
+                                            <td class="px-6 py-4 text-sm"><button class="text-blue-600 mr-2"><i class="fas fa-edit"></i></button><button class="text-green-600"><i class="fas fa-play"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Event Triggers Tab -->
+                    <div id="event-triggers-content" class="tab-content">
+                        <div class="widget-card rounded-xl shadow p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-primary">Event Trigger Mappings</h3>
+                                <button class="btn btn-primary"><i class="fas fa-plus mr-2"></i> Add Event Mapping</button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-custom">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Event Key</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Description</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Template</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm font-mono text-primary">USER_REGISTERED</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">New user registration</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Welcome Message</td>
+                                            <td class="px-6 py-4"><span class="badge badge-success">Active</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm font-mono text-primary">SCAN_SUCCESS</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">QR scan completed</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Points Credited</td>
+                                            <td class="px-6 py-4"><span class="badge badge-success">Active</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm font-mono text-primary">REDEMPTION_PROCESSED</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Redemption request processed</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Redemption Update</td>
+                                            <td class="px-6 py-4"><span class="badge badge-success">Active</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notification Logs Tab -->
+                    <div id="notification-logs-content" class="tab-content">
+                        <div class="widget-card rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-primary mb-4">Notification Logs</h3>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-custom">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">User ID</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Channel</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Template</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Sent At</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm text-primary">USR-10245</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Push</td>
+                                            <td class="px-6 py-4"><span class="badge badge-success">Delivered</span></td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Points Credited</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">2026-04-14 10:32</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 text-sm text-primary">USR-10189</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">SMS</td>
+                                            <td class="px-6 py-4"><span class="badge badge-warning">Pending</span></td>
+                                            <td class="px-6 py-4 text-sm text-secondary">Welcome Message</td>
+                                            <td class="px-6 py-4 text-sm text-secondary">2026-04-14 10:28</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Old Message Templates and Communication Analytics content removed; replaced by V3 tabs above -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Logout button
+        document.getElementById('logout-btn').addEventListener('click', function() {
+            showNotification('Logging out...', 'success');
+            setTimeout(() => {
+                window.location.href = '1.htm';
+            }, 1000);
+        });
+        
+        // Create Campaign and Import Templates UI removed; related event listeners removed
+        
+        // Sidebar navigation - links navigate via href attributes
+        
+        // V3 Communication Tab Switching
+        const commTabs = {
+            'campaigns-direct-tab': 'campaigns-direct-content',
+            'notification-templates-tab': 'notification-templates-content',
+            'event-triggers-tab': 'event-triggers-content',
+            'notification-logs-tab': 'notification-logs-content'
+        };
+        Object.keys(commTabs).forEach(tabId => {
+            document.getElementById(tabId).addEventListener('click', function() {
+                // Deactivate all tabs
+                Object.keys(commTabs).forEach(t => {
+                    document.getElementById(t).classList.remove('active');
+                    document.getElementById(commTabs[t]).classList.remove('active');
+                });
+                // Activate clicked tab
+                this.classList.add('active');
+                document.getElementById(commTabs[tabId]).classList.add('active');
+            });
+        });
+        
+        // Form submissions
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                showNotification('Form submitted successfully!', 'success');
+            });
+        });
+        
+        // Chart initialization
+        let campaignPerformanceChart, templateUsageChart, campaignAnalyticsChart, channelEngagementChart;
+        
+        // Helper: wait until a canvas has non-zero size (visible & laid out)
+        function waitForCanvasReady(canvas, maxAttempts = 20, interval = 100) {
+            return new Promise((resolve) => {
+                if (!canvas) return resolve(false);
+                let attempts = 0;
+                const check = () => {
+                    const rect = canvas.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) return resolve(true);
+                    attempts++;
+                    if (attempts >= maxAttempts) return resolve(false);
+                    setTimeout(check, interval);
+                };
+                check();
+            });
+        }
+
+        async function initCampaignPerformanceChart() {
+            const campaignPerformanceCtx = document.getElementById('campaignPerformanceChart');
+            if (!campaignPerformanceCtx) return;
+            const ok = await waitForCanvasReady(campaignPerformanceCtx, 30, 100);
+            if (!ok) { console.warn('campaignPerformanceChart canvas not ready'); return; }
+            if (!campaignPerformanceChart) {
+                campaignPerformanceChart = new Chart(campaignPerformanceCtx, {
+                    type: 'line',
+                    data: { 
+                        labels: ['Oct 1', 'Oct 5', 'Oct 10', 'Oct 15', 'Oct 20', 'Oct 25'], 
+                        datasets: [
+                            { 
+                                label: 'Messages Sent', 
+                                data: [5000, 8000, 12000, 15000, 18000, 20000], 
+                                borderColor: '#3B82F6', 
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+                                tension: 0.4, 
+                                fill: true 
+                            }, 
+                            { 
+                                label: 'Delivery Rate (%)', 
+                                data: [90, 92, 91, 93, 94, 92], 
+                                borderColor: '#10B981', 
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+                                tension: 0.4, 
+                                fill: true, 
+                                yAxisID: 'y1' 
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                position: 'top', 
+                                labels: { 
+                                    boxWidth: 12, 
+                                    padding: 15 
+                                } 
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { campaignPerformanceChart.resize(); campaignPerformanceChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initTemplateUsageChart() {
+            const templateUsageCtx = document.getElementById('templateUsageChart');
+            if (!templateUsageCtx) return;
+            const ok = await waitForCanvasReady(templateUsageCtx, 30, 100);
+            if (!ok) { console.warn('templateUsageChart canvas not ready'); return; }
+            if (!templateUsageChart) {
+                templateUsageChart = new Chart(templateUsageCtx, {
+                    type: 'bar',
+                    data: { 
+                        labels: ['SMS Templates', 'WhatsApp Templates', 'Email Templates'], 
+                        datasets: [{ 
+                            label: 'Used', 
+                            data: [45678, 32145, 12456], 
+                            backgroundColor: ['#3B82F6', '#10B981', '#8B5CF6'], 
+                            borderWidth: 0, 
+                            borderRadius: 5 
+                        }] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                display: false 
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { templateUsageChart.resize(); templateUsageChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initCampaignAnalyticsChart() {
+            const campaignAnalyticsCtx = document.getElementById('campaignAnalyticsChart');
+            if (!campaignAnalyticsCtx) return;
+            const ok = await waitForCanvasReady(campaignAnalyticsCtx, 30, 100);
+            if (!ok) { console.warn('campaignAnalyticsChart canvas not ready'); return; }
+            if (!campaignAnalyticsChart) {
+                campaignAnalyticsChart = new Chart(campaignAnalyticsCtx, {
+                    type: 'bar',
+                    data: { 
+                        labels: ['Oct 1', 'Oct 5', 'Oct 10', 'Oct 15', 'Oct 20', 'Oct 25'], 
+                        datasets: [
+                            { 
+                                label: 'Sent', 
+                                data: [5000, 8000, 12000, 15000, 18000, 20000], 
+                                backgroundColor: '#3B82F6', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Delivered', 
+                                data: [4500, 7360, 10800, 13500, 16200, 18000], 
+                                backgroundColor: '#10B981', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Failed', 
+                                data: [500, 640, 960, 1280, 1440, 2000], 
+                                backgroundColor: '#EF4444', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Bounced', 
+                                data: [250, 320, 480, 640, 800, 1000], 
+                                backgroundColor: '#F59E0B', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Clicked', 
+                                data: [180, 240, 360, 480, 600, 720], 
+                                backgroundColor: '#10B981', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Converted', 
+                                data: [100, 150, 200, 250, 300, 350], 
+                                backgroundColor: '#8B5CF6', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                position: 'top', 
+                                labels: { 
+                                    boxWidth: 12, 
+                                    padding: 15 
+                                } 
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { campaignAnalyticsChart.resize(); campaignAnalyticsChart.update(); } catch(e) {}
+            }
+        }
+        
+        async function initChannelEngagementChart() {
+            const channelEngagementCtx = document.getElementById('channelEngagementChart');
+            if (!channelEngagementCtx) return;
+            const ok = await waitForCanvasReady(channelEngagementCtx, 30, 100);
+            if (!ok) { console.warn('channelEngagementChart canvas not ready'); return; }
+            if (!channelEngagementChart) {
+                channelEngagementChart = new Chart(channelEngagementCtx, {
+                    type: 'bar',
+                    data: { 
+                        labels: ['Open Rate', 'Click Rate', 'Conversion Rate', 'Engagement Rate', 'Response Rate'], 
+                        datasets: [
+                            { 
+                                label: 'SMS', 
+                                data: [78.5, 23.4, 15.6, 12.3, 8.9], 
+                                backgroundColor: '#3B82F6', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'WhatsApp', 
+                                data: [68.7, 19.8, 13.2, 8.9, 6.7], 
+                                backgroundColor: '#25D366', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Email', 
+                                data: [91.4, 27.4, 18.6, 12.3, 8.9], 
+                                backgroundColor: '#10B981', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }, 
+                            { 
+                                label: 'Push', 
+                                data: [78.5, 23.4, 15.6, 12.3, 8.9], 
+                                backgroundColor: '#8B5CF6', 
+                                borderWidth: 0, 
+                                borderRadius: 5 
+                            }
+                        ] 
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                position: 'top', 
+                                labels: { 
+                                    boxWidth: 12, 
+                                    padding: 15 
+                                } 
+                            } 
+                        }, 
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                grid: { 
+                                    display: false 
+                                } 
+                            }, 
+                            x: { 
+                                grid: { 
+                                    display: false 
+                                } 
+                            } 
+                        } 
+                    }
+                });
+            } else {
+                try { channelEngagementChart.resize(); channelEngagementChart.update(); } catch(e) {}
+            }
+        }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Only Message Templates remains; initialize its chart
+            initTemplateUsageChart();
+        });
+    </script>
+</body>
+</html>

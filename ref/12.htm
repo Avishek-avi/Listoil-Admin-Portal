@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listoil Admin Panel - Process Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease;
+        }
+        
+        .light-theme {
+            background: linear-gradient(135deg, #f8f9f7 0%, #eef2ef 100%);
+        }
+        
+        .dark-theme {
+            background-color: #000000;
+        }
+        
+        .sidebar {
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark-theme .sidebar {
+            background-color: #1c1c1e;
+            border-right: 1px solid #38383a;
+        }
+        
+        .top-bar {
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark-theme .top-bar {
+            background-color: #1c1c1e;
+            border-bottom: 1px solid #38383a;
+        }
+        
+        .sidebar-item {
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .sidebar-item.active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+        
+        .sidebar-item.active i {
+            color: #3b82f6;
+        }
+        
+        .dark-theme .sidebar-item.active {
+            background-color: #2c2c2e;
+            color: #007aff;
+        }
+        
+        .dark-theme .sidebar-item.active i {
+            color: #007aff;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+        
+        .notification.success {
+            background-color: #10b981;
+        }
+        
+        .notification.error {
+            background-color: #ef4444;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 1.5rem;
+        }
+        
+        .dark-theme .tabs {
+            border-bottom-color: #38383a;
+        }
+        
+        .tab {
+            padding: 0.75rem 1rem;
+            font-weight: 500;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .dark-theme .tab {
+            color: #8e8e93;
+        }
+        
+        .tab:hover {
+            color: #374151;
+        }
+        
+        .dark-theme .tab:hover {
+            color: #f2f2f7;
+        }
+        
+        .tab.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .dark-theme .tab.active {
+            color: #007aff;
+            border-bottom-color: #007aff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .dark-theme .form-label {
+            color: #f2f2f7;
+        }
+        
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #ffffff;
+            color: #374151;
+        }
+        
+        .dark-theme .form-input, .dark-theme .form-select {
+            border-color: #38383a;
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .form-input:focus, .dark-theme .form-select:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background-color: #3b82f6;
+            color: #ffffff;
+            border: 1px solid #3b82f6;
+        }
+        
+        .btn-primary:hover {
+            background-color: #2563eb;
+            border-color: #2563eb;
+        }
+        
+        .dark-theme .btn-primary {
+            background-color: #007aff;
+            border-color: #007aff;
+        }
+        
+        .dark-theme .btn-primary:hover {
+            background-color: #0051d5;
+            border-color: #0051d5;
+        }
+        
+        .btn-secondary {
+            background-color: #ffffff;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #f9fafb;
+            border-color: #d1d5db;
+        }
+        
+        .dark-theme .btn-secondary {
+            background-color: #1c1c1e;
+            color: #f2f2f7;
+            border-color: #38383a;
+        }
+        
+        .dark-theme .btn-secondary:hover {
+            background-color: #2c2c2e;
+            border-color: #38383a;
+        }
+        
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .badge-primary {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+        
+        .dark-theme .badge-primary {
+            background-color: rgba(0, 122, 255, 0.2);
+            color: #007aff;
+        }
+        
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+        
+        .dark-theme .badge-success {
+            background-color: rgba(52, 199, 89, 0.2);
+            color: #34c759;
+        }
+        
+        .badge-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+        
+        .dark-theme .badge-warning {
+            background-color: rgba(255, 149, 0, 0.2);
+            color: #ff9500;
+        }
+        
+        .widget-card {
+            background: #ffffff;
+            border: 1px solid rgba(16,24,40,0.04);
+            box-shadow: 0 6px 18px rgba(16,24,40,0.06);
+            transition: box-shadow 200ms ease, transform 160ms ease;
+            border-radius: 12px;
+        }
+        
+        .widget-card:hover {
+            box-shadow: 0 10px 30px rgba(16,24,40,0.08);
+            transform: translateY(-4px);
+        }
+        
+        .dark-theme .widget-card {
+            background: #141416 !important;
+            border-color: rgba(255,255,255,0.03) !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6) !important;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 992px) {
+            .flex.h-screen {
+                display: block;
+                height: auto;
+            }
+            .sidebar.w-64 {
+                width: 100% !important;
+                position: relative !important;
+                height: auto !important;
+                border-right: none !important;
+            }
+            .sidebar { width: 100% !important; }
+            .sidebar .p-6 { padding: 12px !important; }
+            .flex-1.overflow-y-auto {
+                width: 100% !important;
+                padding: 0 !important;
+            }
+            .top-bar .px-6.py-4 {
+                padding: 10px !important;
+            }
+            .widget-card, .widget-card .p-6 {
+                padding: 12px !important;
+                margin: 0 8px 12px 8px;
+            }
+            .overflow-x-auto, table { width: 100%; overflow-x: auto; display: block; }
+            .min-w-full { min-width: 640px; }
+        }
+
+        @media (max-width: 640px) {
+            .grid.grid-cols-1.lg\:grid-cols-2 { grid-template-columns: 1fr !important; }
+            .sidebar {
+                position: fixed !important;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: auto !important;
+                width: 100% !important;
+                height: 56px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                padding: 0 !important;
+                background: rgba(28,28,30,0.98);
+                border-top: 1px solid rgba(56,56,58,0.6);
+                z-index: 70;
+            }
+            .sidebar .p-6, .sidebar .p-4 { display: none; }
+            .sidebar .sidebar-logo { display: block; height: 32px; margin: 0 12px; }
+            .sidebar > .p-6 { display: flex !important; align-items: center; justify-content: center; }
+            .sidebar nav { display: flex; gap: 6px; align-items: center; }
+            .sidebar .sidebar-item {
+                width: 56px;
+                height: 56px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                margin: 0 4px;
+                font-size: 0;
+            }
+            .sidebar .sidebar-item i { font-size: 18px; }
+            .sidebar .sidebar-item.active { background: rgba(255,255,255,0.04); border-radius: 8px; color: #fff; }
+            .top-bar .px-6.py-4 { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+            .w-full.max-w-md.mx-auto.mt-20 { margin-top: 12px !important; padding: 0 12px; }
+            .widget-card { padding: 10px !important; }
+            .widget-card .h-64 { height: 300px !important; }
+            .text-2xl { font-size: 1.25rem !important; }
+            .tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            .tab {
+                display: inline-block;
+                padding: 0.5rem 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen light-theme">
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+    
+    <!-- Process Management Page -->
+    <div id="process-management-page" class="page active">
+        <div class="flex h-screen">
+            <!-- Sidebar -->
+            <div class="sidebar w-64 flex flex-col">
+                <div class="p-6 border-b border-custom">
+                    <img src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png" alt="Listoil Logo" class="h-10 sidebar-logo">
+                </div>
+                <div class="flex-1 overflow-y-auto py-4">
+                                        <nav class="px-2 space-y-1">
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Program</p>
+                        <a href="2.htm" data-page="dashboard" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-tachometer-alt mr-3"></i>
+                            Dashboard
+                        </a>
+                        <a href="3.htm" data-page="masters-config" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-cogs mr-3"></i>
+                            Masters & Config
+                        </a>
+                        <a href="14.htm" data-page="members" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-users mr-3"></i>
+                            Members
+                        </a>
+                        <!-- <a href="4.htm" data-page="schemes-campaigns" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-bullhorn mr-3"></i>
+                            Schemes & Campaigns
+                        </a> -->
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Operations</p>
+                        <a href="5.htm" data-page="qr-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-qrcode mr-3"></i>
+                            QR Management
+                        </a>
+                        <a href="12.htm" data-page="process" class="sidebar-item active flex items-center px-4 py-3 text-sm font-medium rounded-lg">
+                            <i class="fas fa-tasks mr-3"></i>
+                            Process
+                        </a>
+                        <a href="6.htm" data-page="communication" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-broadcast-tower mr-3"></i>
+                            Communication
+                        </a>
+                        <a href="13.htm" data-page="tickets" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-ticket-alt mr-3"></i>
+                            Tickets
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Insights</p>
+                        <a href="9.htm" data-page="mis-analytics" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-chart-line mr-3"></i>
+                            MIS & Analytics
+                        </a>
+                        <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">System</p>
+                        <a href="10.htm" data-page="role-management" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-user-shield mr-3"></i>
+                            Role Management
+                        </a>
+                        <a href="15.htm" data-page="configuration" class="sidebar-item flex items-center px-4 py-3 text-sm font-medium rounded-lg text-secondary">
+                            <i class="fas fa-sliders-h mr-3"></i>
+                            Configuration
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-custom">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                <span class="text-blue-800 font-medium">A</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-gray-900">Admin User</p>
+                            <p class="text-xs text-gray-500">admin@listoil.com</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1 overflow-y-auto">
+                <!-- Top Bar -->
+                <div class="top-bar">
+                    <div class="px-6 py-4 flex items-center justify-between">
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-900">Process Management</h1>
+                            <p class="text-sm text-gray-500">Approve/reject transactions, manage redemptions, Amazon marketplace & manual points entry</p>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <div class="relative">
+                                <button class="p-2 text-gray-400 relative">
+                                    <i class="fas fa-bell"></i>
+                                    <span class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500"></span>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <button class="p-2 text-gray-400">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </div>
+                            <button id="logout-btn" class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Process Management Content -->
+                <div class="p-6">
+                    <!-- Tabs -->
+                    <div class="tabs">
+                        <button class="tab active" id="transaction-requests-tab">Transactions</button>
+                        <button class="tab" id="redemption-tab">Redemptions</button>
+                        <button class="tab" id="amazon-tab">Amazon Marketplace</button>
+                        <button class="tab" id="manual-entry-tab">Manual Points Entry</button>
+                    </div>
+                    
+                    <!-- Tab Contents -->
+                    <!-- Transactions Tab Content -->
+                    <div id="transaction-requests-content" class="tab-content active">
+                        <!-- Transaction Statistics -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">Retailer Transactions</h4>
+                                    <i class="fas fa-store text-blue-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">86</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-blue-600">+12</span>
+                                    <span class="text-gray-500 ml-2">today</span>
+                                </div>
+                            </div>
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">Mechanic Scans</h4>
+                                    <i class="fas fa-qrcode text-purple-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">114</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-purple-600">+19</span>
+                                    <span class="text-gray-500 ml-2">today</span>
+                                </div>
+                            </div>
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">Total Points Issued</h4>
+                                    <i class="fas fa-coins text-yellow-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">48,350</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-green-600">+6%</span>
+                                    <span class="text-gray-500 ml-2">from yesterday</span>
+                                </div>
+                            </div>
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">Total Transactions</h4>
+                                    <i class="fas fa-chart-line text-green-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">200</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-green-600">+31</span>
+                                    <span class="text-gray-500 ml-2">today</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Transactions Table -->
+                        <div class="widget-card p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900">Transactions</h3>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                        <i class="fas fa-filter mr-1"></i> Filter
+                                    </button>
+                                    <button class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                        <i class="fas fa-download mr-1"></i> Export
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Txn ID</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#TXN-5001</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                                                        <span class="text-blue-800 font-medium text-xs">RK</span>
+                                                    </div>
+                                                    <span>Rajesh Kumar</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-primary">Retailer</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">DMS Invoice Sync</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">1,250</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 09:10 AM</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#TXN-5002</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center mr-2">
+                                                        <span class="text-purple-800 font-medium text-xs">AM</span>
+                                                    </div>
+                                                    <span>Arvind Mehta</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-success">Mechanic</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">QR Scan</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">200</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 09:22 AM</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#TXN-5003</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                                                        <span class="text-blue-800 font-medium text-xs">SP</span>
+                                                    </div>
+                                                    <span>Suresh Patel</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-primary">Retailer</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">DMS Invoice Sync</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">3,750</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 09:38 AM</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#TXN-5004</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center mr-2">
+                                                        <span class="text-purple-800 font-medium text-xs">MK</span>
+                                                    </div>
+                                                    <span>Mohit Kapoor</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-success">Mechanic</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">QR Scan</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">150</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 09:51 AM</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#TXN-5005</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                                                        <span class="text-blue-800 font-medium text-xs">PN</span>
+                                                    </div>
+                                                    <span>Priya Nair</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-primary">Retailer</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">DMS Invoice Sync</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2,100</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 10:05 AM</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- Pagination -->
+                            <div class="flex justify-between items-center mt-6">
+                                <div class="text-sm text-gray-500">Showing 1 to 5 of 200 entries</div>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">Previous</button>
+                                    <button class="px-3 py-1 bg-blue-600 text-white rounded-md text-sm">1</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">2</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">3</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">Next</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Redemptions Tab Content -->
+                    <div id="redemption-content" class="tab-content">
+                        <!-- Redemption Statistics -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">UPI Redemptions</h4>
+                                    <i class="fas fa-mobile-alt text-blue-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">34</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-blue-600">+4</span>
+                                    <span class="text-gray-500 ml-2">today</span>
+                                </div>
+                            </div>
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">Bank Transfers</h4>
+                                    <i class="fas fa-university text-green-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">21</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-green-600">+3</span>
+                                    <span class="text-gray-500 ml-2">today</span>
+                                </div>
+                            </div>
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">E-Vouchers</h4>
+                                    <i class="fas fa-ticket-alt text-purple-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">18</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-purple-600">+2</span>
+                                    <span class="text-gray-500 ml-2">today</span>
+                                </div>
+                            </div>
+                            <div class="widget-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-medium text-gray-500">Amazon Orders</h4>
+                                    <i class="fab fa-amazon text-orange-500"></i>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 mb-1">9</p>
+                                <div class="flex items-center text-sm">
+                                    <span class="text-orange-600">+2</span>
+                                    <span class="text-gray-500 ml-2">pending approval</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Redemptions Table -->
+                        <div class="widget-card p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900">Redemptions</h3>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                        <i class="fas fa-filter mr-1"></i> Filter
+                                    </button>
+                                    <button class="px-3 py-1 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                        <i class="fas fa-download mr-1"></i> Export
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Redemption ID</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Channel</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#RED-2001</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                                                        <span class="text-blue-800 font-medium text-xs">RK</span>
+                                                    </div>
+                                                    <span>Rajesh Kumar</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">UPI</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">500</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹500</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 10:15 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#RED-2002</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center mr-2">
+                                                        <span class="text-green-800 font-medium text-xs">SP</span>
+                                                    </div>
+                                                    <span>Suresh Patel</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Bank Transfer</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">1,200</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹1,200</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 10:28 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#RED-2003</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center mr-2">
+                                                        <span class="text-purple-800 font-medium text-xs">AM</span>
+                                                    </div>
+                                                    <span>Arvind Mehta</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">E-Voucher</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">750</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹750</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 10:42 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#RED-2004</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center mr-2">
+                                                        <span class="text-orange-800 font-medium text-xs">MK</span>
+                                                    </div>
+                                                    <span>Mohit Kapoor</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Amazon</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2,000</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹2,000</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 10:55 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <button class="text-green-600 hover:text-green-900 mr-2 approve-redemption-btn" data-id="#RED-2004">Approve</button>
+                                                <button class="text-red-600 hover:text-red-900 reject-redemption-btn" data-id="#RED-2004">Reject</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#RED-2005</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                                                        <span class="text-blue-800 font-medium text-xs">PN</span>
+                                                    </div>
+                                                    <span>Priya Nair</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">UPI</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">300</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹300</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 11:08 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">—</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#RED-2006</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center mr-2">
+                                                        <span class="text-orange-800 font-medium text-xs">VS</span>
+                                                    </div>
+                                                    <span>Vikram Singh</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Amazon</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">3,500</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹3,500</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Apr 16, 2026 11:20 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <button class="text-green-600 hover:text-green-900 mr-2 approve-redemption-btn" data-id="#RED-2006">Approve</button>
+                                                <button class="text-red-600 hover:text-red-900 reject-redemption-btn" data-id="#RED-2006">Reject</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- Pagination -->
+                            <div class="flex justify-between items-center mt-6">
+                                <div class="text-sm text-gray-500">Showing 1 to 6 of 82 entries</div>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">Previous</button>
+                                    <button class="px-3 py-1 bg-blue-600 text-white rounded-md text-sm">1</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">2</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">3</button>
+                                    <button class="px-3 py-1 border border-gray-300 rounded-md text-sm">Next</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Amazon Marketplace Tab Content -->
+                    <div id="amazon-content" class="tab-content">
+                        <div class="widget-card p-6 mb-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900">Amazon Marketplace Products</h3>
+                                <div class="flex space-x-2">
+                                    <button class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                                        <i class="fas fa-download mr-2"></i> Template
+                                    </button>
+                                    <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                                        <i class="fas fa-upload mr-2"></i> Upload CSV
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ASIN/SKU</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Model</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">MRP</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CSP</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Discount</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Points</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inventory</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-4 py-3"><div class="h-10 w-10 bg-gray-200 rounded flex items-center justify-center"><i class="fas fa-image text-gray-400"></i></div></td>
+                                            <td class="px-4 py-3 text-sm text-gray-900">B0ABC12345</td>
+                                            <td class="px-4 py-3 text-sm">Amazon Echo Dot<br><span class="text-xs text-gray-500">Smart Home</span></td>
+                                            <td class="px-4 py-3 text-sm text-gray-500">5th Gen</td>
+                                            <td class="px-4 py-3 text-sm">&#8377;4,499</td>
+                                            <td class="px-4 py-3 text-sm">&#8377;3,499</td>
+                                            <td class="px-4 py-3 text-sm text-green-600">22%</td>
+                                            <td class="px-4 py-3 text-sm font-medium">350</td>
+                                            <td class="px-4 py-3 text-sm">24</td>
+                                            <td class="px-4 py-3 text-sm">
+                                                <button class="text-blue-600 hover:text-blue-800 mr-2"><i class="fas fa-eye"></i></button>
+                                                <a href="#" class="text-orange-500 hover:text-orange-700"><i class="fab fa-amazon"></i></a>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-4 py-3"><div class="h-10 w-10 bg-gray-200 rounded flex items-center justify-center"><i class="fas fa-image text-gray-400"></i></div></td>
+                                            <td class="px-4 py-3 text-sm text-gray-900">B0DEF67890</td>
+                                            <td class="px-4 py-3 text-sm">Fire TV Stick<br><span class="text-xs text-gray-500">Electronics</span></td>
+                                            <td class="px-4 py-3 text-sm text-gray-500">4K Max</td>
+                                            <td class="px-4 py-3 text-sm">&#8377;6,499</td>
+                                            <td class="px-4 py-3 text-sm">&#8377;4,999</td>
+                                            <td class="px-4 py-3 text-sm text-green-600">23%</td>
+                                            <td class="px-4 py-3 text-sm font-medium">500</td>
+                                            <td class="px-4 py-3 text-sm">18</td>
+                                            <td class="px-4 py-3 text-sm">
+                                                <button class="text-blue-600 hover:text-blue-800 mr-2"><i class="fas fa-eye"></i></button>
+                                                <a href="#" class="text-orange-500 hover:text-orange-700"><i class="fab fa-amazon"></i></a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Points Entry Tab Content -->
+                    <div id="manual-entry-content" class="tab-content">
+                        <div class="widget-card p-6 mb-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Manual Points Entry</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="form-group">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Select Member</label>
+                                    <input type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Search for member...">
+                                </div>
+                                <div class="form-group">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Entry Type</label>
+                                    <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                        <option>Scan Adjustment</option>
+                                        <option>Bonus Points</option>
+                                        <option>Referral Reward</option>
+                                        <option>Correction</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Points / Amount</label>
+                                    <input type="number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter points">
+                                </div>
+                                <div class="form-group md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Reason / Remarks</label>
+                                    <textarea class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" rows="3" placeholder="Enter reason..."></textarea>
+                                </div>
+                            </div>
+                            <div class="flex justify-end space-x-2 mt-4">
+                                <button class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">Cancel</button>
+                                <button class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">Submit Entry</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Manual Scan/Transaction Entry -->
+                            <div class="widget-card p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Manual Scan/Transaction Entry</h3>
+                                <form id="manual-scan-form">
+                                    <div class="form-group">
+                                        <label class="form-label">User ID / Mobile Number</label>
+                                        <input type="text" class="form-input" id="user-id-scan" placeholder="Enter user ID or mobile number">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Entry Type</label>
+                                        <select class="form-select" id="entry-type">
+                                            <option value="scan">Scan</option>
+                                            <option value="transaction">Transaction</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Amount (₹)</label>
+                                        <input type="number" class="form-input" id="amount" placeholder="Enter amount">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Merchant/Store</label>
+                                        <input type="text" class="form-input" id="merchant" placeholder="Enter merchant/store name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Date</label>
+                                        <input type="date" class="form-input" id="scan-date">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Remarks</label>
+                                        <textarea class="form-input" id="scan-remarks" rows="3" placeholder="Enter any additional remarks"></textarea>
+                                    </div>
+                                    <div class="flex justify-end space-x-2">
+                                        <button type="button" class="btn btn-secondary">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Submit Entry</button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <!-- Manual Redemption Entry -->
+                            <div class="widget-card p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Manual Redemption Entry</h3>
+                                <form id="manual-redemption-form">
+                                    <div class="form-group">
+                                        <label class="form-label">User ID / Mobile Number</label>
+                                        <input type="text" class="form-input" id="user-id-redemption" placeholder="Enter user ID or mobile number">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Points to Redeem</label>
+                                        <input type="number" class="form-input" id="points" placeholder="Enter points to redeem">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Redemption Type</label>
+                                        <select class="form-select" id="redemption-type">
+                                            <option value="cash">Cash</option>
+                                            <option value="voucher">Voucher</option>
+                                            <option value="product">Product</option>
+                                            <option value="service">Service</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Redemption Value (₹)</label>
+                                        <input type="number" class="form-input" id="redemption-value" placeholder="Enter redemption value">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Date</label>
+                                        <input type="date" class="form-input" id="redemption-date">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Remarks</label>
+                                        <textarea class="form-input" id="redemption-remarks" rows="3" placeholder="Enter any additional remarks"></textarea>
+                                    </div>
+                                    <div class="flex justify-end space-x-2">
+                                        <button type="button" class="btn btn-secondary">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Submit Entry</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <!-- Recent Manual Entries -->
+                        <div class="widget-card p-6 mt-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900">Recent Manual Entries</h3>
+                                <button class="text-sm text-blue-600 hover:text-blue-800">View All</button>
+                            </div>
+                            
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entry ID</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount/Points</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#MAN-1024</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                                                        <span class="text-blue-800 font-medium text-xs">JD</span>
+                                                    </div>
+                                                    <span>John Doe</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-primary">Scan</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹1,500</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Oct 25, 2023 11:15 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-success">Completed</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#MAN-1025</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center mr-2">
+                                                        <span class="text-green-800 font-medium text-xs">AS</span>
+                                                    </div>
+                                                    <span>Alice Smith</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-warning">Redemption</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">800 Points</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Oct 25, 2023 10:45 AM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-success">Completed</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#MAN-1026</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <div class="flex items-center">
+                                                    <div class="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center mr-2">
+                                                        <span class="text-purple-800 font-medium text-xs">RJ</span>
+                                                    </div>
+                                                    <span>Robert Johnson</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-success">Transaction</span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹3,200</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Oct 24, 2023 04:30 PM</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <span class="badge badge-success">Completed</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Logout button
+        document.getElementById('logout-btn').addEventListener('click', function() {
+            showNotification('Logging out...', 'success');
+            setTimeout(() => {
+                window.location.href = '1.htm';
+            }, 1000);
+        });
+        
+        // Sidebar navigation - links navigate via href attributes
+        
+        // Main tabs functionality
+        document.getElementById('transaction-requests-tab').addEventListener('click', () => showMainTab('transaction-requests'));
+        document.getElementById('redemption-tab').addEventListener('click', () => showMainTab('redemption'));
+        document.getElementById('amazon-tab').addEventListener('click', () => showMainTab('amazon'));
+        document.getElementById('manual-entry-tab').addEventListener('click', () => showMainTab('manual-entry'));
+        
+        function showMainTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(`${tabName}-content`).classList.add('active');
+            
+            // Add active class to selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+        
+        // Approve scan/transaction buttons
+        document.querySelectorAll('.approve-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const requestId = this.getAttribute('data-id');
+                showNotification(`Request ${requestId} approved successfully`, 'success');
+                const row = this.closest('tr');
+                row.style.opacity = '0.5';
+                setTimeout(() => row.remove(), 1000);
+            });
+        });
+        
+        // Reject scan/transaction buttons
+        document.querySelectorAll('.reject-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const requestId = this.getAttribute('data-id');
+                showNotification(`Request ${requestId} rejected`, 'error');
+                const row = this.closest('tr');
+                row.style.opacity = '0.5';
+                setTimeout(() => row.remove(), 1000);
+            });
+        });
+        
+        // Approve redemption buttons
+        document.querySelectorAll('.approve-redemption-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const requestId = this.getAttribute('data-id');
+                showNotification(`Redemption ${requestId} approved successfully`, 'success');
+                const row = this.closest('tr');
+                row.style.opacity = '0.5';
+                setTimeout(() => row.remove(), 1000);
+            });
+        });
+        
+        // Reject redemption buttons
+        document.querySelectorAll('.reject-redemption-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const requestId = this.getAttribute('data-id');
+                showNotification(`Redemption ${requestId} rejected`, 'error');
+                const row = this.closest('tr');
+                row.style.opacity = '0.5';
+                setTimeout(() => row.remove(), 1000);
+            });
+        });
+        
+        // Manual scan/transaction form submission
+        document.getElementById('manual-scan-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            showNotification('Scan/Transaction entry submitted successfully', 'success');
+            this.reset();
+        });
+        
+        // Manual redemption form submission
+        document.getElementById('manual-redemption-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            showNotification('Redemption entry submitted successfully', 'success');
+            this.reset();
+        });
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            showMainTab('transaction-requests');
+            
+            // Set today's date as default for date inputs
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('scan-date').value = today;
+            document.getElementById('redemption-date').value = today;
+        });
+    </script>
+</body>
+</html>

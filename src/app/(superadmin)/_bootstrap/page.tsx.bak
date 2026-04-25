@@ -1,0 +1,53 @@
+// // app/superadmin/page.tsx
+// import { db } from "@/db/index";
+// import {
+//     client,
+//     userTypeLevelMaster,
+//     userTypeEntity,
+//     skuLevelMaster,
+//     skuEntity,
+//     skuVariant,
+//     skuPointConfig,
+//     locationLevelMaster,
+//     locationEntity,
+// } from "@/db/schema";
+
+// import SuperAdminClient from "./client-page";
+
+// export default async function SuperAdminPage() {
+//     const [
+//         clients,
+//         userTypeLevels,
+//         userTypeEntities,
+//         skuLevels,
+//         skuEntities,
+//         skuVariants,
+//         locationLevels,
+//         locationEntities,
+//         skuPointConfigs
+//     ] = await Promise.all([
+//         db.select().from(client),
+//         db.select().from(userTypeLevelMaster),
+//         db.select().from(userTypeEntity),
+//         db.select().from(skuLevelMaster),
+//         db.select().from(skuEntity),
+//         db.select().from(skuVariant),
+//         db.select().from(locationLevelMaster),
+//         db.select().from(locationEntity),
+//         db.select().from(skuPointConfig),
+//     ]);
+
+//     return (
+//         <SuperAdminClient
+//             clients={clients}
+//             userTypeLevels={userTypeLevels}
+//             userTypeEntities={userTypeEntities}
+//             skuLevels={skuLevels}
+//             skuEntities={skuEntities}
+//             skuVariants={skuVariants}
+//             locationLevels={locationLevels}
+//             locationEntities={locationEntities}
+//             skuPointConfigs={skuPointConfigs}
+//         />
+//     );
+// }
