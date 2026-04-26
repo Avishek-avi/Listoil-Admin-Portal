@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/db';
-import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, electricianTransactions, counterSalesTransactions } from '@/db/schema';
+import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, electricianTransactions, counterSalesTransactions, users, approvalStatuses } from '@/db/schema';
 import { emitEvent, BUS_EVENTS } from '@/server/rabbitMq/broker';
 import { eq, desc, sql as sqlTag, and, inArray } from 'drizzle-orm';
 
@@ -68,7 +68,6 @@ export async function getMastersDataAction() {
         }));
 
         // 2. Fetch Points Config (Base Points)
-        // Join with UserType and SkuVariant to get names
         const configs = await db
             .select({
                 id: skuPointConfig.id,
@@ -120,7 +119,6 @@ export async function getMastersDataAction() {
             .leftJoin(skuEntity, eq(skuPointRules.skuEntityId, skuEntity.id))
             .leftJoin(sqlTag.raw('sku_entity parent_entity') as any, eq(skuEntity.parentEntityId, sqlTag.raw('parent_entity.id')));
 
-        console.log(rules.length);
         const overrideRules: PointsRule[] = rules.map(r => {
             let header = 'General';
             let item = 'All SKUs';
@@ -147,10 +145,9 @@ export async function getMastersDataAction() {
             };
         });
 
-        // Combine
         const pointsMatrix = [...configRules, ...overrideRules];
 
-        // 4. Fetch SKU Hierarchy (skuEntity joined with skuLevelMaster)
+        // 4. Fetch SKU Hierarchy
         const skuEntities = await db
             .select({
                 id: skuEntity.id,
@@ -162,7 +159,6 @@ export async function getMastersDataAction() {
             .from(skuEntity)
             .leftJoin(skuLevelMaster, eq(skuEntity.levelId, skuLevelMaster.id));
 
-        // Build tree recursively or via map
         const buildSkuTree = (items: any[], parentId: number | null = null): SkuNode[] => {
             return items
                 .filter(item => item.parentEntityId === parentId)
@@ -177,15 +173,14 @@ export async function getMastersDataAction() {
 
         const skuHierarchy = buildSkuTree(skuEntities);
 
-        // Fetch redemption channels for UI
+        // Fetch redemption channels
         const redemptionChannelsRows = await db.select({ id: redemptionChannels.id, name: redemptionChannels.name, isActive: redemptionChannels.isActive }).from(redemptionChannels).orderBy(desc(redemptionChannels.id));
         const redemptionChannelsList = redemptionChannelsRows.map(r => ({ id: Number(r.id), name: r.name, isActive: Boolean(r.isActive) }));
 
-        // 5. Fetch SKU Performance (Aggregate scans from all transaction tables)
+        // 5. SKU Performance
         const q1 = db.select({ sku: retailerTransactions.sku }).from(retailerTransactions);
         const q2 = db.select({ sku: electricianTransactions.sku }).from(electricianTransactions);
         const q3 = db.select({ sku: counterSalesTransactions.sku }).from(counterSalesTransactions);
-
         const unionSq = q1.unionAll(q2).unionAll(q3).as('t');
 
         const performanceData = await db
@@ -198,7 +193,6 @@ export async function getMastersDataAction() {
             .orderBy(desc(sqlTag`count(*)`))
             .limit(5);
 
-        // Join with skuEntity to get names (assuming t.sku matches skuEntity.code)
         const topSkus = await Promise.all(performanceData.map(async (p) => {
             const entity = await db.select({
                 name: skuEntity.name,
@@ -216,22 +210,57 @@ export async function getMastersDataAction() {
             };
         }));
 
+        // 6. Stakeholder Statistics (Real counts)
+        const statsResult = await db.select({
+            roleId: users.roleId,
+            typeName: userTypeEntity.typeName,
+            count: sqlTag`count(*)`
+        })
+            .from(users)
+            .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
+            .groupBy(users.roleId, userTypeEntity.typeName);
+
+        const totalCount = statsResult.reduce((acc, s) => acc + Number(s.count), 0);
+        const stakeholderStats = statsResult.map(s => ({
+            label: `Total ${s.typeName}s`,
+            value: Number(s.count).toLocaleString(),
+            percent: totalCount > 0 ? Math.round((Number(s.count) / totalCount) * 100) : 0
+        }));
+
+        // Growth and Pending Stats
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const [newUsersCount] = await db.select({ count: sqlTag`count(*)` }).from(users).where(sqlTag`${users.createdAt} >= ${weekAgo.toISOString()}`);
+        
+        const [pendingKycCount] = await db.select({ count: sqlTag`count(*)` })
+            .from(users)
+            .innerJoin(sqlTag.raw('approval_statuses') as any, eq(users.approvalStatusId, sqlTag.raw('approval_statuses.id')))
+            .where(sqlTag.raw("approval_statuses.name = 'KYC_PENDING'"));
+
+        const dynamicMessages = [
+            `${Number(newUsersCount.count).toLocaleString()} new members added this week`,
+            `${Number(pendingKycCount.count).toLocaleString()} members pending KYC verification`
+        ];
+
         return {
             stakeholderTypes,
             pointsMatrix,
             skuHierarchy,
             topSkus,
-            redemptionChannels: redemptionChannelsList
+            redemptionChannels: redemptionChannelsList,
+            stakeholderStats,
+            dynamicMessages
         };
 
     } catch (error) {
         console.error("Error fetching masters data:", error);
-        // Returning empty or mock on error to prevent UI crash
         return {
             stakeholderTypes: [],
             pointsMatrix: [],
             skuHierarchy: [],
-            topSkus: []
+            topSkus: [],
+            stakeholderStats: [],
+            dynamicMessages: []
         };
     }
 }
@@ -337,7 +366,6 @@ export async function upsertSkuPointConfigAction(data: {
     validTo?: string;
     isActive: boolean;
 }) {
-    console.log("calleddd.....")
     try {
         if (data.id) {
             await db.update(skuPointConfig)
@@ -395,7 +423,6 @@ export async function updateSkuPointConfigForEntityAction(data: {
     isActive: boolean;
 }) {
     try {
-        // Use a recursive CTE in the DB to collect subtree entity ids, then select variant ids under them
         const variantRows = await db.select({ id: sqlTag.raw('t.id') as any }).from(sqlTag.raw(`(
             WITH RECURSIVE subtree AS (
                 SELECT id FROM sku_entity WHERE id = ${data.entityId}
@@ -411,13 +438,8 @@ export async function updateSkuPointConfigForEntityAction(data: {
             return { success: false, error: 'No SKU variants found under selected entity' };
         }
 
-        // We need a userTypeId to create new configs. If not provided, we can only update existing ones
-        // or we need to know which user types to apply to.
-        // For now, if userTypeId is provided, we will upsert for all variants in subtree for that userType.
-
         if (data.userTypeId) {
             for (const variantId of variantIds) {
-                // Upsert logic using find/update or insert
                 const existing = await db.select()
                     .from(skuPointConfig)
                     .where(and(
@@ -449,7 +471,6 @@ export async function updateSkuPointConfigForEntityAction(data: {
                 }
             }
         } else {
-            // If no userTypeId, update ALL existing configs for these variants (across all user types)
             await db.update(skuPointConfig).set({
                 pointsPerUnit: data.pointsPerUnit.toString(),
                 maxScansPerDay: data.maxScansPerDay,

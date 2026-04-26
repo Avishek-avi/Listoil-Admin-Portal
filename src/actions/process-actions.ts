@@ -71,13 +71,12 @@ function getRandomColor(id: number) {
 export async function getProcessDataAction() {
     try {
         // 1. Fetch Pending Scan/Transaction Requests
-        // We'll combine from all three stakeholder transaction logs where status is 'pending'
         const pendingRetailer = await db.select({
             id: retailerTransactionLogs.id,
             user: users.name,
             points: retailerTransactionLogs.points,
             createdAt: retailerTransactionLogs.createdAt,
-            type: sql<string>`'Transaction'` // Defaulting to Transaction for now
+            type: sql<string>`'Transaction'`
         })
             .from(retailerTransactionLogs)
             .leftJoin(users, eq(retailerTransactionLogs.userId, users.id))
@@ -167,6 +166,11 @@ export async function getProcessDataAction() {
         const [electricianRejectedToday] = await db.select({ count: sql<number>`count(*)` }).from(electricianTransactionLogs).where(and(ilike(electricianTransactionLogs.status, 'rejected'), sql`${electricianTransactionLogs.createdAt} >= ${todayStr}`));
         const [csRejectedToday] = await db.select({ count: sql<number>`count(*)` }).from(counterSalesTransactionLogs).where(and(ilike(counterSalesTransactionLogs.status, 'rejected'), sql`${counterSalesTransactionLogs.createdAt} >= ${todayStr}`));
 
+        // Total Processed (All time approved)
+        const [retailerTotal] = await db.select({ count: sql<number>`count(*)` }).from(retailerTransactionLogs).where(ilike(retailerTransactionLogs.status, 'approved'));
+        const [electricianTotal] = await db.select({ count: sql<number>`count(*)` }).from(electricianTransactionLogs).where(ilike(electricianTransactionLogs.status, 'approved'));
+        const [csTotal] = await db.select({ count: sql<number>`count(*)` }).from(counterSalesTransactionLogs).where(ilike(counterSalesTransactionLogs.status, 'approved'));
+
         const scanStats: ProcessStats = {
             pendingRequests: Number(retailerPendingCount.count) + Number(electricianPendingCount.count) + Number(csPendingCount.count),
             pendingRequestsToday: '+0',
@@ -174,7 +178,7 @@ export async function getProcessDataAction() {
             approvedTodayTrend: '+0%',
             rejectedToday: Number(retailerRejectedToday.count) + Number(electricianRejectedToday.count) + Number(csRejectedToday.count),
             rejectedTodayTrend: '0',
-            totalProcessed: '1,842',
+            totalProcessed: (Number(retailerTotal.count) + Number(electricianTotal.count) + Number(csTotal.count)).toLocaleString(),
             totalProcessedTrend: '+0'
         };
 

@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import * as schema from "./schema";
 import dotenv from 'dotenv';
 
+dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const pool = new Pool({
