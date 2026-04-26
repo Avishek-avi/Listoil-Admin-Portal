@@ -661,7 +661,6 @@ function ScanTransactionTab({ data }: { data: any }) {
             </div>
 
             {/* TABLE */}
-            {/* TABLE */}
             <div className="overflow-x-auto">
                 <table className="data-table">
                     <thead>
@@ -702,19 +701,26 @@ function ScanTransactionTab({ data }: { data: any }) {
                                 </tr>
                             );
                         })}
+                        {data.scanRequests.length === 0 && (
+                            <tr>
+                                <td colSpan={6} className="py-8 text-center text-gray-500">
+                                    No pending scan or transaction requests.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
 
             {/* PAGINATION */}
             <div className="flex justify-between items-center mt-4">
-                <p className="text-sm text-gray-500">Showing 1 to 4 of 42 entries</p>
+                <p className="text-sm text-gray-500">
+                    Showing 1 to {data.scanRequests.length} of {data.scanStats.pendingRequests} entries
+                </p>
                 <div className="flex gap-1">
-                    <button className="btn btn-secondary btn-sm">Previous</button>
+                    <button className="btn btn-secondary btn-sm" disabled>Previous</button>
                     <button className="btn btn-primary btn-sm">1</button>
-                    <button className="btn btn-secondary btn-sm">2</button>
-                    <button className="btn btn-secondary btn-sm">3</button>
-                    <button className="btn btn-secondary btn-sm">Next</button>
+                    <button className="btn btn-secondary btn-sm" disabled>Next</button>
                 </div>
             </div>
         </div>
@@ -863,7 +869,7 @@ export default function ProcessClient() {
     if (!data) return null;
 
     const [activeTab, setActiveTab] = useState(0);
-    const tabLabels = ['Scan/Transaction Requests', 'Redemption Requests', 'Orders', 'Amazon Marketplace', 'Manual Entry'];
+    const tabLabels = ['Redemption Requests', 'Orders', 'Amazon Marketplace', 'Manual Entry'];
 
     return (
         <div className="w-full">
@@ -874,20 +880,17 @@ export default function ProcessClient() {
                 ))}
             </div>
 
-            {/* Scan/Transaction Tab */}
-            {activeTab === 0 && <ScanTransactionTab data={data} />}
-
             {/* Redemption Tab */}
-            {activeTab === 1 && <RedemptionTab data={data} />}
+            {activeTab === 0 && <RedemptionTab data={data} />}
 
             {/* Orders Tab */}
-            {activeTab === 2 && <AmazonOrdersTab />}
+            {activeTab === 1 && <AmazonOrdersTab />}
 
             {/* Amazon Marketplace Tab */}
-            {activeTab === 3 && <AmazonProductsClient />}
+            {activeTab === 2 && <AmazonProductsClient />}
 
             {/* Manual Entry Tab */}
-            {activeTab === 4 && (
+            {activeTab === 3 && (
                 <div>
                     <div className="widget-card p-8 max-w-2xl mx-auto">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Manual Points Entry</h3>

@@ -1,11 +1,13 @@
 'use server'
 
 import { db } from "@/db"
-import { tickets, users, ticketTypes, ticketStatuses, userTypeEntity, userTypeLevelMaster } from "@/db/schema"
-import { desc, eq, or, ilike, sql, and } from "drizzle-orm"
+import { tickets, users, ticketTypes, ticketStatuses, userTypeEntity, userTypeLevelMaster, retailers, electricians, counterSales } from "@/db/schema"
+import { desc, eq, or, ilike, sql, and, inArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 import { revalidatePath } from "next/cache"
 import { NotificationService } from "@/server/services/notification.service"
+import { auth } from "@/lib/auth"
+import { getUserScope } from "@/lib/scope-utils"
 
 export interface TicketFilters {
     searchTerm?: string;
@@ -16,6 +18,10 @@ export interface TicketFilters {
 
 export async function getTicketsAction(filters?: TicketFilters) {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
         const { searchTerm, priority, statusId, typeId } = filters || {};
 
         const requester = alias(users, 'requester');
@@ -48,9 +54,20 @@ export async function getTicketsAction(filters?: TicketFilters) {
             .leftJoin(requesterType, eq(requester.roleId, requesterType.id))
             .leftJoin(assignee, eq(tickets.assigneeId, assignee.id))
             .leftJoin(assigneeType, eq(assignee.roleId, assigneeType.id))
+            .leftJoin(retailers, eq(requester.id, retailers.userId))
+            .leftJoin(electricians, eq(requester.id, electricians.userId))
+            .leftJoin(counterSales, eq(requester.id, counterSales.userId))
             .$dynamic();
 
         const conditions = [];
+
+        if (scope.type !== 'Global') {
+            conditions.push(or(
+                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+            ));
+        }
 
         if (searchTerm) {
             conditions.push(or(

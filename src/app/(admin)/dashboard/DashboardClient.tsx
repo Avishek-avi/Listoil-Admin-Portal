@@ -155,53 +155,7 @@ export default function DashboardClient() {
 
     return (
         <div>
-            {/* ① RBAC Context & Filter Bar */}
-            <div className="widget-card rbac-bar rounded-xl p-4 mb-6" style={{ border: '1px solid rgba(16,24,40,0.06)' }}>
-                <div className="flex flex-wrap gap-4 items-center justify-between">
-                    {/* Left: current role context */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <div className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '20px', background: 'rgba(59,130,246,0.12)', color: '#2563eb', fontSize: '0.78rem', fontWeight: 600 }}>
-                            <i className="fas fa-user-shield mr-2"></i>
-                            <span>Admin</span>
-                        </div>
-                        <div className="scope-tag" style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: '20px', background: 'rgba(16,185,129,0.12)', color: '#059669', fontSize: '0.72rem', fontWeight: 500 }}>
-                            <i className="fas fa-globe mr-1"></i>
-                            <span>National View</span>
-                        </div>
-                    </div>
-                    {/* Right: filters */}
-                    <div className="flex flex-wrap gap-3 items-end">
-                        <div>
-                            <label className="text-xs text-gray-400 block mb-1">State</label>
-                            <select className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 outline-none bg-white">
-                                <option value="">All States</option>
-                                <option value="MH">Maharashtra</option>
-                                <option value="DL">Delhi</option>
-                                <option value="GJ">Gujarat</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 block mb-1">City</label>
-                            <select className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 outline-none bg-white">
-                                <option value="">All Cities</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 block mb-1">Period</label>
-                            <select className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 outline-none bg-white">
-                                <option>This Month</option>
-                                <option>Last 30 Days</option>
-                                <option>Last Quarter</option>
-                            </select>
-                        </div>
-                        <div>
-                            <button className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
-                                <i className="fas fa-filter mr-1"></i> Apply
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            {/* Dashboard Content */}
 
             {/* ② Program Health KPIs (6 compact cards) */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">

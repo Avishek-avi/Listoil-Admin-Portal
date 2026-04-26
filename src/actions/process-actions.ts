@@ -10,8 +10,10 @@ import {
     users,
     earningTypes
 } from "@/db/schema"
-import { desc, eq, and, sql, or, ilike } from "drizzle-orm"
-import { redemptionChannels } from "@/db/schema"
+import { desc, eq, and, sql, or, ilike, inArray } from "drizzle-orm"
+import { redemptionChannels, retailers, electricians, counterSales } from "@/db/schema"
+import { auth } from "@/lib/auth"
+import { getUserScope } from "@/lib/scope-utils"
 
 export interface ScanRequest {
     id: string;
@@ -70,8 +72,12 @@ function getRandomColor(id: number) {
 
 export async function getProcessDataAction() {
     try {
-        // 1. Fetch Pending Scan/Transaction Requests
-        const pendingRetailer = await db.select({
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
+        const pendingRetailerConditions = [ilike(retailerTransactionLogs.status, 'pending')];
+        const pendingRetailerQuery = db.select({
             id: retailerTransactionLogs.id,
             user: users.name,
             points: retailerTransactionLogs.points,
@@ -80,10 +86,17 @@ export async function getProcessDataAction() {
         })
             .from(retailerTransactionLogs)
             .leftJoin(users, eq(retailerTransactionLogs.userId, users.id))
-            .where(ilike(retailerTransactionLogs.status, 'pending'))
-            .limit(20);
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .$dynamic();
 
-        const pendingElectrician = await db.select({
+        if (scope.type !== 'Global') {
+            pendingRetailerConditions.push(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+        }
+
+        const pendingRetailer = await pendingRetailerQuery.where(and(...pendingRetailerConditions)).limit(20);
+
+        const pendingElectricianConditions = [ilike(electricianTransactionLogs.status, 'pending')];
+        const pendingElectricianQuery = db.select({
             id: electricianTransactionLogs.id,
             user: users.name,
             points: electricianTransactionLogs.points,
@@ -92,10 +105,17 @@ export async function getProcessDataAction() {
         })
             .from(electricianTransactionLogs)
             .leftJoin(users, eq(electricianTransactionLogs.userId, users.id))
-            .where(ilike(electricianTransactionLogs.status, 'pending'))
-            .limit(20);
+            .leftJoin(electricians, eq(users.id, electricians.userId))
+            .$dynamic();
 
-        const pendingCounterSales = await db.select({
+        if (scope.type !== 'Global') {
+            pendingElectricianConditions.push(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+        }
+
+        const pendingElectrician = await pendingElectricianQuery.where(and(...pendingElectricianConditions)).limit(20);
+
+        const pendingCounterSalesConditions = [ilike(counterSalesTransactionLogs.status, 'pending')];
+        const pendingCounterSalesQuery = db.select({
             id: counterSalesTransactionLogs.id,
             user: users.name,
             points: counterSalesTransactionLogs.points,
@@ -104,8 +124,14 @@ export async function getProcessDataAction() {
         })
             .from(counterSalesTransactionLogs)
             .leftJoin(users, eq(counterSalesTransactionLogs.userId, users.id))
-            .where(ilike(counterSalesTransactionLogs.status, 'pending'))
-            .limit(20);
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .$dynamic();
+
+        if (scope.type !== 'Global') {
+            pendingCounterSalesConditions.push(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+        }
+
+        const pendingCounterSales = await pendingCounterSalesQuery.where(and(...pendingCounterSalesConditions)).limit(20);
 
         const scanRequests: ScanRequest[] = [...pendingRetailer, ...pendingElectrician, ...pendingCounterSales]
             .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
@@ -119,8 +145,8 @@ export async function getProcessDataAction() {
                 dateTime: r.createdAt ? new Date(r.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---'
             }));
 
-        // 2. Fetch Pending Redemption Requests
-        const pendingRedemptionRequests = await db.select({
+        // 2. Fetch Pending Redemption Requests (Scoped)
+        const pendingRedemptionQuery = db.select({
             id: redemptions.id,
             user: users.name,
             points: redemptions.pointsRedeemed,
@@ -132,10 +158,23 @@ export async function getProcessDataAction() {
             .leftJoin(users, eq(redemptions.userId, users.id))
             .leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id))
             .leftJoin(redemptionChannels, eq(redemptions.channelId, redemptionChannels.id))
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(electricians, eq(users.id, electricians.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
             .where(ilike(redemptionStatuses.name, 'pending'))
-            .limit(50);
+            .$dynamic();
 
-        const redemptionRequests: RedemptionRequest[] = pendingRedemptionRequests.map(r => ({
+        if (scope.type !== 'Global') {
+            pendingRedemptionQuery.where(or(
+                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+            ));
+        }
+
+        const pendingRedemptionRequestsData = await pendingRedemptionQuery.limit(50);
+
+        const redemptionRequests: RedemptionRequest[] = pendingRedemptionRequestsData.map(r => ({
             id: `#RED-${r.id}`,
             user: r.user || 'Unknown',
             initials: getInitials(r.user || 'Unknown'),
@@ -146,45 +185,85 @@ export async function getProcessDataAction() {
             redemptionType: r.redemptionType || 'Unknown'
         }));
 
-        // 3. Stats (Real counts)
+        // 3. Stats (Real counts - Scoped)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayStr = today.toISOString();
 
-        const [retailerPendingCount] = await db.select({ count: sql<number>`count(*)` }).from(retailerTransactionLogs).where(ilike(retailerTransactionLogs.status, 'pending'));
-        const [electricianPendingCount] = await db.select({ count: sql<number>`count(*)` }).from(electricianTransactionLogs).where(ilike(electricianTransactionLogs.status, 'pending'));
-        const [csPendingCount] = await db.select({ count: sql<number>`count(*)` }).from(counterSalesTransactionLogs).where(ilike(counterSalesTransactionLogs.status, 'pending'));
+        // Base queries for stats
+        const getScopedCount = (table: any, condition: any, userTable: any) => {
+            const conditions = [condition];
+            let q = db.select({ count: sql<number>`count(*)` }).from(table).$dynamic();
+            if (scope.type !== 'Global') {
+                q.leftJoin(userTable, eq(table.userId, userTable.userId));
+                conditions.push(scope.type === 'State' ? inArray(userTable.state, scope.entityNames) : inArray(userTable.city, scope.entityNames));
+            }
+            return q.where(and(...conditions));
+        };
 
-        const [redemptionPendingCount] = await db.select({ count: sql<number>`count(*)` }).from(redemptions).leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id)).where(ilike(redemptionStatuses.name, 'pending'));
+        const [retailerPendingCount] = await getScopedCount(retailerTransactionLogs, ilike(retailerTransactionLogs.status, 'pending'), retailers);
+        const [electricianPendingCount] = await getScopedCount(electricianTransactionLogs, ilike(electricianTransactionLogs.status, 'pending'), electricians);
+        const [csPendingCount] = await getScopedCount(counterSalesTransactionLogs, ilike(counterSalesTransactionLogs.status, 'pending'), counterSales);
+
+        let redemptionPendingQuery = db.select({ count: sql<number>`count(*)` }).from(redemptions).leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id)).where(ilike(redemptionStatuses.name, 'pending')).$dynamic();
+        if (scope.type !== 'Global') {
+            redemptionPendingQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
+                .leftJoin(electricians, eq(redemptions.userId, electricians.userId))
+                .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
+                .where(or(
+                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                ));
+        }
+        const [redemptionPendingCount] = await redemptionPendingQuery;
 
         // Today's stats for Scan
-        const [retailerApprovedToday] = await db.select({ count: sql<number>`count(*)` }).from(retailerTransactionLogs).where(and(ilike(retailerTransactionLogs.status, 'approved'), sql`${retailerTransactionLogs.createdAt} >= ${todayStr}`));
-        const [electricianApprovedToday] = await db.select({ count: sql<number>`count(*)` }).from(electricianTransactionLogs).where(and(ilike(electricianTransactionLogs.status, 'approved'), sql`${electricianTransactionLogs.createdAt} >= ${todayStr}`));
-        const [csApprovedToday] = await db.select({ count: sql<number>`count(*)` }).from(counterSalesTransactionLogs).where(and(ilike(counterSalesTransactionLogs.status, 'approved'), sql`${counterSalesTransactionLogs.createdAt} >= ${todayStr}`));
+        const [retailerApprovedToday] = await getScopedCount(retailerTransactionLogs, and(ilike(retailerTransactionLogs.status, 'approved'), sql`${retailerTransactionLogs.createdAt} >= ${todayStr}`), retailers);
+        const [electricianApprovedToday] = await getScopedCount(electricianTransactionLogs, and(ilike(electricianTransactionLogs.status, 'approved'), sql`${electricianTransactionLogs.createdAt} >= ${todayStr}`), electricians);
+        const [csApprovedToday] = await getScopedCount(counterSalesTransactionLogs, and(ilike(counterSalesTransactionLogs.status, 'approved'), sql`${counterSalesTransactionLogs.createdAt} >= ${todayStr}`), counterSales);
 
-        const [retailerRejectedToday] = await db.select({ count: sql<number>`count(*)` }).from(retailerTransactionLogs).where(and(ilike(retailerTransactionLogs.status, 'rejected'), sql`${retailerTransactionLogs.createdAt} >= ${todayStr}`));
-        const [electricianRejectedToday] = await db.select({ count: sql<number>`count(*)` }).from(electricianTransactionLogs).where(and(ilike(electricianTransactionLogs.status, 'rejected'), sql`${electricianTransactionLogs.createdAt} >= ${todayStr}`));
-        const [csRejectedToday] = await db.select({ count: sql<number>`count(*)` }).from(counterSalesTransactionLogs).where(and(ilike(counterSalesTransactionLogs.status, 'rejected'), sql`${counterSalesTransactionLogs.createdAt} >= ${todayStr}`));
+        const [retailerRejectedToday] = await getScopedCount(retailerTransactionLogs, and(ilike(retailerTransactionLogs.status, 'rejected'), sql`${retailerTransactionLogs.createdAt} >= ${todayStr}`), retailers);
+        const [electricianRejectedToday] = await getScopedCount(electricianTransactionLogs, and(ilike(electricianTransactionLogs.status, 'rejected'), sql`${electricianTransactionLogs.createdAt} >= ${todayStr}`), electricians);
+        const [csRejectedToday] = await getScopedCount(counterSalesTransactionLogs, and(ilike(counterSalesTransactionLogs.status, 'rejected'), sql`${counterSalesTransactionLogs.createdAt} >= ${todayStr}`), counterSales);
 
         // Total Processed (All time approved)
-        const [retailerTotal] = await db.select({ count: sql<number>`count(*)` }).from(retailerTransactionLogs).where(ilike(retailerTransactionLogs.status, 'approved'));
-        const [electricianTotal] = await db.select({ count: sql<number>`count(*)` }).from(electricianTransactionLogs).where(ilike(electricianTransactionLogs.status, 'approved'));
-        const [csTotal] = await db.select({ count: sql<number>`count(*)` }).from(counterSalesTransactionLogs).where(ilike(counterSalesTransactionLogs.status, 'approved'));
+        const [retailerTotal] = await getScopedCount(retailerTransactionLogs, ilike(retailerTransactionLogs.status, 'approved'), retailers);
+        const [electricianTotal] = await getScopedCount(electricianTransactionLogs, ilike(electricianTransactionLogs.status, 'approved'), electricians);
+        const [csTotal] = await getScopedCount(counterSalesTransactionLogs, ilike(counterSalesTransactionLogs.status, 'approved'), counterSales);
 
         const scanStats: ProcessStats = {
-            pendingRequests: Number(retailerPendingCount.count) + Number(electricianPendingCount.count) + Number(csPendingCount.count),
+            pendingRequests: Number(retailerPendingCount?.[0]?.count || 0) + Number(electricianPendingCount?.[0]?.count || 0) + Number(csPendingCount?.[0]?.count || 0),
             pendingRequestsToday: '+0',
-            approvedToday: Number(retailerApprovedToday.count) + Number(electricianApprovedToday.count) + Number(csApprovedToday.count),
+            approvedToday: Number(retailerApprovedToday?.[0]?.count || 0) + Number(electricianApprovedToday?.[0]?.count || 0) + Number(csApprovedToday?.[0]?.count || 0),
             approvedTodayTrend: '+0%',
-            rejectedToday: Number(retailerRejectedToday.count) + Number(electricianRejectedToday.count) + Number(csRejectedToday.count),
+            rejectedToday: Number(retailerRejectedToday?.[0]?.count || 0) + Number(electricianRejectedToday?.[0]?.count || 0) + Number(csRejectedToday?.[0]?.count || 0),
             rejectedTodayTrend: '0',
-            totalProcessed: (Number(retailerTotal.count) + Number(electricianTotal.count) + Number(csTotal.count)).toLocaleString(),
+            totalProcessed: (Number(retailerTotal?.[0]?.count || 0) + Number(electricianTotal?.[0]?.count || 0) + Number(csTotal?.[0]?.count || 0)).toLocaleString(),
             totalProcessedTrend: '+0'
         };
 
-        const [redemptionApprovedToday] = await db.select({ count: sql<number>`count(*)` }).from(redemptions).leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id)).where(and(ilike(redemptionStatuses.name, 'approved'), sql`${redemptions.createdAt} >= ${todayStr}`));
-        const [redemptionRejectedToday] = await db.select({ count: sql<number>`count(*)` }).from(redemptions).leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id)).where(and(ilike(redemptionStatuses.name, 'rejected'), sql`${redemptions.createdAt} >= ${todayStr}`));
-        const [redemptionTotalValueToday] = await db.select({ sum: sql<number>`sum(${redemptions.pointsRedeemed})` }).from(redemptions).where(and(sql`${redemptions.createdAt} >= ${todayStr}`));
+        let redemptionApprovedTodayQuery = db.select({ count: sql<number>`count(*)` }).from(redemptions).leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id)).where(and(ilike(redemptionStatuses.name, 'approved'), sql`${redemptions.createdAt} >= ${todayStr}`)).$dynamic();
+        let redemptionRejectedTodayQuery = db.select({ count: sql<number>`count(*)` }).from(redemptions).leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id)).where(and(ilike(redemptionStatuses.name, 'rejected'), sql`${redemptions.createdAt} >= ${todayStr}`)).$dynamic();
+        let redemptionTotalValueTodayQuery = db.select({ sum: sql<number>`sum(${redemptions.pointsRedeemed})` }).from(redemptions).where(and(sql`${redemptions.createdAt} >= ${todayStr}`)).$dynamic();
+
+        if (scope.type !== 'Global') {
+            const scopeFilter = or(
+                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+            );
+            [redemptionApprovedTodayQuery, redemptionRejectedTodayQuery, redemptionTotalValueTodayQuery].forEach(q => {
+                q.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
+                 .leftJoin(electricians, eq(redemptions.userId, electricians.userId))
+                 .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
+                 .where(scopeFilter);
+            });
+        }
+
+        const [redemptionApprovedToday] = await redemptionApprovedTodayQuery;
+        const [redemptionRejectedToday] = await redemptionRejectedTodayQuery;
+        const [redemptionTotalValueToday] = await redemptionTotalValueTodayQuery;
 
         const redemptionStats: RedemptionStats = {
             pendingRedemptions: Number(redemptionPendingCount.count),

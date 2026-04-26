@@ -12,8 +12,10 @@ import {
     userTypeLevelMaster,
     kycDocuments
 } from "@/db/schema"
-import { desc, eq, and, sql, ilike, count, or, aliasedTable } from "drizzle-orm"
+import { desc, eq, and, sql, ilike, count, or, inArray, aliasedTable } from "drizzle-orm"
 import { BUS_EVENTS, emitEvent } from "@/server/rabbitMq/broker"
+import { auth } from "@/lib/auth"
+import { getUserScope } from "@/lib/scope-utils"
 
 export interface MemberBase {
     id: string;
@@ -123,12 +125,24 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
             .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
             .$dynamic();
 
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
         const conditions = [];
         if (searchQuery) {
             conditions.push(or(
                 ilike(users.name, `%${searchQuery}%`),
                 ilike(users.phone, `%${searchQuery}%`),
                 ilike(users.email, `%${searchQuery}%`)
+            ));
+        }
+
+        if (scope.type !== 'Global') {
+            conditions.push(or(
+                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
             ));
         }
 
@@ -372,9 +386,9 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
     try {
         const { searchQuery, kycStatus, region, page = 1, limit = 10, roleId } = filters;
 
-        if (!roleId) {
-            return { list: [], stats: { total: 0, totalTrend: '', kycPending: 0, kycPendingTrend: '', kycApproved: 0, kycApprovedRate: '', activeToday: 0, activeTodayTrend: '' } };
-        }
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
 
         let baseConditions = [eq(users.roleId, roleId)];
 
@@ -383,6 +397,14 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
                 ilike(users.name, `%${searchQuery}%`),
                 ilike(users.phone, `%${searchQuery}%`),
                 ilike(users.email, `%${searchQuery}%`)
+            ));
+        }
+
+        if (scope.type !== 'Global') {
+            baseConditions.push(or(
+                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
             ));
         }
 
@@ -434,6 +456,9 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
 
         const totalResult = await db.select({ count: count() })
             .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(electricians, eq(users.id, electricians.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
             .where(and(...baseConditions));
 
         const total = totalResult[0]?.count || 0;

@@ -15,72 +15,223 @@ import {
     retailers,
     electricians
 } from "@/db/schema"
-import { count, sum, sql, desc, eq, and, gte, lte } from "drizzle-orm"
+import { count, sum, sql, desc, eq, and, gte, lte, inArray, or } from "drizzle-orm"
+import { auth } from "@/lib/auth"
+import { getUserScope } from "@/lib/scope-utils"
 
 export async function getDashboardDataAction(dateRange?: { from: string, to: string }) {
     try {
-        // 1. Total Members
-        const [userCount] = await db.select({ count: count() }).from(users);
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const userId = Number(session.user.id);
+        const scope = await getUserScope(userId);
 
-        // 2. Active Members (not suspended)
-        const [activeUserCount] = await db.select({ count: count() })
-            .from(users)
-            .where(eq(users.isSuspended, false));
+        // Helper to apply scope filtering to a query
+        const applyScope = (query: any, table: any) => {
+            if (scope.type === 'Global') return query;
+            if (scope.type === 'State') {
+                return query.where(inArray(table.state, scope.entityNames));
+            }
+            if (scope.type === 'City') {
+                return query.where(inArray(table.city, scope.entityNames));
+            }
+            return query;
+        };
 
-        // 3. Blocked Members
-        const [blockedUserCount] = await db.select({ count: count() })
-            .from(users)
-            .where(eq(users.isSuspended, true));
+        // 1. Total Members (Scoped)
+        let userCountQuery = db.select({ count: count() }).from(users);
+        if (scope.type !== 'Global') {
+            userCountQuery = db.select({ count: count() })
+                .from(users)
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(or(
+                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                )) as any;
+        }
+        const [userCount] = await userCountQuery;
 
-        // 4. Total Points Issued (Sum from all 3 transaction logs)
-        const [csPoints] = await db.select({ value: sum(counterSalesTransactionLogs.points) }).from(counterSalesTransactionLogs);
-        const [retPoints] = await db.select({ value: sum(retailerTransactions.points) }).from(retailerTransactions);
-        const [elecPoints] = await db.select({ value: sum(electricianTransactionLogs.points) }).from(electricianTransactionLogs);
+        // 2. Active Members (not suspended) - Scoped
+        let activeUserQuery = db.select({ count: count() }).from(users).where(eq(users.isSuspended, false));
+        if (scope.type !== 'Global') {
+            activeUserQuery = db.select({ count: count() })
+                .from(users)
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(and(
+                    eq(users.isSuspended, false),
+                    or(
+                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    )
+                )) as any;
+        }
+        const [activeUserCount] = await activeUserQuery;
+
+        // 3. Blocked Members (Suspended) - Scoped
+        let blockedUserQuery = db.select({ count: count() }).from(users).where(eq(users.isSuspended, true));
+        if (scope.type !== 'Global') {
+            blockedUserQuery = db.select({ count: count() })
+                .from(users)
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(and(
+                    eq(users.isSuspended, true),
+                    or(
+                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    )
+                )) as any;
+        }
+        const [blockedUserCount] = await blockedUserQuery;
+
+        // 4. Total Points Issued (Sum from all 3 transaction logs) - Scoped
+        const csPointsQuery = db.select({ value: sum(counterSalesTransactionLogs.points) }).from(counterSalesTransactionLogs);
+        const retPointsQuery = db.select({ value: sum(retailerTransactions.points) }).from(retailerTransactions);
+        const elecPointsQuery = db.select({ value: sum(electricianTransactionLogs.points) }).from(electricianTransactionLogs);
+
+        if (scope.type !== 'Global') {
+            csPointsQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
+                .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+            retPointsQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
+                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            elecPointsQuery.leftJoin(electricians, eq(electricianTransactionLogs.userId, electricians.userId))
+                .where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+        }
+
+        const [csPoints] = await csPointsQuery;
+        const [retPoints] = await retPointsQuery;
+        const [elecPoints] = await elecPointsQuery;
 
         const totalPointsIssued = (Number(csPoints?.value) || 0) + (Number(retPoints?.value) || 0) + (Number(elecPoints?.value) || 0);
 
-        // 5. Points Redeemed
-        const [physRedeem] = await db.select({ value: sum(physicalRewardsRedemptions.pointsDeducted) }).from(physicalRewardsRedemptions);
-        const [amzRedeem] = await db.select({ value: sum(userAmazonOrders.pointsDeducted) }).from(userAmazonOrders);
+        // Segment Specific Stats - Scoped
+        const retActiveQuery = db.select({ count: count() }).from(retailers).leftJoin(users, eq(retailers.userId, users.id)).where(eq(users.isSuspended, false));
+        const retKycQuery = db.select({ count: count() }).from(retailers).where(eq(retailers.isKycVerified, true));
+        const retTotalQuery = db.select({ count: count() }).from(retailers);
+
+        const elecActiveQuery = db.select({ count: count() }).from(electricians).leftJoin(users, eq(electricians.userId, users.id)).where(eq(users.isSuspended, false));
+        const elecKycQuery = db.select({ count: count() }).from(electricians).where(eq(electricians.isKycVerified, true));
+        const elecTotalQuery = db.select({ count: count() }).from(electricians);
+
+        const [retActive] = await applyScope(retActiveQuery, retailers);
+        const [retKyc] = await applyScope(retKycQuery, retailers);
+        const [retTotal] = await applyScope(retTotalQuery, retailers);
+
+        const [elecActive] = await applyScope(elecActiveQuery, electricians);
+        const [elecKyc] = await applyScope(elecKycQuery, electricians);
+        const [elecTotal] = await applyScope(elecTotalQuery, electricians);
+
+        // Rename for consistency with return object
+        const retPointsVal = retPoints;
+        const elecPointsVal = elecPoints;
+
+        // 5. Points Redeemed (Scoped)
+        const physRedeemQuery = db.select({ value: sum(physicalRewardsRedemptions.pointsDeducted) }).from(physicalRewardsRedemptions);
+        const amzRedeemQuery = db.select({ value: sum(userAmazonOrders.pointsDeducted) }).from(userAmazonOrders);
+
+        if (scope.type !== 'Global') {
+            physRedeemQuery.leftJoin(users, eq(physicalRewardsRedemptions.userId, users.id))
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(or(
+                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                ));
+            amzRedeemQuery.leftJoin(users, eq(userAmazonOrders.userId, users.id))
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(or(
+                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                ));
+        }
+
+        const [physRedeem] = await physRedeemQuery;
+        const [amzRedeem] = await amzRedeemQuery;
         const totalRedeemed = (Number(physRedeem?.value) || 0) + (Number(amzRedeem?.value) || 0);
 
-        // 6. Total Scans
-        const [csCount] = await db.select({ count: count() }).from(counterSales);
-        const [retCount] = await db.select({ count: count() }).from(retailerTransactions);
-        const [elecCount] = await db.select({ count: count() }).from(electricianTransactionLogs);
+        // 6. Total Scans (Scoped)
+        const csCountQuery = db.select({ count: count() }).from(counterSales);
+        const retCountQuery = db.select({ count: count() }).from(retailerTransactions);
+        const elecCountQuery = db.select({ count: count() }).from(electricianTransactionLogs);
+
+        const [csCount] = await applyScope(csCountQuery, counterSales);
+        
+        if (scope.type !== 'Global') {
+            retCountQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
+                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            elecCountQuery.leftJoin(electricians, eq(electricianTransactionLogs.userId, electricians.userId))
+                .where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+        }
+
+        const [retCount] = await retCountQuery;
+        const [elecCount] = await elecCountQuery;
         const totalScans = (csCount?.count || 0) + (retCount?.count || 0) + (elecCount?.count || 0);
 
-        // 7. KYC Status
-        const kycStats = await db.select({
+        // 7. KYC Status (Scoped)
+        let kycStatsQuery = db.select({
             status: approvalStatuses.name,
             count: count()
         })
             .from(users)
             .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
-            .groupBy(approvalStatuses.name);
+            .$dynamic();
+
+        if (scope.type !== 'Global') {
+            kycStatsQuery = kycStatsQuery
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(or(
+                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                )) as any;
+        }
+
+        const kycStats = await kycStatsQuery.groupBy(approvalStatuses.name);
 
         const kycApproved = kycStats.find(s => s.status === 'KYC_APPROVED' || s.status === 'ACTIVE')?.count || 0;
         const kycPending = kycStats.find(s => s.status === 'KYC_PENDING' || s.status === 'PENDING')?.count || 0;
 
-        // 8. Pending Approvals
-        const [pendingApprovals] = await db.select({ count: count() })
+        // 8. Pending Approvals (Scoped)
+        let pendingApprovalsQuery = db.select({ count: count() })
             .from(redemptionApprovals)
-            .where(eq(redemptionApprovals.approvalStatus, 'PENDING'));
+            .where(eq(redemptionApprovals.approvalStatus, 'PENDING'))
+            .$dynamic();
 
-        // 8.5 Segment Specific Stats
-        const [retPointsVal] = await db.select({ value: sum(retailerTransactions.points) }).from(retailerTransactions);
-        const [retActive] = await db.select({ count: count() }).from(retailers).leftJoin(users, eq(retailers.userId, users.id)).where(eq(users.isSuspended, false));
-        const [retKyc] = await db.select({ count: count() }).from(retailers).where(eq(retailers.isKycVerified, true));
-        const [retTotal] = await db.select({ count: count() }).from(retailers);
+        if (scope.type !== 'Global') {
+            pendingApprovalsQuery = pendingApprovalsQuery
+                .leftJoin(users, eq(redemptionApprovals.userId, users.id))
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(and(
+                    eq(redemptionApprovals.approvalStatus, 'PENDING'),
+                    or(
+                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    )
+                )) as any;
+        }
+        const [pendingApprovals] = await pendingApprovalsQuery;
 
-        const [elecPointsVal] = await db.select({ value: sum(electricianTransactionLogs.points) }).from(electricianTransactionLogs);
-        const [elecActive] = await db.select({ count: count() }).from(electricians).leftJoin(users, eq(electricians.userId, users.id)).where(eq(users.isSuspended, false));
-        const [elecKyc] = await db.select({ count: count() }).from(electricians).where(eq(electricians.isKycVerified, true));
-        const [elecTotal] = await db.select({ count: count() }).from(electricians);
 
-
-        // 9. Recent Transactions
-        const csRecent = await db.select({
+        // 9. Recent Transactions (Scoped)
+        const csRecentQuery = db.select({
             id: counterSalesTransactionLogs.id,
             userId: counterSalesTransactionLogs.userId,
             points: counterSalesTransactionLogs.points,
@@ -93,7 +244,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             .orderBy(desc(counterSalesTransactionLogs.createdAt))
             .limit(5);
 
-        const retRecent = await db.select({
+        const retRecentQuery = db.select({
             id: retailerTransactions.id,
             userId: retailerTransactions.userId,
             points: retailerTransactions.points,
@@ -106,7 +257,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             .orderBy(desc(retailerTransactions.createdAt))
             .limit(5);
 
-        const elecRecent = await db.select({
+        const elecRecentQuery = db.select({
             id: electricianTransactionLogs.id,
             userId: electricianTransactionLogs.userId,
             points: electricianTransactionLogs.points,
@@ -118,6 +269,19 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             .leftJoin(users, eq(electricianTransactionLogs.userId, users.id))
             .orderBy(desc(electricianTransactionLogs.createdAt))
             .limit(5);
+
+        if (scope.type !== 'Global') {
+            csRecentQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
+                .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+            retRecentQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
+                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            elecRecentQuery.leftJoin(electricians, eq(electricianTransactionLogs.userId, electricians.userId))
+                .where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+        }
+
+        const csRecent = await csRecentQuery;
+        const retRecent = await retRecentQuery;
+        const elecRecent = await elecRecentQuery;
 
         const allRecent = [...(csRecent || []), ...(retRecent || []), ...(elecRecent || [])]
             .filter(t => t && t.createdAt)
@@ -138,11 +302,11 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             }));
 
 
-        // 10. Top Performers (Combined)
+        // 10. Top Performers (Combined - Scoped)
         let topPerformers: any[] = [];
         try {
-            const topPerformersData = await db.execute(sql`
-                SELECT u.name, COALESCE(SUM(points), 0) as total_points
+            let topSql = sql`
+                SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
                 FROM (
                     SELECT user_id, points FROM counter_sales_transaction_logs
                     UNION ALL
@@ -151,10 +315,52 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                     SELECT user_id, points FROM electrician_transaction_logs
                 ) as t
                 JOIN users u ON u.id = t.user_id
-                GROUP BY u.id, u.name
-                ORDER BY total_points DESC
-                LIMIT 5
-            `);
+            `;
+
+            if (scope.type !== 'Global') {
+                const scopeJoin = `
+                    LEFT JOIN retailers r ON u.id = r.user_id
+                    LEFT JOIN electricians e ON u.id = e.user_id
+                    LEFT JOIN counter_sales cs ON u.id = cs.user_id
+                `;
+                const scopeWhere = scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
+                
+                topSql = sql.raw(`
+                    SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
+                    FROM (
+                        SELECT user_id, points FROM counter_sales_transaction_logs
+                        UNION ALL
+                        SELECT user_id, points FROM retailer_transactions
+                        UNION ALL
+                        SELECT user_id, points FROM electrician_transaction_logs
+                    ) as t
+                    JOIN users u ON u.id = t.user_id
+                    ${scopeJoin}
+                    WHERE ${scopeWhere}
+                    GROUP BY u.id, u.name
+                    ORDER BY total_points DESC
+                    LIMIT 5
+                `);
+            } else {
+                topSql = sql`
+                    SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
+                    FROM (
+                        SELECT user_id, points FROM counter_sales_transaction_logs
+                        UNION ALL
+                        SELECT user_id, points FROM retailer_transactions
+                        UNION ALL
+                        SELECT user_id, points FROM electrician_transaction_logs
+                    ) as t
+                    JOIN users u ON u.id = t.user_id
+                    GROUP BY u.id, u.name
+                    ORDER BY total_points DESC
+                    LIMIT 5
+                `;
+            }
+
+            const topPerformersData = await db.execute(topSql);
 
             topPerformers = (topPerformersData.rows || []).map((p: any, i: number) => ({
                 name: p.name || 'Unknown',

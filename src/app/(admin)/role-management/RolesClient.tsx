@@ -10,6 +10,7 @@ import {
     resetUserPasswordAction,
     toggleUserStatusAction
 } from '@/actions/role-actions';
+import { getStatesAction, getCitiesAction, getUserScopesAction } from '@/actions/scope-actions';
 
 export default function RolesClient() {
     const [tabValue, setTabValue] = useState(0);
@@ -30,6 +31,18 @@ export default function RolesClient() {
         queryFn: () => getAdminRolesAction()
     });
 
+    const { data: states } = useQuery({
+        queryKey: ['states'],
+        queryFn: () => getStatesAction()
+    });
+
+    const { data: cities } = useQuery({
+        queryKey: ['cities'],
+        queryFn: () => getCitiesAction()
+    });
+
+    const [selectedScopeIds, setSelectedScopeIds] = useState<number[]>([]);
+
     useEffect(() => {
         const handler = setTimeout(() => setDebouncedSearch(searchTerm), 500);
         return () => clearTimeout(handler);
@@ -39,6 +52,17 @@ export default function RolesClient() {
         queryKey: ['role-data', debouncedSearch, roleFilter, statusFilter],
         queryFn: () => getRoleDataAction({ searchTerm: debouncedSearch, roleFilter, statusFilter })
     });
+
+    useEffect(() => {
+        if (editingUser) {
+            const uid = parseInt(editingUser.id.replace('USR', ''));
+            getUserScopesAction(uid).then(scopes => {
+                setSelectedScopeIds(scopes.map(s => s.scopeEntityId!));
+            });
+        } else {
+            setSelectedScopeIds([]);
+        }
+    }, [editingUser]);
 
     if (isLoading) return (
         <div className="flex justify-center p-8">
@@ -144,7 +168,11 @@ export default function RolesClient() {
                             <button onClick={() => { setSearchTerm(''); setRoleFilter(''); setStatusFilter(''); }} className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
                                 <i className="fas fa-filter mr-2"></i>Reset
                             </button>
-                            <button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center justify-center">
+                            <button onClick={() => { 
+                                setSelectedScopeIds([]); 
+                                setNewUserData({ name: '', email: '', phone: '', roleId: '', password: '' });
+                                setIsAddModalOpen(true); 
+                            }} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center justify-center">
                                 <i className="fas fa-plus mr-2"></i>Add User
                             </button>
                         </div>
@@ -282,9 +310,14 @@ export default function RolesClient() {
                         <form onSubmit={async (e) => {
                             e.preventDefault();
                             setIsSubmitting(true);
+                            const roleName = adminRoles?.find((r: any) => r.id === parseInt(newUserData.roleId))?.name;
                             const res = await createPortalUserAction({
                                 ...newUserData,
-                                roleId: parseInt(newUserData.roleId)
+                                roleId: parseInt(newUserData.roleId),
+                                scopes: roleName === 'TSM' || roleName === 'SR' ? {
+                                    type: roleName === 'TSM' ? 'State' : 'City',
+                                    entityIds: selectedScopeIds
+                                } : undefined
                             });
                             setIsSubmitting(false);
                             if (res.success) {
@@ -302,7 +335,7 @@ export default function RolesClient() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                    <input required type="email" value={newUserData.email} onChange={e => setNewUserData({...newUserData, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="name@sturlite.com" />
+                                    <input required type="email" autoComplete="off" value={newUserData.email} onChange={e => setNewUserData({...newUserData, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="name@sturlite.com" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
@@ -317,9 +350,49 @@ export default function RolesClient() {
                                         ))}
                                     </select>
                                 </div>
+
+                                {/* Scope Selection */}
+                                {adminRoles?.find((r: any) => r.id === parseInt(newUserData.roleId))?.name === 'TSM' && (
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">Map States</label>
+                                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 border rounded-lg bg-gray-50">
+                                            {states?.map((s: any) => (
+                                                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 p-1 rounded">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedScopeIds.includes(s.id)} 
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) setSelectedScopeIds([...selectedScopeIds, s.id]);
+                                                            else setSelectedScopeIds(selectedScopeIds.filter(id => id !== s.id));
+                                                        }}
+                                                        className="rounded text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    {s.name}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {adminRoles?.find((r: any) => r.id === parseInt(newUserData.roleId))?.name === 'SR' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Map City</label>
+                                        <select 
+                                            required 
+                                            value={selectedScopeIds[0] || ''} 
+                                            onChange={e => setSelectedScopeIds([parseInt(e.target.value)])}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                                        >
+                                            <option value="">Select a city</option>
+                                            {cities?.map((c: any) => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Set Password</label>
-                                    <input required type="password" value={newUserData.password} onChange={e => setNewUserData({...newUserData, password: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="Minimum 8 characters" minLength={8} />
+                                    <input required type="password" autoComplete="new-password" value={newUserData.password} onChange={e => setNewUserData({...newUserData, password: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="Minimum 8 characters" minLength={8} />
                                 </div>
                             </div>
                             <div className="px-6 py-4 border-t flex justify-end gap-3 bg-gray-50">
@@ -347,11 +420,16 @@ export default function RolesClient() {
                             e.preventDefault();
                             setIsSubmitting(true);
                             const uid = parseInt(editingUser.id.replace('USR', ''));
+                            const roleName = adminRoles?.find((r: any) => r.id === parseInt(editingUser.roleId))?.name;
                             const res = await updatePortalUserAction(uid, {
                                 name: editingUser.name,
                                 email: editingUser.email,
                                 phone: editingUser.phone,
-                                roleId: parseInt(editingUser.roleId) || 11
+                                roleId: parseInt(editingUser.roleId) || 11,
+                                scopes: roleName === 'TSM' || roleName === 'SR' ? {
+                                    type: roleName === 'TSM' ? 'State' : 'City',
+                                    entityIds: selectedScopeIds
+                                } : undefined
                             });
                             setIsSubmitting(false);
                             if (res.success) {
@@ -368,7 +446,7 @@ export default function RolesClient() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                    <input required type="email" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                                    <input required type="email" autoComplete="off" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
@@ -383,6 +461,46 @@ export default function RolesClient() {
                                         ))}
                                     </select>
                                 </div>
+
+                                {/* Scope Selection */}
+                                {adminRoles?.find((r: any) => r.id === parseInt(editingUser.roleId))?.name === 'TSM' && (
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">Map States</label>
+                                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 border rounded-lg bg-blue-50/50">
+                                            {states?.map((s: any) => (
+                                                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white p-1 rounded">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedScopeIds.includes(s.id)} 
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) setSelectedScopeIds([...selectedScopeIds, s.id]);
+                                                            else setSelectedScopeIds(selectedScopeIds.filter(id => id !== s.id));
+                                                        }}
+                                                        className="rounded text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    {s.name}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {adminRoles?.find((r: any) => r.id === parseInt(editingUser.roleId))?.name === 'SR' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Map City</label>
+                                        <select 
+                                            required 
+                                            value={selectedScopeIds[0] || ''} 
+                                            onChange={e => setSelectedScopeIds([parseInt(e.target.value)])}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                                        >
+                                            <option value="">Select a city</option>
+                                            {cities?.map((c: any) => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                             <div className="px-6 py-4 border-t flex justify-end gap-3 bg-gray-50">
                                 <button type="button" onClick={() => setEditingUser(null)} className="btn btn-secondary">Cancel</button>

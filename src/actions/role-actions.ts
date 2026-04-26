@@ -166,7 +166,7 @@ const accessLogsData: AccessLog[] = [
 ];
 
 import { db } from "@/db";
-import { users, userTypeEntity, approvalStatuses, eventLogs, eventMaster } from "@/db/schema";
+import { users, userTypeEntity, approvalStatuses, eventLogs, eventMaster, userScopeMapping } from "@/db/schema";
 import { eq, and, count, or, ilike, sql, desc, lt } from "drizzle-orm";
 export interface UserFilters {
     searchTerm?: string;
@@ -328,6 +328,7 @@ export async function createPortalUserAction(userData: {
     phone: string;
     roleId: number;
     password?: string;
+    scopes?: { type: 'State' | 'City', entityIds: number[] };
 }) {
     try {
         const hashedPassword = await hashPassword(userData.password || 'Temporary@123');
@@ -343,6 +344,18 @@ export async function createPortalUserAction(userData: {
             isSuspended: false,
         }).returning();
 
+        // Handle scopes if provided
+        if (userData.scopes && userData.scopes.entityIds.length > 0) {
+            const scopeValues = userData.scopes.entityIds.map(id => ({
+                userId: newUser.id,
+                scopeType: userData.scopes!.type,
+                scopeEntityId: id,
+                scopeLevelId: 0,
+                isActive: true
+            }));
+            await db.insert(userScopeMapping).values(scopeValues);
+        }
+
         return { success: true, userId: newUser.id };
     } catch (error) {
         console.error("Error creating portal user:", error);
@@ -355,14 +368,35 @@ export async function updatePortalUserAction(userId: number, userData: {
     email?: string;
     phone?: string;
     roleId?: number;
+    scopes?: { type: 'State' | 'City', entityIds: number[] };
 }) {
     try {
+        const { scopes, ...baseData } = userData;
+
         await db.update(users)
             .set({
-                ...userData,
+                ...baseData,
                 updatedAt: sql`CURRENT_TIMESTAMP`
             })
             .where(eq(users.id, userId));
+
+        // Handle scopes if provided
+        if (scopes) {
+            await db.update(userScopeMapping)
+                .set({ isActive: false })
+                .where(eq(userScopeMapping.userId, userId));
+
+            if (scopes.entityIds.length > 0) {
+                const scopeValues = scopes.entityIds.map(id => ({
+                    userId,
+                    scopeType: scopes.type,
+                    scopeEntityId: id,
+                    scopeLevelId: 0,
+                    isActive: true
+                }));
+                await db.insert(userScopeMapping).values(scopeValues);
+            }
+        }
 
         return { success: true };
     } catch (error) {

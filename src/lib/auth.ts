@@ -73,7 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
           const { user, role, levelName } = userResult[0]
 
-          const allowedLevels = ['Master Admin', 'Admin', 'System Admin', 'Call Centre']
+          const allowedLevels = ['Master Admin', 'Admin', 'System Admin', 'Call Centre', 'Field Management']
 
           if (!levelName || !allowedLevels.includes(levelName)) {
             console.log(`Login attempt rejected for user ${username}: Invalid level ${levelName}`)
@@ -116,6 +116,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id
         token.role = user.role
         token.department = user.department
+        
+        // Fetch scope and permissions on login
+        const { getUserScope } = await import("@/lib/scope-utils");
+        const scope = await getUserScope(Number(user.id));
+        token.permissions = scope.permissions;
+        token.scopeType = scope.type;
+        token.entityNames = scope.entityNames;
       }
       return token
     },
@@ -124,6 +131,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string
         session.user.role = token.role as string
         session.user.department = token.department as string
+        session.user.permissions = token.permissions as string[]
+        session.user.scopeType = token.scopeType as string
+        session.user.entityNames = token.entityNames as string[]
       }
       return session
     }

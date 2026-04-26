@@ -65,10 +65,43 @@ export default function Sidebar({ currentPath, onNavigate, expanded = true }: Si
     onNavigate?.()
   }
 
+  // Filter sections and items based on permissions
+  const filteredSections = navSections.map(section => ({
+    ...section,
+    items: section.items.filter(item => {
+      const permissions = session?.user?.permissions || [];
+      const isSuperAdmin = permissions.includes('all');
+      
+      const pathPermissionMap: Record<string, string> = {
+        '/dashboard': 'dashboard.view',
+        '/masters-config': 'admin.only',
+        '/members': 'members.view',
+        '/qr-management': 'qr.view',
+        '/process': 'process.manage',
+        '/communication': 'communication.manage',
+        '/tickets': 'tickets.manage',
+        '/mis-analytics': 'mis.view',
+        '/role-management': 'admin.only',
+        '/configuration': 'admin.only',
+      };
+
+      const requiredPermission = pathPermissionMap[item.path];
+      
+      // If no permission mapped, allow by default
+      if (!requiredPermission) return true;
+      
+      // If admin only, only allow SuperAdmins
+      if (requiredPermission === 'admin.only') return isSuperAdmin;
+      
+      // Otherwise check for specific permission or 'all'
+      return permissions.includes(requiredPermission) || isSuperAdmin;
+    })
+  })).filter(section => section.items.length > 0);
+
   return (
     <div className="h-full flex flex-col overflow-y-auto">
       <nav className="flex-1 py-2">
-        {navSections.map((section, si) => (
+        {filteredSections.map((section, si) => (
           <div key={si} className={si > 0 ? 'mt-1' : ''}>
             {section.label && expanded && (
               <p className="sidebar-section-label">{section.label}</p>
@@ -95,10 +128,10 @@ export default function Sidebar({ currentPath, onNavigate, expanded = true }: Si
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold truncate" style={{ color: '#e2e8f0' }}>
-              {session.user?.name ?? 'Admin User'}
+              {session.user?.name ?? 'Guest User'}
             </p>
             <p className="text-xs truncate" style={{ color: '#64748b' }}>
-              {session.user?.email ?? 'admin@listoil.com'}
+              {session.user?.role ?? 'User'}
             </p>
           </div>
           <button
