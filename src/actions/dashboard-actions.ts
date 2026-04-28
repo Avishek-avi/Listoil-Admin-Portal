@@ -5,7 +5,7 @@ import {
     users,
     counterSalesTransactionLogs,
     retailerTransactions,
-    electricianTransactionLogs,
+    mechanicTransactionLogs,
     counterSales,
     approvalStatuses,
     redemptions,
@@ -13,7 +13,7 @@ import {
     redemptionApprovals,
     physicalRewardsRedemptions,
     retailers,
-    electricians
+    mechanics
 } from "@/db/schema"
 import { count, sum, sql, desc, eq, and, gte, lte, inArray, or } from "drizzle-orm"
 import { auth } from "@/lib/auth"
@@ -44,11 +44,11 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             userCountQuery = db.select({ count: count() })
                 .from(users)
                 .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(or(
                     scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                     scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                 )) as any;
         }
@@ -60,13 +60,13 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             activeUserQuery = db.select({ count: count() })
                 .from(users)
                 .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(and(
                     eq(users.isSuspended, false),
                     or(
                         scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                         scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                     )
                 )) as any;
@@ -79,13 +79,13 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             blockedUserQuery = db.select({ count: count() })
                 .from(users)
                 .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(and(
                     eq(users.isSuspended, true),
                     or(
                         scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                         scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                     )
                 )) as any;
@@ -95,43 +95,43 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         // 4. Total Points Issued (Sum from all 3 transaction logs) - Scoped
         const csPointsQuery = db.select({ value: sum(counterSalesTransactionLogs.points) }).from(counterSalesTransactionLogs);
         const retPointsQuery = db.select({ value: sum(retailerTransactions.points) }).from(retailerTransactions);
-        const elecPointsQuery = db.select({ value: sum(electricianTransactionLogs.points) }).from(electricianTransactionLogs);
+        const mechPointsQuery = db.select({ value: sum(mechanicTransactionLogs.points) }).from(mechanicTransactionLogs);
 
         if (scope.type !== 'Global') {
             csPointsQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
                 .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
             retPointsQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
                 .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
-            elecPointsQuery.leftJoin(electricians, eq(electricianTransactionLogs.userId, electricians.userId))
-                .where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+            mechPointsQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
+                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
         }
 
         const [csPoints] = await csPointsQuery;
         const [retPoints] = await retPointsQuery;
-        const [elecPoints] = await elecPointsQuery;
+        const [mechPoints] = await mechPointsQuery;
 
-        const totalPointsIssued = (Number(csPoints?.value) || 0) + (Number(retPoints?.value) || 0) + (Number(elecPoints?.value) || 0);
+        const totalPointsIssued = (Number(csPoints?.value) || 0) + (Number(retPoints?.value) || 0) + (Number(mechPoints?.value) || 0);
 
         // Segment Specific Stats - Scoped
         const retActiveQuery = db.select({ count: count() }).from(retailers).leftJoin(users, eq(retailers.userId, users.id)).where(eq(users.isSuspended, false));
         const retKycQuery = db.select({ count: count() }).from(retailers).where(eq(retailers.isKycVerified, true));
         const retTotalQuery = db.select({ count: count() }).from(retailers);
 
-        const elecActiveQuery = db.select({ count: count() }).from(electricians).leftJoin(users, eq(electricians.userId, users.id)).where(eq(users.isSuspended, false));
-        const elecKycQuery = db.select({ count: count() }).from(electricians).where(eq(electricians.isKycVerified, true));
-        const elecTotalQuery = db.select({ count: count() }).from(electricians);
+        const mechActiveQuery = db.select({ count: count() }).from(mechanics).leftJoin(users, eq(mechanics.userId, users.id)).where(eq(users.isSuspended, false));
+        const mechKycQuery = db.select({ count: count() }).from(mechanics).where(eq(mechanics.isKycVerified, true));
+        const mechTotalQuery = db.select({ count: count() }).from(mechanics);
 
         const [retActive] = await applyScope(retActiveQuery, retailers);
         const [retKyc] = await applyScope(retKycQuery, retailers);
         const [retTotal] = await applyScope(retTotalQuery, retailers);
 
-        const [elecActive] = await applyScope(elecActiveQuery, electricians);
-        const [elecKyc] = await applyScope(elecKycQuery, electricians);
-        const [elecTotal] = await applyScope(elecTotalQuery, electricians);
+        const [mechActive] = await applyScope(mechActiveQuery, mechanics);
+        const [mechKyc] = await applyScope(mechKycQuery, mechanics);
+        const [mechTotal] = await applyScope(mechTotalQuery, mechanics);
 
         // Rename for consistency with return object
         const retPointsVal = retPoints;
-        const elecPointsVal = elecPoints;
+        const mechPointsVal = mechPoints;
 
         // 5. Points Redeemed (Scoped)
         const physRedeemQuery = db.select({ value: sum(physicalRewardsRedemptions.pointsDeducted) }).from(physicalRewardsRedemptions);
@@ -140,20 +140,20 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         if (scope.type !== 'Global') {
             physRedeemQuery.leftJoin(users, eq(physicalRewardsRedemptions.userId, users.id))
                 .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(or(
                     scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                     scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                 ));
             amzRedeemQuery.leftJoin(users, eq(userAmazonOrders.userId, users.id))
                 .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(or(
                     scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                     scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                 ));
         }
@@ -165,20 +165,20 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         // 6. Total Scans (Scoped)
         const csCountQuery = db.select({ count: count() }).from(counterSales);
         const retCountQuery = db.select({ count: count() }).from(retailerTransactions);
-        const elecCountQuery = db.select({ count: count() }).from(electricianTransactionLogs);
+        const mechCountQuery = db.select({ count: count() }).from(mechanicTransactionLogs);
 
         const [csCount] = await applyScope(csCountQuery, counterSales);
         
         if (scope.type !== 'Global') {
             retCountQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
                 .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
-            elecCountQuery.leftJoin(electricians, eq(electricianTransactionLogs.userId, electricians.userId))
-                .where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+            mechCountQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
+                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
         }
 
         const [retCount] = await retCountQuery;
-        const [elecCount] = await elecCountQuery;
-        const totalScans = (csCount?.count || 0) + (retCount?.count || 0) + (elecCount?.count || 0);
+        const [mechCount] = await mechCountQuery;
+        const totalScans = (csCount?.count || 0) + (retCount?.count || 0) + (mechCount?.count || 0);
 
         // 7. KYC Status (Scoped)
         let kycStatsQuery = db.select({
@@ -192,11 +192,11 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         if (scope.type !== 'Global') {
             kycStatsQuery = kycStatsQuery
                 .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(or(
                     scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                     scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                 )) as any;
         }
@@ -216,13 +216,13 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             pendingApprovalsQuery = pendingApprovalsQuery
                 .leftJoin(users, eq(redemptionApprovals.userId, users.id))
                 .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(electricians, eq(users.id, electricians.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(and(
                     eq(redemptionApprovals.approvalStatus, 'PENDING'),
                     or(
                         scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                         scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                     )
                 )) as any;
@@ -257,17 +257,17 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             .orderBy(desc(retailerTransactions.createdAt))
             .limit(5);
 
-        const elecRecentQuery = db.select({
-            id: electricianTransactionLogs.id,
-            userId: electricianTransactionLogs.userId,
-            points: electricianTransactionLogs.points,
-            createdAt: electricianTransactionLogs.createdAt,
-            type: sql<string>`'Electrician'`,
+        const mechRecentQuery = db.select({
+            id: mechanicTransactionLogs.id,
+            userId: mechanicTransactionLogs.userId,
+            points: mechanicTransactionLogs.points,
+            createdAt: mechanicTransactionLogs.createdAt,
+            type: sql<string>`'Mechanic'`,
             user: users.name
         })
-            .from(electricianTransactionLogs)
-            .leftJoin(users, eq(electricianTransactionLogs.userId, users.id))
-            .orderBy(desc(electricianTransactionLogs.createdAt))
+            .from(mechanicTransactionLogs)
+            .leftJoin(users, eq(mechanicTransactionLogs.userId, users.id))
+            .orderBy(desc(mechanicTransactionLogs.createdAt))
             .limit(5);
 
         if (scope.type !== 'Global') {
@@ -275,15 +275,15 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                 .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
             retRecentQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
                 .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
-            elecRecentQuery.leftJoin(electricians, eq(electricianTransactionLogs.userId, electricians.userId))
-                .where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+            mechRecentQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
+                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
         }
 
         const csRecent = await csRecentQuery;
         const retRecent = await retRecentQuery;
-        const elecRecent = await elecRecentQuery;
+        const mechRecent = await mechRecentQuery;
 
-        const allRecent = [...(csRecent || []), ...(retRecent || []), ...(elecRecent || [])]
+        const allRecent = [...(csRecent || []), ...(retRecent || []), ...(mechRecent || [])]
             .filter(t => t && t.createdAt)
             .sort((a, b) => {
                 const dateA = a.createdAt ? new Date(a.createdAt as string).getTime() : 0;
@@ -312,7 +312,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                     UNION ALL
                     SELECT user_id, points FROM retailer_transactions
                     UNION ALL
-                    SELECT user_id, points FROM electrician_transaction_logs
+                    SELECT user_id, points FROM mechanic_transaction_logs
                 ) as t
                 JOIN users u ON u.id = t.user_id
             `;
@@ -320,12 +320,12 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             if (scope.type !== 'Global') {
                 const scopeJoin = `
                     LEFT JOIN retailers r ON u.id = r.user_id
-                    LEFT JOIN electricians e ON u.id = e.user_id
+                    LEFT JOIN mechanics m ON u.id = m.user_id
                     LEFT JOIN counter_sales cs ON u.id = cs.user_id
                 `;
                 const scopeWhere = scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
                 
                 topSql = sql.raw(`
                     SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
@@ -334,7 +334,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                         UNION ALL
                         SELECT user_id, points FROM retailer_transactions
                         UNION ALL
-                        SELECT user_id, points FROM electrician_transaction_logs
+                        SELECT user_id, points FROM mechanic_transaction_logs
                     ) as t
                     JOIN users u ON u.id = t.user_id
                     ${scopeJoin}
@@ -351,7 +351,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                         UNION ALL
                         SELECT user_id, points FROM retailer_transactions
                         UNION ALL
-                        SELECT user_id, points FROM electrician_transaction_logs
+                        SELECT user_id, points FROM mechanic_transaction_logs
                     ) as t
                     JOIN users u ON u.id = t.user_id
                     GROUP BY u.id, u.name
@@ -407,7 +407,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                 UNION ALL
                 SELECT date_trunc('day', created_at)::date as day, points FROM retailer_transactions
                 UNION ALL
-                SELECT date_trunc('day', created_at)::date as day, points FROM electrician_transaction_logs
+                SELECT date_trunc('day', created_at)::date as day, points FROM mechanic_transaction_logs
             ) as t
             WHERE day >= (now() - interval '7 days')::date
             GROUP BY 1 ORDER BY 1
@@ -455,11 +455,11 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                     kycCompliance: Number(retTotal?.count) ? Math.round((Number(retKyc?.count) / Number(retTotal?.count)) * 100) : 0,
                     total: Number(retTotal?.count) || 0
                 },
-                electrician: {
-                    points: Number(elecPointsVal?.value) || 0,
-                    active: Number(elecActive?.count) || 0,
-                    kycCompliance: Number(elecTotal?.count) ? Math.round((Number(elecKyc?.count) / Number(elecTotal?.count)) * 100) : 0,
-                    total: Number(elecTotal?.count) || 0
+                mechanic: {
+                    points: Number(mechPointsVal?.value) || 0,
+                    active: Number(mechActive?.count) || 0,
+                    kycCompliance: Number(mechTotal?.count) ? Math.round((Number(mechKyc?.count) / Number(mechTotal?.count)) * 100) : 0,
+                    total: Number(mechTotal?.count) || 0
                 }
             },
             charts: {
@@ -479,7 +479,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             pendingApprovalsCount: 0,
             segments: { 
                 retailer: { points: 0, active: 0, kycCompliance: 0, total: 0 },
-                electrician: { points: 0, active: 0, kycCompliance: 0, total: 0 }
+                mechanic: { points: 0, active: 0, kycCompliance: 0, total: 0 }
             },
             charts: { memberGrowth: [], pointsEarned: [], pointsRedeemed: [] }
         };

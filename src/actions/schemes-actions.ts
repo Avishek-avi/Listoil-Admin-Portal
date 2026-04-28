@@ -36,7 +36,7 @@ const activeCampaigns = [
     { id: '#CMP-001', name: 'Monsoon Fan Special', type: 'Booster', start: '2023-06-01', end: '2023-06-30', participants: 342, status: 'Active' },
     { id: '#CMP-002', name: 'Summer LED Campaign', type: 'Slab Based', start: '2023-05-15', end: '2023-07-15', participants: 278, status: 'Active' },
     { id: '#CMP-003', name: 'Festive Lighting Sale', type: 'Cross-Sell', start: '2023-06-10', end: '2023-08-10', participants: 156, status: 'Active' },
-    { id: '#CMP-004', name: 'New Electrician Onboarding', type: 'Booster', start: '2023-06-01', end: '2023-07-31', participants: 89, status: 'Active' },
+    { id: '#CMP-004', name: 'New Mechanic Onboarding', type: 'Booster', start: '2023-06-01', end: '2023-07-31', participants: 89, status: 'Active' },
     { id: '#CMP-005', name: 'Switch & Socket Special', type: 'Slab Based', start: '2023-06-05', end: '2023-07-05', participants: 234, status: 'Active' },
 ];
 

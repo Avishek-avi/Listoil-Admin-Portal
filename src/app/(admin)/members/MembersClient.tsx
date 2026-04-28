@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction } from '@/actions/member-actions';
+import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction } from '@/actions/member-actions';
 
 /* ── Reusable dropdown (click-outside auto-close) ── */
 function ActionDropdown({ label, icon, children }: { label: string; icon: string; children: React.ReactNode }) {
@@ -70,6 +70,9 @@ export default function MembersClient() {
         bankAccountIfsc: '',
         upiId: ''
     });
+    
+    const [addModalOpen, setAddModalOpen] = useState(false);
+
 
     const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500";
     const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white";
@@ -162,6 +165,12 @@ export default function MembersClient() {
         queryKey: ['approval-statuses'],
         queryFn: getApprovalStatusesAction
     });
+
+    const { data: userScope } = useQuery({
+        queryKey: ['user-scope'],
+        queryFn: getCurrentUserScopeAction
+    });
+
 
     useEffect(() => {
         if (editModalOpen && memberDetails) {
@@ -439,9 +448,14 @@ export default function MembersClient() {
                     <div className="widget-card rounded-xl shadow p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold">{currentEntity.name} List</h3>
-                            <button className="btn btn-secondary">
-                                <i className="fas fa-download"></i> Export
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm">
+                                    <i className="fas fa-plus"></i> Add Member
+                                </button>
+                                <button className="btn btn-secondary">
+                                    <i className="fas fa-download"></i> Export
+                                </button>
+                            </div>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -457,7 +471,7 @@ export default function MembersClient() {
                                         </th>
                                         <th>KYC Status</th>
                                         <th>Approval Status</th>
-                                        {currentEntity.name.toLowerCase().includes('electrician') && <th>Joined</th>}
+                                        {currentEntity.name.toLowerCase().includes('mechanic') && <th>Joined</th>}
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -501,7 +515,7 @@ export default function MembersClient() {
                                             </td>
                                             <td className="py-3 px-4">{getKycBadge(member.kycStatus)}</td>
                                             <td className="py-3 px-4">{getApprovalBadge(member.approvalStatus)}</td>
-                                            {currentEntity.name.toLowerCase().includes('electrician') && (
+                                            {currentEntity.name.toLowerCase().includes('mechanic') && (
                                                 <td className="py-3 px-4 text-sm">{member.joinedDate}</td>
                                             )}
                                             <td className="py-3 px-4">
@@ -926,7 +940,22 @@ export default function MembersClient() {
                 </div>
             )}
 
-            {/* ══════ Snackbar Toast ══════ */}
+            {/* Add Member Modal */}
+            {addModalOpen && (
+                <AddMemberModal 
+                    open={addModalOpen} 
+                    onClose={() => setAddModalOpen(false)} 
+                    onSuccess={() => {
+                        setAddModalOpen(false);
+                        setSnackbarMessage('Member created successfully');
+                        setSnackbarOpen(true);
+                        queryClient.invalidateQueries({ queryKey: ['members-list'] });
+                    }}
+                    userScope={userScope}
+                />
+            )}
+
+            {/* Snackbar Toast */}
             {snackbarOpen && (
                 <div className="fixed bottom-6 right-6 z-50 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
                     <i className="fas fa-check-circle text-green-600"></i>
@@ -939,3 +968,431 @@ export default function MembersClient() {
         </div>
     );
 }
+
+function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean; onClose: () => void; onSuccess: () => void; userScope: any }) {
+    const [formData, setFormData] = useState<any>({
+        roleId: '',
+        name: '',
+        phone: '',
+        email: '',
+        password: '',
+        state: '',
+        city: '',
+        district: '',
+        pincode: '',
+        addressLine1: '',
+        addressLine2: '',
+        dob: '',
+        gender: '',
+        shopName: '',
+        aadhaar: '',
+        pan: '',
+        gst: '',
+        bankAccountNo: '',
+        bankAccountIfsc: '',
+        bankAccountName: '',
+        upiId: '',
+        scopeEntityId: '',
+        attachedRetailerId: '',
+        zone: '',
+        kycDocuments: {}
+    });
+
+    const [allowedRoles, setAllowedRoles] = useState<{ id: number, name: string }[]>([]);
+    const [locations, setLocations] = useState<any[]>([]);
+    const [pincodes, setPincodes] = useState<any[]>([]);
+    const [cityRetailers, setCityRetailers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [uploading, setUploading] = useState<string | null>(null);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(type);
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+        uploadData.append('type', type);
+
+        try {
+            const res = await uploadMemberFileAction(uploadData);
+            if (res.success) {
+                setFormData((prev: any) => ({
+                    ...prev,
+                    kycDocuments: {
+                        ...prev.kycDocuments,
+                        [type.toUpperCase()]: res.fileName
+                    }
+                }));
+            } else {
+                alert(res.error || 'Failed to upload file');
+            }
+        } catch (err) {
+            console.error("Upload error:", err);
+            alert('An error occurred during upload');
+        } finally {
+            setUploading(null);
+        }
+    };
+
+    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500";
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white";
+
+    useEffect(() => {
+        if (userScope) {
+            const role = userScope.role.toUpperCase();
+            let roles = [];
+            if (role === 'ADMIN' || userScope.permissions.includes('all')) {
+                roles = [
+                    { id: 15, name: 'TSM' },
+                    { id: 16, name: 'SR' },
+                    { id: 3, name: 'Mechanic' },
+                    { id: 2, name: 'Retailer' }
+                ];
+            } else if (role === 'TSM') {
+                roles = [{ id: 16, name: 'SR' }];
+            } else if (role === 'SR') {
+                roles = [
+                    { id: 3, name: 'Mechanic' },
+                    { id: 2, name: 'Retailer' }
+                ];
+            }
+            setAllowedRoles(roles);
+            if (roles.length === 1) setFormData((prev: any) => ({ ...prev, roleId: roles[0].id.toString() }));
+        }
+    }, [userScope]);
+
+    useEffect(() => {
+        const fetchLocations = async () => {
+            if (!userScope) return;
+            const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+            const creatorRole = userScope.role.toUpperCase();
+
+            if (creatorRole === 'TSM' && targetRole === 'SR') {
+                // Fetch cities in TSM's state
+                const cities = await getLocationEntitiesAction(5, userScope.entityIds[0]);
+                setLocations(cities);
+            } else if (targetRole === 'TSM') {
+                // Admin creating TSM, fetch states
+                const states = await getLocationEntitiesAction(4);
+                setLocations(states);
+            } else if (targetRole === 'SR' && creatorRole === 'ADMIN') {
+                // Admin creating SR, fetch cities
+                const cities = await getLocationEntitiesAction(5);
+                setLocations(cities);
+            }
+        };
+        if (formData.roleId) fetchLocations();
+    }, [formData.roleId, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const fetchPincodes = async () => {
+            const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+            if (['MECHANIC', 'RETAILER'].includes(targetRole as string)) {
+                let city = formData.city;
+                if (!city && userScope?.role.toUpperCase() === 'SR') {
+                    city = userScope.entityNames[0];
+                    setFormData((prev: any) => ({ ...prev, city }));
+                }
+                if (city) {
+                    const pins = await getPincodesAction(city);
+                    setPincodes(pins);
+                }
+            }
+        };
+        fetchPincodes();
+    }, [formData.roleId, formData.city, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const fetchCityRetailers = async () => {
+            const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+            if (targetRole === 'MECHANIC' && (formData.city || (userScope?.role.toUpperCase() === 'SR' && userScope.entityNames[0]))) {
+                const city = formData.city || userScope.entityNames[0];
+                const results = await getRetailersByCityAction(city);
+                setCityRetailers(results);
+            }
+        };
+        fetchCityRetailers();
+    }, [formData.roleId, formData.city, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const lookupPincode = async () => {
+            if (formData.pincode.length === 6) {
+                const location = await getLocationByPincodeAction(formData.pincode);
+                if (location) {
+                    setFormData((prev: any) => ({
+                        ...prev,
+                        city: location.city,
+                        state: location.state,
+                        district: location.district,
+                        zone: location.zone
+                    }));
+                }
+            }
+        };
+        lookupPincode();
+    }, [formData.pincode]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        // Basic format checks
+        if (formData.phone.length !== 10) {
+            setError('Phone number must be 10 digits.');
+            setLoading(false);
+            return;
+        }
+
+        const res = await createMemberAction(formData);
+        if (res.success) {
+            onSuccess();
+        } else {
+            setError(res.error || 'Failed to create member');
+            setLoading(false);
+        }
+    };
+
+    const isMember = ['3', '2'].includes(formData.roleId);
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h2 className="text-xl font-bold text-gray-900">Add New Member</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition"><i className="fas fa-times text-lg"></i></button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+                    {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">{error}</div>}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Role Selection */}
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</label>
+                            <select 
+                                value={formData.roleId} 
+                                onChange={e => setFormData({ ...formData, roleId: e.target.value })} 
+                                className={selectClass}
+                                required
+                            >
+                                <option value="">Select Role</option>
+                                {allowedRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Full Name</label>
+                            <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputClass} required />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone Number</label>
+                            <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className={inputClass} required maxLength={10} />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Email Address</label>
+                            <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className={inputClass} />
+                        </div>
+
+                        {!isMember && (
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Password</label>
+                                <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className={inputClass} required />
+                            </div>
+                        )}
+
+                        {/* Hierarchy Mapping */}
+                        {(formData.roleId === '15' || formData.roleId === '16') && (
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Map to {formData.roleId === '15' ? 'State' : 'City'}
+                                </label>
+                                <select 
+                                    value={formData.scopeEntityId} 
+                                    onChange={e => setFormData({ ...formData, scopeEntityId: e.target.value })} 
+                                    className={selectClass}
+                                    required
+                                >
+                                    <option value="">Select Location</option>
+                                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Member Specific Fields */}
+                        {isMember && (
+                            <>
+                                {formData.roleId === '2' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Shop Name</label>
+                                        <input type="text" value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value })} className={inputClass} required />
+                                    </div>
+                                )}
+
+                                
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Aadhaar Number</label>
+                                    <input type="text" value={formData.aadhaar} onChange={e => setFormData({ ...formData, aadhaar: e.target.value })} className={inputClass} maxLength={12} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GSTIN</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.gst} 
+                                        onChange={e => {
+                                            const val = e.target.value.toUpperCase();
+                                            setFormData(prev => ({ ...prev, gst: val }));
+                                        }} 
+                                        className={inputClass} 
+                                        maxLength={15} 
+                                    />
+                                </div>
+
+                                {formData.roleId !== '2' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PAN Number</label>
+                                        <input type="text" value={formData.pan} onChange={e => setFormData({ ...formData, pan: e.target.value.toUpperCase() })} className={inputClass} maxLength={10} />
+                                    </div>
+                                )}
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</label>
+                                    <input type="text" value={formData.addressLine1} onChange={e => setFormData({ ...formData, addressLine1: e.target.value })} className={inputClass} required />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pincode</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.pincode} 
+                                        onChange={e => setFormData({ ...formData, pincode: e.target.value })} 
+                                        className={inputClass} 
+                                        maxLength={6}
+                                        required 
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">City</label>
+                                    <input type="text" value={formData.city} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">State</label>
+                                    <input type="text" value={formData.state} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">District</label>
+                                    <input type="text" value={formData.district} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Zone</label>
+                                    <input type="text" value={formData.zone} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                {formData.roleId === '3' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Retailer</label>
+                                        <select 
+                                            value={formData.attachedRetailerId} 
+                                            onChange={e => setFormData({ ...formData, attachedRetailerId: e.target.value })} 
+                                            className={selectClass}
+                                            required
+                                        >
+                                            <option value="">Select Retailer</option>
+                                            {cityRetailers.map(r => (
+                                                <option key={r.id} value={r.id}>
+                                                    {r.name} {r.shopName ? `(${r.shopName})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* KYC Document Uploads */}
+                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                                    <h3 className="md:col-span-3 text-sm font-bold text-gray-800 flex items-center gap-2 mb-2 uppercase tracking-widest">
+                                        <i className="fas fa-id-card text-blue-600"></i> KYC Documents
+                                    </h3>
+                                    
+                                    {[
+                                        { label: 'Aadhaar Front', type: 'aadhaar_front' },
+                                        { label: 'Aadhaar Back', type: 'aadhaar_back' },
+                                        { label: 'PAN Image', type: 'pan' }
+                                    ].map(doc => (
+                                        <div key={doc.type} className="space-y-2">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">{doc.label}</label>
+                                            <div className="relative group">
+                                                <input 
+                                                    type="file" 
+                                                    onChange={e => handleFileUpload(e, doc.type)} 
+                                                    className="hidden" 
+                                                    id={`upload-${doc.type}`}
+                                                    accept="image/*"
+                                                />
+                                                <label 
+                                                    htmlFor={`upload-${doc.type}`}
+                                                    className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition cursor-pointer"
+                                                >
+                                                    {uploading === doc.type ? (
+                                                        <i className="fas fa-spinner fa-spin text-blue-500 text-xl"></i>
+                                                    ) : formData.kycDocuments[doc.type.toUpperCase()] ? (
+                                                        <div className="flex flex-col items-center text-green-600">
+                                                            <i className="fas fa-check-circle text-xl"></i>
+                                                            <span className="text-[10px] mt-1">Uploaded</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col items-center text-gray-400">
+                                                            <i className="fas fa-cloud-upload-alt text-xl"></i>
+                                                            <span className="text-[10px] mt-1">Click to Upload</span>
+                                                        </div>
+                                                    )}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {formData.roleId !== '3' && (
+                                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 mt-4">
+                                        <h3 className="md:col-span-3 text-sm font-bold text-blue-800 flex items-center gap-2 mb-2">
+                                            <i className="fas fa-university"></i> Bank Details
+                                        </h3>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-blue-600 uppercase">Account Name</label>
+                                            <input type="text" value={formData.bankAccountName} onChange={e => setFormData({ ...formData, bankAccountName: e.target.value })} className={inputClass} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-blue-600 uppercase">Account Number</label>
+                                            <input type="text" value={formData.bankAccountNo} onChange={e => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputClass} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-blue-600 uppercase">IFSC Code</label>
+                                            <input type="text" value={formData.bankAccountIfsc} onChange={e => setFormData({ ...formData, bankAccountIfsc: e.target.value })} className={inputClass} />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition text-sm font-medium">Cancel</button>
+                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm font-bold shadow-lg shadow-blue-200 flex items-center gap-2 disabled:opacity-50">
+                            {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-user-plus"></i>}
+                            Create Member
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+

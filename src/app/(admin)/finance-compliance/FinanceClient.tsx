@@ -311,7 +311,7 @@ export default function FinanceClient() {
                             </select>
                             <select value={compFilters.type} onChange={(e) => setCompFilters({ ...compFilters, type: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                 <option>All Stakeholders</option>
-                                <option>Electrician</option>
+                                <option>Mechanic</option>
                                 <option>Retailer</option>
                                 <option>Counter Sales</option>
                             </select>

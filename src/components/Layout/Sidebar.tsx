@@ -19,6 +19,7 @@ const navSections: NavSection[] = [
     label: 'Program',
     items: [
       { text: 'Dashboard',        icon: 'fas fa-tachometer-alt', path: '/dashboard' },
+      { text: 'Team Hierarchy',   icon: 'fas fa-sitemap',         path: '/team-hierarchy' },
       { text: 'Masters & Config', icon: 'fas fa-cogs',           path: '/masters-config' },
       { text: 'Members',          icon: 'fas fa-users',          path: '/members' },
     ],
@@ -74,6 +75,7 @@ export default function Sidebar({ currentPath, onNavigate, expanded = true }: Si
       
       const pathPermissionMap: Record<string, string> = {
         '/dashboard': 'dashboard.view',
+        '/team-hierarchy': 'dashboard.view',
         '/masters-config': 'admin.only',
         '/members': 'members.view',
         '/qr-management': 'qr.view',

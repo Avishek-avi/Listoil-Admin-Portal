@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db"
-import { tickets, users, ticketTypes, ticketStatuses, userTypeEntity, userTypeLevelMaster, retailers, electricians, counterSales } from "@/db/schema"
+import { tickets, users, ticketTypes, ticketStatuses, userTypeEntity, userTypeLevelMaster, retailers, mechanics, counterSales } from "@/db/schema"
 import { desc, eq, or, ilike, sql, and, inArray } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 import { revalidatePath } from "next/cache"
@@ -55,7 +55,7 @@ export async function getTicketsAction(filters?: TicketFilters) {
             .leftJoin(assignee, eq(tickets.assigneeId, assignee.id))
             .leftJoin(assigneeType, eq(assignee.roleId, assigneeType.id))
             .leftJoin(retailers, eq(requester.id, retailers.userId))
-            .leftJoin(electricians, eq(requester.id, electricians.userId))
+            .leftJoin(mechanics, eq(requester.id, mechanics.userId))
             .leftJoin(counterSales, eq(requester.id, counterSales.userId))
             .$dynamic();
 
@@ -64,7 +64,7 @@ export async function getTicketsAction(filters?: TicketFilters) {
         if (scope.type !== 'Global') {
             conditions.push(or(
                 scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                 scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
             ));
         }

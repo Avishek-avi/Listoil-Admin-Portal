@@ -4,7 +4,7 @@ import { db } from '@/db';
 import {
     users,
     retailerTransactionLogs,
-    electricianTransactionLogs,
+    mechanicTransactionLogs,
     counterSalesTransactionLogs,
     redemptions,
     referrals,
@@ -15,7 +15,7 @@ import {
     redemptionChannels,
     redemptionStatuses,
     retailers,
-    electricians,
+    mechanics,
     counterSales,
     otpMaster,
     notificationLogs,
@@ -84,10 +84,10 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
         retDistrict: retailers.district,
         retState: retailers.state,
         retPincode: retailers.pincode,
-        eleCity: electricians.city,
-        eleDistrict: electricians.district,
-        eleState: electricians.state,
-        elePincode: electricians.pincode,
+        mechCity: mechanics.city,
+        mechDistrict: mechanics.district,
+        mechState: mechanics.state,
+        mechPincode: mechanics.pincode,
         csCity: counterSales.city,
         csDistrict: counterSales.district,
         csState: counterSales.state,
@@ -98,11 +98,11 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
         retDob: retailers.dob,
         retGender: retailers.gender,
         retIsKycVerified: retailers.isKycVerified,
-        eleAadhaar: electricians.aadhaar,
-        elePan: electricians.pan,
-        eleDob: electricians.dob,
-        eleGender: electricians.gender,
-        eleIsKycVerified: electricians.isKycVerified,
+        mechAadhaar: mechanics.aadhaar,
+        mechPan: mechanics.pan,
+        mechDob: mechanics.dob,
+        mechGender: mechanics.gender,
+        mechIsKycVerified: mechanics.isKycVerified,
         csAadhaar: counterSales.aadhaar,
         csPan: counterSales.pan,
         csDob: counterSales.dob,
@@ -115,11 +115,11 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
         .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
         .leftJoin(userTypeLevelMaster, eq(userTypeEntity.levelId, userTypeLevelMaster.id))
         .leftJoin(retailers, eq(users.id, retailers.userId))
-        .leftJoin(electricians, eq(users.id, electricians.userId))
+        .leftJoin(mechanics, eq(users.id, mechanics.userId))
         .leftJoin(counterSales, eq(users.id, counterSales.userId))
         .leftJoin(pincodeMaster, or(
             eq(retailers.pincode, pincodeMaster.pincode),
-            eq(electricians.pincode, pincodeMaster.pincode),
+            eq(mechanics.pincode, pincodeMaster.pincode),
             eq(counterSales.pincode, pincodeMaster.pincode)
         ))
         .limit(50)
@@ -149,7 +149,7 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
             { key: 'status', label: 'Status', type: 'status' }
         ],
         rows: data.map(r => {
-            const dob = r.retDob || r.eleDob || r.csDob;
+            const dob = r.retDob || r.mechDob || r.csDob;
             let age = null;
             if (dob) {
                 const birthDate = new Date(dob);
@@ -165,16 +165,16 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
                 ...r,
                 role: r.roleName,
                 level: r.levelName,
-                city: r.retCity || r.eleCity || r.csCity || '-',
-                district: r.retDistrict || r.eleDistrict || r.csDistrict || '-',
-                state: r.retState || r.eleState || r.csState || '-',
-                pincode: r.retPincode || r.elePincode || r.csPincode || '-',
-                aadhaarNumber: r.retAadhaar || r.eleAadhaar || r.csAadhaar || '-',
-                panNumber: r.retPan || r.elePan || r.csPan || '-',
-                gender: r.retGender || r.eleGender || r.csGender || '-',
+                city: r.retCity || r.mechCity || r.csCity || '-',
+                district: r.retDistrict || r.mechDistrict || r.csDistrict || '-',
+                state: r.retState || r.mechState || r.csState || '-',
+                pincode: r.retPincode || r.mechPincode || r.csPincode || '-',
+                aadhaarNumber: r.retAadhaar || r.mechAadhaar || r.csAadhaar || '-',
+                panNumber: r.retPan || r.mechPan || r.csPan || '-',
+                gender: r.retGender || r.mechGender || r.csGender || '-',
                 dateOfBirth: dob ? new Date(dob).toLocaleDateString() : '-',
                 age: age,
-                kycStatus: (r.retIsKycVerified || r.eleIsKycVerified || r.csIsKycVerified) ? 'Verified' : 'Pending',
+                kycStatus: (r.retIsKycVerified || r.mechIsKycVerified || r.csIsKycVerified) ? 'Verified' : 'Pending',
                 zone: r.zone || '-',
                 status: !r.isSuspended ? 'Active' : 'Suspended'
             };
@@ -208,28 +208,28 @@ async function getQrScanReport(filters: any): Promise<ReportData> {
         .orderBy(desc(retailerTransactionLogs.createdAt))
         .limit(50);
 
-    const electricianRows = await db.select({
-        id: electricianTransactionLogs.id,
-        sku: electricianTransactionLogs.sku,
-        category: electricianTransactionLogs.category,
-        qrCode: electricianTransactionLogs.qrCode,
-        status: electricianTransactionLogs.status,
-        createdAt: electricianTransactionLogs.createdAt,
-        points: electricianTransactionLogs.points,
+    const mechanicRows = await db.select({
+        id: mechanicTransactionLogs.id,
+        sku: mechanicTransactionLogs.sku,
+        category: mechanicTransactionLogs.category,
+        qrCode: mechanicTransactionLogs.qrCode,
+        status: mechanicTransactionLogs.status,
+        createdAt: mechanicTransactionLogs.createdAt,
+        points: mechanicTransactionLogs.points,
         userName: users.name,
         userPhone: users.phone,
         userEmail: users.email,
-        city: electricians.city,
-        district: electricians.district,
-        state: electricians.state,
-        pincode: electricians.pincode,
+        city: mechanics.city,
+        district: mechanics.district,
+        state: mechanics.state,
+        pincode: mechanics.pincode,
         zone: pincodeMaster.zone
     })
-        .from(electricianTransactionLogs)
-        .leftJoin(users, eq(electricianTransactionLogs.userId, users.id))
-        .leftJoin(electricians, eq(users.id, electricians.userId))
-        .leftJoin(pincodeMaster, eq(electricians.pincode, pincodeMaster.pincode))
-        .orderBy(desc(electricianTransactionLogs.createdAt))
+        .from(mechanicTransactionLogs)
+        .leftJoin(users, eq(mechanicTransactionLogs.userId, users.id))
+        .leftJoin(mechanics, eq(users.id, mechanics.userId))
+        .leftJoin(pincodeMaster, eq(mechanics.pincode, pincodeMaster.pincode))
+        .orderBy(desc(mechanicTransactionLogs.createdAt))
         .limit(50);
 
     const counterRows = await db.select({
@@ -277,7 +277,7 @@ async function getQrScanReport(filters: any): Promise<ReportData> {
 
     const combined = [
         ...retailerRows.map(r => mapRow(r, 'Retailer')),
-        ...electricianRows.map(r => mapRow(r, 'Electrician')),
+        ...mechanicRows.map(r => mapRow(r, 'Mechanic')),
         ...counterRows.map(r => mapRow(r, 'CounterStaff'))
     ];
 
@@ -315,8 +315,8 @@ async function getRedemptionReport(filters: any): Promise<ReportData> {
         // Location
         retCity: retailers.city,
         retState: retailers.state,
-        eleCity: electricians.city,
-        eleState: electricians.state,
+        mechCity: mechanics.city,
+        mechState: mechanics.state,
         csCity: counterSales.city,
         csState: counterSales.state,
         zone: pincodeMaster.zone
@@ -327,11 +327,11 @@ async function getRedemptionReport(filters: any): Promise<ReportData> {
         .leftJoin(users, eq(redemptions.userId, users.id))
         .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
         .leftJoin(retailers, eq(users.id, retailers.userId))
-        .leftJoin(electricians, eq(users.id, electricians.userId))
+        .leftJoin(mechanics, eq(users.id, mechanics.userId))
         .leftJoin(counterSales, eq(users.id, counterSales.userId))
         .leftJoin(pincodeMaster, or(
             eq(retailers.pincode, pincodeMaster.pincode),
-            eq(electricians.pincode, pincodeMaster.pincode),
+            eq(mechanics.pincode, pincodeMaster.pincode),
             eq(counterSales.pincode, pincodeMaster.pincode)
         ))
         .limit(50)
@@ -354,8 +354,8 @@ async function getRedemptionReport(filters: any): Promise<ReportData> {
         ],
         rows: data.map(r => ({
             ...r,
-            city: r.retCity || r.eleCity || r.csCity || '-',
-            state: r.retState || r.eleState || r.csState || '-',
+            city: r.retCity || r.mechCity || r.csCity || '-',
+            state: r.retState || r.mechState || r.csState || '-',
             zone: r.zone || '-',
             userEmail: r.userEmail || '-'
         }))
@@ -492,8 +492,8 @@ async function getComplianceReport(filters: any): Promise<ReportData> {
         userType: userTypeEntity.typeName,
         retCity: retailers.city,
         retState: retailers.state,
-        eleCity: electricians.city,
-        eleState: electricians.state,
+        mechCity: mechanics.city,
+        mechState: mechanics.state,
         csCity: counterSales.city,
         csState: counterSales.state,
         zone: pincodeMaster.zone
@@ -502,11 +502,11 @@ async function getComplianceReport(filters: any): Promise<ReportData> {
         .leftJoin(users, eq(kycDocuments.userId, users.id))
         .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
         .leftJoin(retailers, eq(users.id, retailers.userId))
-        .leftJoin(electricians, eq(users.id, electricians.userId))
+        .leftJoin(mechanics, eq(users.id, mechanics.userId))
         .leftJoin(counterSales, eq(users.id, counterSales.userId))
         .leftJoin(pincodeMaster, or(
             eq(retailers.pincode, pincodeMaster.pincode),
-            eq(electricians.pincode, pincodeMaster.pincode),
+            eq(mechanics.pincode, pincodeMaster.pincode),
             eq(counterSales.pincode, pincodeMaster.pincode)
         ))
         .limit(50)
@@ -528,8 +528,8 @@ async function getComplianceReport(filters: any): Promise<ReportData> {
         ],
         rows: data.map(r => ({
             ...r,
-            city: r.retCity || r.eleCity || r.csCity || '-',
-            state: r.retState || r.eleState || r.csState || '-',
+            city: r.retCity || r.mechCity || r.csCity || '-',
+            state: r.retState || r.mechState || r.csState || '-',
             zone: r.zone || '-',
             userEmail: r.userEmail || '-'
         }))
@@ -599,26 +599,26 @@ async function getBankReport(filters: any): Promise<ReportData> {
     .leftJoin(pincodeMaster, eq(retailers.pincode, pincodeMaster.pincode))
     .limit(20);
 
-    const eleData = await db.select({
+    const mechData = await db.select({
         id: users.id,
         name: users.name,
         email: users.email,
-        bank: electricians.bankAccountName,
-        account: electricians.bankAccountNo,
-        ifsc: electricians.bankAccountIfsc,
-        type: sql<string>`'Electrician'`,
-        status: electricians.isBankValidated,
-        city: electricians.city,
-        district: electricians.district,
-        state: electricians.state,
-        pincode: electricians.pincode,
+        bank: mechanics.bankAccountName,
+        account: mechanics.bankAccountNo,
+        ifsc: mechanics.bankAccountIfsc,
+        type: sql<string>`'Mechanic'`,
+        status: mechanics.isBankValidated,
+        city: mechanics.city,
+        district: mechanics.district,
+        state: mechanics.state,
+        pincode: mechanics.pincode,
         zone: pincodeMaster.zone
     }).from(users)
-    .innerJoin(electricians, eq(users.id, electricians.userId))
-    .leftJoin(pincodeMaster, eq(electricians.pincode, pincodeMaster.pincode))
+    .innerJoin(mechanics, eq(users.id, mechanics.userId))
+    .leftJoin(pincodeMaster, eq(mechanics.pincode, pincodeMaster.pincode))
     .limit(20);
 
-    const rows = [...retData, ...eleData].map(r => ({
+    const rows = [...retData, ...mechData].map(r => ({
         ...r,
         status: r.status ? 'Verified' : 'Pending',
         email: r.email || '-'

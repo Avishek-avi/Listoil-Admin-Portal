@@ -435,7 +435,7 @@ const REPORT_CONFIGS: RefReportConfig[] = [
             { key: 'l6Colour', label: 'L6_COLOUR', type: 'text' },
             { key: 'dateOfScan', label: 'Date of Scan', type: 'date' },
             { key: 'frequencyOfAnomaly', label: 'Frequency of Anomaly', type: 'number' },
-            { key: 'expectedRewardElect', label: 'Expected Reward (Elect)', type: 'number' },
+            { key: 'expectedRewardMech', label: 'Expected Reward (Mech)', type: 'number' },
             { key: 'expectedRewardDealerRet', label: 'Expected Reward (Dealer/Ret)', type: 'number' },
             { key: 'expectedRewardCsb', label: 'Expected Reward (CSB)', type: 'number' },
             { key: 'totalPointsEarned', label: 'Total Points Earned', type: 'number' },
@@ -872,7 +872,7 @@ function mapRowsForReport(reportId: string, rows: any[]): any[] {
                 l6Colour: fallback,
                 dateOfScan: r.createdAt,
                 frequencyOfAnomaly: 1,
-                expectedRewardElect: r.points || 0,
+                expectedRewardMech: r.points || 0,
                 expectedRewardDealerRet: r.points || 0,
                 expectedRewardCsb: r.points || 0,
                 totalPointsEarned: r.points || 0,
@@ -1140,7 +1140,7 @@ export default function MisClient() {
     }
 
     const memberSegData = {
-        labels: analyticsData?.memberAnalytics?.segmentation?.labels || ['Electricians', 'Retailers', 'Contractors', 'Builders'],
+        labels: analyticsData?.memberAnalytics?.segmentation?.labels || ['Mechanics', 'Retailers', 'Contractors', 'Builders'],
         datasets: [{
             data: analyticsData?.memberAnalytics?.segmentation?.data || [45, 25, 20, 10],
             backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
@@ -1311,7 +1311,7 @@ export default function MisClient() {
                                     <p className="text-sm font-medium mb-1">Member Type</p>
                                     <select defaultValue="" className={selectClass}>
                                         <option value="">All Types</option>
-                                        <option value="electrician">Electrician</option>
+                                        <option value="mechanic">Mechanic</option>
                                         <option value="retailer">Retailer</option>
                                     </select>
                                 </div>

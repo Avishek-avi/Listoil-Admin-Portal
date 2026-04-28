@@ -3,10 +3,10 @@
 import { db } from "@/db"
 import {
     retailers,
-    electricians,
+    mechanics,
     counterSales,
     retailerTransactions,
-    electricianTransactions,
+    mechanicTransactions,
     counterSalesTransactions,
     redemptions,
     users,
@@ -42,19 +42,19 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
         };
 
         const rCond = applyDateFilters(retailerTransactions, retailerTransactions.createdAt);
-        const eCond = applyDateFilters(electricianTransactions, electricianTransactions.createdAt);
+        const eCond = applyDateFilters(mechanicTransactions, mechanicTransactions.createdAt);
         const csCond = applyDateFilters(counterSalesTransactions, counterSalesTransactions.createdAt);
         const redCond = applyDateFilters(redemptions, redemptions.createdAt);
 
         const scopeFilter = or(
             scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-            scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+            scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
             scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
         );
 
         // 1. Overview Metrics Calculations
         let rSumQuery = db.select({ value: sum(retailerTransactions.points) }).from(retailerTransactions);
-        let eSumQuery = db.select({ value: sum(electricianTransactions.points) }).from(electricianTransactions);
+        let eSumQuery = db.select({ value: sum(mechanicTransactions.points) }).from(mechanicTransactions);
         let csSumQuery = db.select({ value: sum(counterSalesTransactions.points) }).from(counterSalesTransactions);
         let redeemSumQuery = db.select({ value: sum(redemptions.pointsRedeemed) }).from(redemptions);
 
@@ -62,14 +62,14 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             rSumQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
                 .where(and(...rCond, scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames)));
             
-            eSumQuery.leftJoin(electricians, eq(electricianTransactions.userId, electricians.userId))
-                .where(and(...eCond, scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames)));
+            eSumQuery.leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId))
+                .where(and(...eCond, scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames)));
 
             csSumQuery.leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId))
                 .where(and(...csCond, scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)));
 
             redeemSumQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
-                .leftJoin(electricians, eq(redemptions.userId, electricians.userId))
+                .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
                 .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
                 .where(and(...redCond, scopeFilter));
         } else {
@@ -80,21 +80,21 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
         }
 
         const [retailerSum] = await rSumQuery;
-        const [electricianSum] = await eSumQuery;
+        const [mechanicSum] = await eSumQuery;
         const [counterSalesSum] = await csSumQuery;
         const [redeemSum] = await redeemSumQuery;
 
-        const totalPointsIssued = Number(retailerSum?.value || 0) + Number(electricianSum?.value || 0) + Number(counterSalesSum?.value || 0);
+        const totalPointsIssued = Number(retailerSum?.value || 0) + Number(mechanicSum?.value || 0) + Number(counterSalesSum?.value || 0);
         const totalPointsRedeemed = Number(redeemSum?.value || 0);
 
         // Active Points Value
         let rBalQuery = db.select({ value: sum(retailers.pointsBalance) }).from(retailers);
-        let eBalQuery = db.select({ value: sum(electricians.pointsBalance) }).from(electricians);
+        let eBalQuery = db.select({ value: sum(mechanics.pointsBalance) }).from(mechanics);
         let csBalQuery = db.select({ value: sum(counterSales.pointsBalance) }).from(counterSales);
 
         if (scope.type !== 'Global') {
             rBalQuery.where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
-            eBalQuery.where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+            eBalQuery.where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
             csBalQuery.where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
         }
 
@@ -106,18 +106,18 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
 
         // 2. Fetch Recent Transactions
         let latestRetailerTx = [];
-        let latestElectricianTx = [];
+        let latestMechanicTx = [];
         let latestCounterSalesTx = [];
         let latestRedemptions = [];
 
         if (!type || type === 'credit') {
             let rTxQuery = db.select({ id: retailerTransactions.id, date: retailerTransactions.createdAt, points: retailerTransactions.points, userId: retailerTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(retailerTransactions);
-            let eTxQuery = db.select({ id: electricianTransactions.id, date: electricianTransactions.createdAt, points: electricianTransactions.points, userId: electricianTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(electricianTransactions);
+            let eTxQuery = db.select({ id: mechanicTransactions.id, date: mechanicTransactions.createdAt, points: mechanicTransactions.points, userId: mechanicTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(mechanicTransactions);
             let csTxQuery = db.select({ id: counterSalesTransactions.id, date: counterSalesTransactions.createdAt, points: counterSalesTransactions.points, userId: counterSalesTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(counterSalesTransactions);
 
             if (scope.type !== 'Global') {
                 rTxQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId)).where(and(...rCond, scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames)));
-                eTxQuery.leftJoin(electricians, eq(electricianTransactions.userId, electricians.userId)).where(and(...eCond, scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames)));
+                eTxQuery.leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId)).where(and(...eCond, scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames)));
                 csTxQuery.leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId)).where(and(...csCond, scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)));
             } else {
                 rTxQuery.where(and(...rCond));
@@ -126,7 +126,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             }
 
             latestRetailerTx = await rTxQuery.orderBy(desc(retailerTransactions.createdAt)).limit(50);
-            latestElectricianTx = await eTxQuery.orderBy(desc(electricianTransactions.createdAt)).limit(50);
+            latestMechanicTx = await eTxQuery.orderBy(desc(mechanicTransactions.createdAt)).limit(50);
             latestCounterSalesTx = await csTxQuery.orderBy(desc(counterSalesTransactions.createdAt)).limit(50);
         }
 
@@ -147,7 +147,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
 
             if (scope.type !== 'Global') {
                 redQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
-                    .leftJoin(electricians, eq(redemptions.userId, electricians.userId))
+                    .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
                     .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
                     .where(and(...finalRedCond, scopeFilter));
             } else {
@@ -159,7 +159,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
 
         const rawTransactions = [
             ...latestRetailerTx.map(t => ({ ...t, id: `RXN${t.id}`, points: Number(t.points) })),
-            ...latestElectricianTx.map(t => ({ ...t, id: `EXN${t.id}`, points: Number(t.points) })),
+            ...latestMechanicTx.map(t => ({ ...t, id: `EXN${t.id}`, points: Number(t.points) })),
             ...latestCounterSalesTx.map(t => ({ ...t, id: `CSX${t.id}`, points: Number(t.points) })),
             ...latestRedemptions.map(t => ({ ...t, id: `RED${t.id}`, points: Number(t.points) }))
         ]
@@ -186,7 +186,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             FROM (
                 SELECT created_at, points, user_id FROM retailer_transactions
                 UNION ALL
-                SELECT created_at, points, user_id FROM electrician_transactions
+                SELECT created_at, points, user_id FROM mechanic_transactions
                 UNION ALL
                 SELECT created_at, points, user_id FROM counter_sales_transactions
             ) as t
@@ -195,7 +195,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
         if (scope.type !== 'Global') {
             const scopeJoin = `
                 LEFT JOIN retailers r ON t.user_id = r.user_id
-                LEFT JOIN electricians e ON t.user_id = e.user_id
+                LEFT JOIN mechanics e ON t.user_id = e.user_id
                 LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
             `;
             const scopeWhere = scope.type === 'State' 
@@ -207,7 +207,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
                 FROM (
                     SELECT created_at, points, user_id FROM retailer_transactions
                     UNION ALL
-                    SELECT created_at, points, user_id FROM electrician_transactions
+                    SELECT created_at, points, user_id FROM mechanic_transactions
                     UNION ALL
                     SELECT created_at, points, user_id FROM counter_sales_transactions
                 ) as t
@@ -231,7 +231,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
 
         if (scope.type !== 'Global') {
             redMonthlyQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
-                .leftJoin(electricians, eq(redemptions.userId, electricians.userId))
+                .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
                 .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
                 .where(scopeFilter);
         }
@@ -262,9 +262,9 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             if (type === 'Retailer') {
                 q = db.select({ total: sum(retailerTransactions.points) }).from(retailerTransactions).leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId));
                 if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
-            } else if (type === 'Electrician') {
-                q = db.select({ total: sum(electricianTransactions.points) }).from(electricianTransactions).leftJoin(electricians, eq(electricianTransactions.userId, electricians.userId));
-                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+            } else if (type === 'Mechanic') {
+                q = db.select({ total: sum(mechanicTransactions.points) }).from(mechanicTransactions).leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId));
+                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
             } else {
                 q = db.select({ total: sum(counterSalesTransactions.points) }).from(counterSalesTransactions).leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId));
                 if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
@@ -275,7 +275,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
 
         const sectors = [
             { name: 'Retailers', value: await getSectorPoints('Retailer'), color: '#3B82F6' },
-            { name: 'Electricians', value: await getSectorPoints('Electrician'), color: '#10B981' },
+            { name: 'Mechanics', value: await getSectorPoints('Mechanic'), color: '#10B981' },
             { name: 'Counter Staff', value: await getSectorPoints('Counter Staff'), color: '#F59E0B' }
         ];
 

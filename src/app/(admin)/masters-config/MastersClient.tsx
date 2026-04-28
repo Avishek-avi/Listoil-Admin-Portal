@@ -203,7 +203,7 @@ export default function MastersClient() {
     const flattenedEntities = flatten(data?.skuHierarchy || []);
     const [selectedEntityId, setSelectedEntityId] = useState<string | null>(flattenedEntities[0]?.id || null);
 
-    const allowedStakeholderNames = ['Electrician', 'Retailer', 'Counter Staffs'];
+    const allowedStakeholderNames = ['Mechanic', 'Retailer', 'Counter Staffs'];
     const stakeholderTypes = useMemo(() => {
         return (data?.stakeholderTypes || []).filter((s: any) => 
             allowedStakeholderNames.some(name => 

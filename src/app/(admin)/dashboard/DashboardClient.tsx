@@ -209,7 +209,7 @@ export default function DashboardClient() {
                 </div>
             </div>
 
-            {/* ③ Segment Overview (Retailers vs Electricians) */}
+            {/* ③ Segment Overview (Retailers vs Mechanics) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Retailer Segment */}
                 <div className="widget-card rounded-xl p-6 transition hover:shadow-lg">
@@ -248,16 +248,16 @@ export default function DashboardClient() {
                     </button>
                 </div>
 
-                {/* Electrician Segment */}
+                {/* Mechanic Segment */}
                 <div className="widget-card rounded-xl p-6 transition hover:shadow-lg">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-gray-900">Electrician Overview</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Mechanic Overview</h3>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-semibold">Scan Based</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="p-3 bg-orange-50 rounded-lg">
                             <p className="text-xs text-gray-500">Scan Points Issued</p>
-                            <p className="text-xl font-bold text-orange-600">{dashboardData?.segments?.electrician?.points?.toLocaleString() ?? 0}</p>
+                            <p className="text-xl font-bold text-orange-600">{dashboardData?.segments?.mechanic?.points?.toLocaleString() ?? 0}</p>
                         </div>
                         <div className="p-3 bg-teal-50 rounded-lg">
                             <p className="text-xs text-gray-500">Total Scans</p>
@@ -266,7 +266,7 @@ export default function DashboardClient() {
                     </div>
                     <div className="space-y-3">
                         <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">Active Electricians</span>
+                            <span className="text-gray-500">Active Mechanics</span>
                             <span className="font-semibold">{stats?.activeMembers?.toLocaleString() ?? 0}</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5">

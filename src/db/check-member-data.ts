@@ -18,9 +18,9 @@ async function checkData() {
         const r = await db.select().from(schema.retailers).limit(3);
         console.log(JSON.stringify(r, null, 2));
 
-        console.log('--- ELECTRICIANS ---');
-        const e = await db.select().from(schema.electricians).limit(3);
-        console.log(JSON.stringify(e, null, 2));
+        console.log('--- MECHANICS ---');
+        const m = await db.select().from(schema.mechanics).limit(3);
+        console.log(JSON.stringify(m, null, 2));
     } catch (err) {
         console.error(err);
     }

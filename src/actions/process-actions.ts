@@ -3,7 +3,7 @@
 import { db } from "@/db"
 import {
     retailerTransactionLogs,
-    electricianTransactionLogs,
+    mechanicTransactionLogs,
     counterSalesTransactionLogs,
     redemptions,
     redemptionStatuses,
@@ -11,7 +11,7 @@ import {
     earningTypes
 } from "@/db/schema"
 import { desc, eq, and, sql, or, ilike, inArray } from "drizzle-orm"
-import { redemptionChannels, retailers, electricians, counterSales } from "@/db/schema"
+import { redemptionChannels, retailers, mechanics, counterSales } from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
 
@@ -95,24 +95,24 @@ export async function getProcessDataAction() {
 
         const pendingRetailer = await pendingRetailerQuery.where(and(...pendingRetailerConditions)).limit(20);
 
-        const pendingElectricianConditions = [ilike(electricianTransactionLogs.status, 'pending')];
-        const pendingElectricianQuery = db.select({
-            id: electricianTransactionLogs.id,
+        const pendingMechanicConditions = [ilike(mechanicTransactionLogs.status, 'pending')];
+        const pendingMechanicQuery = db.select({
+            id: mechanicTransactionLogs.id,
             user: users.name,
-            points: electricianTransactionLogs.points,
-            createdAt: electricianTransactionLogs.createdAt,
+            points: mechanicTransactionLogs.points,
+            createdAt: mechanicTransactionLogs.createdAt,
             type: sql<string>`'Scan'`
         })
-            .from(electricianTransactionLogs)
-            .leftJoin(users, eq(electricianTransactionLogs.userId, users.id))
-            .leftJoin(electricians, eq(users.id, electricians.userId))
+            .from(mechanicTransactionLogs)
+            .leftJoin(users, eq(mechanicTransactionLogs.userId, users.id))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .$dynamic();
 
         if (scope.type !== 'Global') {
-            pendingElectricianConditions.push(scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames));
+            pendingMechanicConditions.push(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
         }
 
-        const pendingElectrician = await pendingElectricianQuery.where(and(...pendingElectricianConditions)).limit(20);
+        const pendingMechanic = await pendingMechanicQuery.where(and(...pendingMechanicConditions)).limit(20);
 
         const pendingCounterSalesConditions = [ilike(counterSalesTransactionLogs.status, 'pending')];
         const pendingCounterSalesQuery = db.select({
@@ -133,7 +133,7 @@ export async function getProcessDataAction() {
 
         const pendingCounterSales = await pendingCounterSalesQuery.where(and(...pendingCounterSalesConditions)).limit(20);
 
-        const scanRequests: ScanRequest[] = [...pendingRetailer, ...pendingElectrician, ...pendingCounterSales]
+        const scanRequests: ScanRequest[] = [...pendingRetailer, ...pendingMechanic, ...pendingCounterSales]
             .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
             .map(r => ({
                 id: `#REQ-${r.id}`,
@@ -159,7 +159,7 @@ export async function getProcessDataAction() {
             .leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id))
             .leftJoin(redemptionChannels, eq(redemptions.channelId, redemptionChannels.id))
             .leftJoin(retailers, eq(users.id, retailers.userId))
-            .leftJoin(electricians, eq(users.id, electricians.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
             .where(ilike(redemptionStatuses.name, 'pending'))
             .$dynamic();
@@ -167,7 +167,7 @@ export async function getProcessDataAction() {
         if (scope.type !== 'Global') {
             pendingRedemptionQuery.where(or(
                 scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                 scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
             ));
         }
@@ -202,17 +202,17 @@ export async function getProcessDataAction() {
         };
 
         const [retailerPendingCount] = await getScopedCount(retailerTransactionLogs, ilike(retailerTransactionLogs.status, 'pending'), retailers);
-        const [electricianPendingCount] = await getScopedCount(electricianTransactionLogs, ilike(electricianTransactionLogs.status, 'pending'), electricians);
+        const [mechanicPendingCount] = await getScopedCount(mechanicTransactionLogs, ilike(mechanicTransactionLogs.status, 'pending'), mechanics);
         const [csPendingCount] = await getScopedCount(counterSalesTransactionLogs, ilike(counterSalesTransactionLogs.status, 'pending'), counterSales);
 
         let redemptionPendingQuery = db.select({ count: sql<number>`count(*)` }).from(redemptions).leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id)).where(ilike(redemptionStatuses.name, 'pending')).$dynamic();
         if (scope.type !== 'Global') {
             redemptionPendingQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
-                .leftJoin(electricians, eq(redemptions.userId, electricians.userId))
+                .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
                 .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
                 .where(or(
                     scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                     scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                 ));
         }
@@ -220,26 +220,26 @@ export async function getProcessDataAction() {
 
         // Today's stats for Scan
         const [retailerApprovedToday] = await getScopedCount(retailerTransactionLogs, and(ilike(retailerTransactionLogs.status, 'approved'), sql`${retailerTransactionLogs.createdAt} >= ${todayStr}`), retailers);
-        const [electricianApprovedToday] = await getScopedCount(electricianTransactionLogs, and(ilike(electricianTransactionLogs.status, 'approved'), sql`${electricianTransactionLogs.createdAt} >= ${todayStr}`), electricians);
+        const [mechanicApprovedToday] = await getScopedCount(mechanicTransactionLogs, and(ilike(mechanicTransactionLogs.status, 'approved'), sql`${mechanicTransactionLogs.createdAt} >= ${todayStr}`), mechanics);
         const [csApprovedToday] = await getScopedCount(counterSalesTransactionLogs, and(ilike(counterSalesTransactionLogs.status, 'approved'), sql`${counterSalesTransactionLogs.createdAt} >= ${todayStr}`), counterSales);
 
         const [retailerRejectedToday] = await getScopedCount(retailerTransactionLogs, and(ilike(retailerTransactionLogs.status, 'rejected'), sql`${retailerTransactionLogs.createdAt} >= ${todayStr}`), retailers);
-        const [electricianRejectedToday] = await getScopedCount(electricianTransactionLogs, and(ilike(electricianTransactionLogs.status, 'rejected'), sql`${electricianTransactionLogs.createdAt} >= ${todayStr}`), electricians);
+        const [mechanicRejectedToday] = await getScopedCount(mechanicTransactionLogs, and(ilike(mechanicTransactionLogs.status, 'rejected'), sql`${mechanicTransactionLogs.createdAt} >= ${todayStr}`), mechanics);
         const [csRejectedToday] = await getScopedCount(counterSalesTransactionLogs, and(ilike(counterSalesTransactionLogs.status, 'rejected'), sql`${counterSalesTransactionLogs.createdAt} >= ${todayStr}`), counterSales);
 
         // Total Processed (All time approved)
         const [retailerTotal] = await getScopedCount(retailerTransactionLogs, ilike(retailerTransactionLogs.status, 'approved'), retailers);
-        const [electricianTotal] = await getScopedCount(electricianTransactionLogs, ilike(electricianTransactionLogs.status, 'approved'), electricians);
+        const [mechanicTotal] = await getScopedCount(mechanicTransactionLogs, ilike(mechanicTransactionLogs.status, 'approved'), mechanics);
         const [csTotal] = await getScopedCount(counterSalesTransactionLogs, ilike(counterSalesTransactionLogs.status, 'approved'), counterSales);
 
         const scanStats: ProcessStats = {
-            pendingRequests: Number(retailerPendingCount?.[0]?.count || 0) + Number(electricianPendingCount?.[0]?.count || 0) + Number(csPendingCount?.[0]?.count || 0),
+            pendingRequests: Number(retailerPendingCount?.[0]?.count || 0) + Number(mechanicPendingCount?.[0]?.count || 0) + Number(csPendingCount?.[0]?.count || 0),
             pendingRequestsToday: '+0',
-            approvedToday: Number(retailerApprovedToday?.[0]?.count || 0) + Number(electricianApprovedToday?.[0]?.count || 0) + Number(csApprovedToday?.[0]?.count || 0),
+            approvedToday: Number(retailerApprovedToday?.[0]?.count || 0) + Number(mechanicApprovedToday?.[0]?.count || 0) + Number(csApprovedToday?.[0]?.count || 0),
             approvedTodayTrend: '+0%',
-            rejectedToday: Number(retailerRejectedToday?.[0]?.count || 0) + Number(electricianRejectedToday?.[0]?.count || 0) + Number(csRejectedToday?.[0]?.count || 0),
+            rejectedToday: Number(retailerRejectedToday?.[0]?.count || 0) + Number(mechanicRejectedToday?.[0]?.count || 0) + Number(csRejectedToday?.[0]?.count || 0),
             rejectedTodayTrend: '0',
-            totalProcessed: (Number(retailerTotal?.[0]?.count || 0) + Number(electricianTotal?.[0]?.count || 0) + Number(csTotal?.[0]?.count || 0)).toLocaleString(),
+            totalProcessed: (Number(retailerTotal?.[0]?.count || 0) + Number(mechanicTotal?.[0]?.count || 0) + Number(csTotal?.[0]?.count || 0)).toLocaleString(),
             totalProcessedTrend: '+0'
         };
 
@@ -250,12 +250,12 @@ export async function getProcessDataAction() {
         if (scope.type !== 'Global') {
             const scopeFilter = or(
                 scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(electricians.state, scope.entityNames) : inArray(electricians.city, scope.entityNames),
+                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
                 scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
             );
             [redemptionApprovedTodayQuery, redemptionRejectedTodayQuery, redemptionTotalValueTodayQuery].forEach(q => {
                 q.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
-                 .leftJoin(electricians, eq(redemptions.userId, electricians.userId))
+                 .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
                  .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
                  .where(scopeFilter);
             });

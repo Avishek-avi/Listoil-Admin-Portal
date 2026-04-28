@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/db';
-import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, electricianTransactions, counterSalesTransactions, users, approvalStatuses } from '@/db/schema';
+import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, mechanicTransactions, counterSalesTransactions, users, approvalStatuses } from '@/db/schema';
 import { emitEvent, BUS_EVENTS } from '@/server/rabbitMq/broker';
 import { eq, desc, sql as sqlTag, and, inArray } from 'drizzle-orm';
 
@@ -179,7 +179,7 @@ export async function getMastersDataAction() {
 
         // 5. SKU Performance
         const q1 = db.select({ sku: retailerTransactions.sku }).from(retailerTransactions);
-        const q2 = db.select({ sku: electricianTransactions.sku }).from(electricianTransactions);
+        const q2 = db.select({ sku: mechanicTransactions.sku }).from(mechanicTransactions);
         const q3 = db.select({ sku: counterSalesTransactions.sku }).from(counterSalesTransactions);
         const unionSq = q1.unionAll(q2).unionAll(q3).as('t');
 

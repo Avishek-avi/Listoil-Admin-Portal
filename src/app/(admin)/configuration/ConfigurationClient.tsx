@@ -275,7 +275,7 @@ export default function ConfigurationClient() {
                                     <option value="">Select User Type</option>
                                     <option value="retailer">Retailer</option>
                                     <option value="csb">CSB</option>
-                                    <option value="electrician">Electrician</option>
+                                    <option value="mechanic">Mechanic</option>
                                     <option value="staff">Staff</option>
                                 </select>
                             </div>
