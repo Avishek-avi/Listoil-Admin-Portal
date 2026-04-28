@@ -446,6 +446,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             mechanicKyc: mechanics.isKycVerified,
             counterSalesKyc: counterSales.isKycVerified,
             approvalStatus: approvalStatuses.name,
+            approvalStatusId: users.approvalStatusId,
             retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`
         })
             .from(users)
@@ -474,6 +475,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
                 kycStatus: isKycVerified ? 'Approved' as const : 'Pending' as const,
                 status: u.isSuspended ? 'Inactive' as const : 'Active' as const,
                 approvalStatus: u.approvalStatus || 'PENDING',
+                approvalStatusId: u.approvalStatusId,
                 regions: '---',
                 joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '---',
                 mappedRetailer: u.retailerName || '---'

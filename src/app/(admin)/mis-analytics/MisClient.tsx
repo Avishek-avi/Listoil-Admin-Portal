@@ -910,7 +910,7 @@ function mapRowsForReport(reportId: string, rows: any[]): any[] {
 
 export default function MisClient() {
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState(0)
+    const [activeTab, setActiveTab] = useState(4)
     const [activeReportCategory, setActiveReportCategory] = useState<string | null>(REPORT_CONFIGS[0]?.id || null);
     const [isReportMenuCollapsed, setIsReportMenuCollapsed] = useState(false);
     const [isReportFiltersOpen, setIsReportFiltersOpen] = useState(false);
@@ -1179,8 +1179,8 @@ export default function MisClient() {
             {/* ── Tabs ── */}
             <div className="border-b border-gray-200 mb-6">
                 <div className="tabs">
-                    {['Executive Dashboard', 'Performance Metrics', 'Member Analytics', 'Campaign Analytics', 'Reports'].map((label, i) => (
-                        <button key={`${label}-${i}`} className={`tab ${activeTab === i ? 'active' : ''}`} onClick={() => setActiveTab(i)}>{label}</button>
+                    {['Reports'].map((label) => (
+                        <button key={label} className="tab active">{label}</button>
                     ))}
                 </div>
             </div>

@@ -5,16 +5,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
 
-import { generateQrCodeAction, fetchQrHistory, fetchQrFileAction, toggleQrBatchStatusAction } from '@/app/actions/qr.actions';
-import {
-  fetchL1Action,
-  fetchL2Action,
-  fetchL3Action,
-  fetchL4Action,
-  fetchL5Action,
-  fetchL6Action,
-  fetchVariantsAction
-} from '@/app/actions/sku-level.actions';
+import { fetchQrHistory, fetchQrFileAction, toggleQrBatchStatusAction, syncQrExcelAction } from '@/app/actions/qr.actions';
 
 interface QRBatch {
   batchId: string;
@@ -32,60 +23,38 @@ export default function QRGeneration() {
     }
   });
 
-  const [sku, setSku] = useState('');
-  const [qrType, setQrType] = useState('inner');
-  const [numberOfQRs, setNumberOfQRs] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const [variants, setVariants] = useState<any[]>([]);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
 
-  const [l1List, setL1List] = useState<any[]>([]);
-  const [l2List, setL2List] = useState<any[]>([]);
-  const [l3List, setL3List] = useState<any[]>([]);
-  const [l4List, setL4List] = useState<any[]>([]);
-  const [l5List, setL5List] = useState<any[]>([]);
-  const [l6List, setL6List] = useState<any[]>([]);
-
-  const [selectedL1, setSelectedL1] = useState<number | ''>('');
-  const [selectedL2, setSelectedL2] = useState<number | ''>('');
-  const [selectedL3, setSelectedL3] = useState<number | ''>('');
-  const [selectedL4, setSelectedL4] = useState<number | ''>('');
-  const [selectedL5, setSelectedL5] = useState<number | ''>('');
-  const [selectedL6, setSelectedL6] = useState<number | ''>('');
-
-  useEffect(() => { fetchL1Action().then(setL1List); }, []);
-
-  useEffect(() => {
-    if (selectedL1) { fetchL2Action(selectedL1).then(setL2List); } else { setL2List([]); }
-    setSelectedL2(''); setSelectedL3(''); setSelectedL4(''); setSelectedL5(''); setSelectedL6('');
-    setL3List([]); setL4List([]); setL5List([]); setL6List([]); setVariants([]); setSku('');
-  }, [selectedL1]);
-
-  useEffect(() => {
-    if (selectedL2) { fetchL3Action(selectedL1 || undefined, selectedL2).then(setL3List); } else { setL3List([]); }
-    setSelectedL3(''); setSelectedL4(''); setSelectedL5(''); setSelectedL6('');
-    setL4List([]); setL5List([]); setL6List([]); setVariants([]); setSku('');
-  }, [selectedL1, selectedL2]);
-
-  useEffect(() => {
-    if (selectedL3) { fetchL4Action(selectedL1 || undefined, selectedL2 || undefined, selectedL3).then(setL4List); } else { setL4List([]); }
-    setSelectedL4(''); setSelectedL5(''); setSelectedL6('');
-    setL5List([]); setL6List([]); setVariants([]); setSku('');
-  }, [selectedL1, selectedL2, selectedL3]);
-
-  useEffect(() => {
-    if (selectedL4) { fetchL5Action(selectedL1 || undefined, selectedL2 || undefined, selectedL3 || undefined, selectedL4).then(setL5List); } else { setL5List([]); }
-    setSelectedL5(''); setSelectedL6(''); setL6List([]); setVariants([]); setSku('');
-  }, [selectedL1, selectedL2, selectedL3, selectedL4]);
-
-  useEffect(() => {
-    if (selectedL5) { fetchL6Action(selectedL1 || undefined, selectedL2 || undefined, selectedL3 || undefined, selectedL4 || undefined, selectedL5).then(setL6List); } else { setL6List([]); }
-    setSelectedL6(''); setVariants([]); setSku('');
-  }, [selectedL1, selectedL2, selectedL3, selectedL4, selectedL5]);
-
-  useEffect(() => {
-    if (selectedL6) { fetchVariantsAction(selectedL6).then(setVariants); } else { setVariants([]); }
-    setSku('');
-  }, [selectedL6]);
+  const handleSync = async () => {
+    if (!selectedFile) { alert('Please select an Excel file'); return; }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('type', 'qr-sync');
+      
+      const result = await syncQrExcelAction(formData);
+      if (result.success) {
+        alert('QR Codes synced successfully!');
+        setSelectedFile(null);
+        await loadQrBatches();
+      } else {
+        alert('Error: ' + result.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('An unexpected error occurred during sync');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const [batches, setBatches] = useState<any[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
@@ -113,21 +82,6 @@ export default function QRGeneration() {
 
   useEffect(() => { loadQrBatches(); }, [page, rowsPerPage, debouncedBatchSearch, batchStatus]);
 
-  const [generating, setGenerating] = useState(false);
-
-  const handleGenerate = async () => {
-    if (!sku || !qrType || !numberOfQRs) { alert('Please fill all fields'); return; }
-    const quantity = parseInt(numberOfQRs, 10);
-    if (isNaN(quantity) || quantity < 1 || quantity > 10000) { alert('Quantity must be between 1 and 10000'); return; }
-    setGenerating(true);
-    try {
-      const result = await generateQrCodeAction({ skuCode: sku, type: qrType as 'inner' | 'outer', quantity: parseInt(numberOfQRs, 10) });
-      if (result.success) { alert(result.message); await loadQrBatches(); setSku(''); setQrType('inner'); setNumberOfQRs(''); }
-      else { alert('Error: ' + result.message); }
-    } catch (error) { console.error(error); alert('An unexpected error occurred'); }
-    finally { setGenerating(false); }
-  };
-
   const handleStatusToggle = async (batchId: number, currentStatus: boolean) => {
     try {
       const result = await toggleQrBatchStatusAction(batchId, !currentStatus);
@@ -151,87 +105,55 @@ export default function QRGeneration() {
     );
   }
 
-  const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white";
-  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
-
   return (
     <div className="space-y-6 mt-3">
-      {/* Generate QR Codes */}
+      {/* Sync QR Codes */}
       <div className="widget-card rounded-xl shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Generate QR Codes</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">L1 Level</label>
-            <select value={selectedL1} onChange={(e) => setSelectedL1(Number(e.target.value) || '')} className={selectClass}>
-              <option value="">-- Select L1 --</option>
-              {l1List.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">L2 Level</label>
-            <select value={selectedL2} onChange={(e) => setSelectedL2(Number(e.target.value) || '')} className={selectClass}>
-              <option value="">-- Select L2 --</option>
-              {l2List.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">L3 Level</label>
-            <select value={selectedL3} onChange={(e) => setSelectedL3(Number(e.target.value) || '')} className={selectClass}>
-              <option value="">-- Select L3 --</option>
-              {l3List.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">L4 Level</label>
-            <select value={selectedL4} onChange={(e) => setSelectedL4(Number(e.target.value) || '')} className={selectClass}>
-              <option value="">-- Select L4 --</option>
-              {l4List.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">L5 Level</label>
-            <select value={selectedL5} onChange={(e) => setSelectedL5(Number(e.target.value) || '')} className={selectClass}>
-              <option value="">-- Select L5 --</option>
-              {l5List.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">L6 Level</label>
-            <select value={selectedL6} onChange={(e) => setSelectedL6(Number(e.target.value) || '')} className={selectClass}>
-              <option value="">-- Select L6 --</option>
-              {l6List.map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SKU Variant</label>
-            <select value={sku} onChange={(e) => setSku(e.target.value)} disabled={!selectedL6 || variants.length === 0} className={selectClass}>
-              <option value="">-- Select Variant --</option>
-              {variants.map((item: any) => (
-                <option key={item.id} value={item.name}>{item.name} {item.packSize ? `(${item.packSize})` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">QR Type</label>
-            <select value={qrType} onChange={(e) => setQrType(e.target.value)} className={selectClass}>
-              <option value="">-- Select Type --</option>
-              <option value="inner">Inner</option>
-              <option value="outer">Outer</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-            <input type="number" placeholder="Enter quantity" value={numberOfQRs} onChange={(e) => {
-              const value = e.target.value;
-              if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 10000)) setNumberOfQRs(value);
-            }} min={1} max={10000} className={inputClass} />
-          </div>
-        </div>
-        <div className="flex justify-end gap-3 mt-4">
-          <button className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition">Cancel</button>
-          <button onClick={handleGenerate} disabled={generating} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
-            {generating ? 'Generating...' : 'Generate QR Codes'}
-          </button>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 text-gradient">Sync QR Codes</h3>
+        <p className="text-sm text-gray-500 mb-6">Upload an Excel file to sync QR codes with the inventory. Only .xlsx and .xls formats are supported.</p>
+        
+        <div className="max-w-xl">
+            <div className="flex flex-col gap-4">
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer group bg-gray-50/50" onClick={() => document.getElementById('fileInput')?.click()}>
+                    <input type="file" id="fileInput" className="hidden" accept=".xlsx,.xls" onChange={handleFileChange} />
+                    <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <i className="fas fa-file-excel text-blue-600 text-xl"></i>
+                    </div>
+                    {selectedFile ? (
+                        <div className="space-y-1">
+                            <p className="text-sm font-semibold text-gray-900">{selectedFile.name}</p>
+                            <p className="text-xs text-gray-500">{(selectedFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-1">
+                            <p className="text-sm font-semibold text-gray-900 text-gradient">Click to upload Excel</p>
+                            <p className="text-xs text-gray-500">Drag and drop or click to browse</p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-2">
+                    {selectedFile && (
+                        <button 
+                            onClick={() => setSelectedFile(null)}
+                            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                        >
+                            Clear
+                        </button>
+                    )}
+                    <button 
+                        onClick={handleSync} 
+                        disabled={uploading || !selectedFile} 
+                        className="btn btn-primary px-6 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
+                    >
+                        {uploading ? (
+                            <><i className="fas fa-spinner fa-spin mr-2"></i> Syncing...</>
+                        ) : (
+                            <><i className="fas fa-sync-alt mr-2"></i> Sync QR Codes</>
+                        )}
+                    </button>
+                </div>
+            </div>
         </div>
       </div>
 

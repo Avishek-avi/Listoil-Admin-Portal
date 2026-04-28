@@ -36,7 +36,7 @@ const navSections: NavSection[] = [
   {
     label: 'Insights',
     items: [
-      { text: 'MIS & Analytics',  icon: 'fas fa-chart-line',      path: '/mis-analytics' },
+      { text: 'MIS Reports',  icon: 'fas fa-chart-line',      path: '/mis-analytics' },
     ],
   },
   {

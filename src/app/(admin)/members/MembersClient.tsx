@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction, approveMemberAction, rejectMemberAction } from '@/actions/member-actions';
 
 /* ── Reusable dropdown (click-outside auto-close) ── */
-function ActionDropdown({ label, icon, children }: { label: string; icon: string; children: React.ReactNode }) {
+function ActionDropdown({ label, icon, children, direction = 'down' }: { label: string; icon: string; children: React.ReactNode; direction?: 'up' | 'down' }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -22,7 +22,7 @@ function ActionDropdown({ label, icon, children }: { label: string; icon: string
                 <i className={`fas ${icon} text-xs`}></i> {label} <i className="fas fa-chevron-down text-[10px] ml-1"></i>
             </button>
             {open && (
-                <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]">
+                <div className={`absolute right-0 ${direction === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[200px]`}>
                     {children}
                 </div>
             )}
@@ -457,14 +457,13 @@ export default function MembersClient() {
                     {/* Filters */}
                     <div className="widget-card rounded-xl shadow p-4 mb-6">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            <div className="md:col-span-4 relative">
-                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                            <div className="md:col-span-4">
                                 <input
                                     type="text"
                                     placeholder={`Search ${currentEntity.name.toLowerCase()}...`}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 shadow-sm"
                                 />
                             </div>
                             <div className="md:col-span-2">
@@ -507,7 +506,7 @@ export default function MembersClient() {
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto" style={{ minHeight: '300px' }}>
                             <table className="data-table">
                                 <thead>
                                     <tr>
@@ -562,54 +561,70 @@ export default function MembersClient() {
                                                     <p className="text-sm">{member.regions || 'N/A'}</p>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4">{getKycBadge(member.kycStatus, member.approvalStatus)}</td>
+                                            <td className="py-3 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    {getKycBadge(member.kycStatus, member.approvalStatus)}
+                                                    <button 
+                                                        onClick={() => handleViewKyc(member)}
+                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                        title="View Documents"
+                                                    >
+                                                        <i className="fas fa-file-invoice text-sm"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
                                             <td className="py-3 px-4">{getApprovalBadge(member.approvalStatus)}</td>
                                             {currentEntity.name.toLowerCase().includes('mechanic') && (
                                                 <td className="py-3 px-4 text-sm">{member.joinedDate}</td>
                                             )}
                                             <td className="py-3 px-4">
-                                                <div className="flex gap-1">
-                                                    {/* KYC Dropdown */}
-                                                    <ActionDropdown label="KYC" icon="fa-check-circle">
-                                                        <button
-                                                            onClick={() => handleViewKyc(member)}
-                                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left"
-                                                        >
-                                                            <i className="fas fa-eye text-gray-400 text-xs w-4"></i> View Documents
-                                                        </button>
-                                                    </ActionDropdown>
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => handleViewDetails(member)} 
+                                                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                        title="View Profile"
+                                                    >
+                                                        <i className="fas fa-user-circle text-lg"></i>
+                                                    </button>
+                                                    
+                                                    <ActionDropdown label="Account" icon="fa-cog" direction="down">
+                                                        <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Change Status</div>
+                                                        {['ACTIVE', 'BLOCKED', 'SCAN_BLOCKED', 'REDEMPTION_BLOCKED'].map(statusName => {
+                                                            const status = blockStatuses?.find((s: any) => s.name.toUpperCase() === statusName);
+                                                            if (!status) return null;
+                                                            const isCurrent = member.approvalStatusId === status.id;
+                                                            
+                                                            // Role-specific labeling
+                                                            let label = statusName.replace('_', ' ');
+                                                            const isRetailer = currentEntity?.name.toLowerCase().includes('retailer');
+                                                            
+                                                            if (statusName === 'BLOCKED') {
+                                                                label = isRetailer ? 'Full Block (Invoices + Redemption)' : 'Full Block (Scans + Redemption)';
+                                                            } else if (statusName === 'SCAN_BLOCKED') {
+                                                                label = isRetailer ? 'Invoice Sync Block' : 'Scan Block';
+                                                            } else if (statusName === 'REDEMPTION_BLOCKED') {
+                                                                label = 'Redemption Block';
+                                                            } else if (statusName === 'ACTIVE') {
+                                                                label = 'Active (Unblocked)';
+                                                            }
 
-                                                    {/* Block Dropdown */}
-                                                    <ActionDropdown label="Block" icon="fa-ban">
-                                                        {blockStatuses?.map((status: any) => {
-                                                            const ACTIONABLE_STATUSES = ['DELETE', 'BLOCKED', 'REDEMPTION_BLOCKED', 'SCAN_BLOCKED', 'INACTIVE'];
-                                                            const isActionable = ACTIONABLE_STATUSES.includes(status.name?.toUpperCase());
                                                             return (
                                                                 <button
                                                                     key={status.id}
-                                                                    onClick={() => isActionable && handleUpdateBlockStatus(member.dbId, status.id)}
-                                                                    disabled={!isActionable}
-                                                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isActionable ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-300 cursor-not-allowed'}`}
+                                                                    onClick={() => !isCurrent && handleUpdateBlockStatus(member.dbId, status.id)}
+                                                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isCurrent ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                                                                 >
-                                                                    <i className="fas fa-lock text-xs w-4"></i> {status.name}
+                                                                    <i className={`fas ${isCurrent ? 'fa-check-circle' : 'fa-circle text-[8px] opacity-30'} w-4 text-center`}></i>
+                                                                    {label}
                                                                 </button>
                                                             );
                                                         })}
-                                                        {(!blockStatuses || blockStatuses.length === 0) && (
-                                                            <p className="px-3 py-2 text-sm text-gray-400">No actions available</p>
-                                                        )}
-                                                    </ActionDropdown>
-
-                                                    {/* More Actions Dropdown */}
-                                                    <ActionDropdown label="More" icon="fa-ellipsis-v">
-                                                        <button onClick={() => handleViewDetails(member)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left">
-                                                            <i className="fas fa-eye text-gray-400 text-xs w-4"></i> View Details
-                                                        </button>
+                                                        <div className="border-t border-gray-100 my-1"></div>
                                                         <button onClick={() => handleEditMember(member)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left">
-                                                            <i className="fas fa-edit text-gray-400 text-xs w-4"></i> Edit Member
+                                                            <i className="fas fa-edit text-gray-400 text-xs w-4"></i> Edit Details
                                                         </button>
-                                                        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left">
-                                                            <i className="fas fa-envelope text-gray-400 text-xs w-4"></i> Send Message
+                                                        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 text-left">
+                                                            <i className="fas fa-trash-alt text-xs w-4"></i> Delete Member
                                                         </button>
                                                     </ActionDropdown>
                                                 </div>

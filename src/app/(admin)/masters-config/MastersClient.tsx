@@ -5,7 +5,7 @@ import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, T
 import { Bar, Pie } from 'react-chartjs-2';
 import { ChevronDown, ChevronRight, Edit, Delete } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getMastersDataAction, updateStakeholderConfigAction, upsertPointsMatrixRuleAction, upsertSkuPointConfigAction, updateSkuPointConfigForEntityAction, type SkuNode, deletePointsMatrixRuleAction } from '@/actions/masters-actions';
+import { getMastersDataAction, updateStakeholderConfigAction, upsertPointsMatrixRuleAction, upsertSkuPointConfigAction, updateSkuPointConfigForEntityAction, type SkuNode, deletePointsMatrixRuleAction, getPincodeMasterAction } from '@/actions/masters-actions';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -82,7 +82,7 @@ export default function MastersClient() {
 
     const [tab, setTab] = useState(0);
     const queryClient = useQueryClient();
-    const tabLabels = ['Stakeholder Master', 'SKU Master', 'Points Matrix', 'Target Master'];
+    const tabLabels = ['Stakeholder Master', 'SKU Master', 'Points Matrix', 'Target Master', 'Pincode Master'];
 
     // Stakeholder config form state
     const [selectedStakeholderId, setSelectedStakeholderId] = useState<string | null>(null);
@@ -133,6 +133,22 @@ export default function MastersClient() {
     const [pmIsActive, setPmIsActive] = useState<boolean>(true);
     const [pmDescription, setPmDescription] = useState<string>('');
     const [pmSaveStatus, setPmSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    
+    // Pincode Master state
+    const [pincodePage, setPincodePage] = useState(1);
+    const [pincodeSearch, setPincodeSearch] = useState('');
+    const [debouncedPincodeSearch, setDebouncedPincodeSearch] = useState('');
+
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedPincodeSearch(pincodeSearch), 500);
+        return () => clearTimeout(t);
+    }, [pincodeSearch]);
+
+    const { data: pincodeData, isLoading: isPincodeLoading } = useQuery({
+        queryKey: ['pincode-master', pincodePage, debouncedPincodeSearch],
+        queryFn: () => getPincodeMasterAction(pincodePage, 50, debouncedPincodeSearch),
+        enabled: tab === 4
+    });
 
     const pointsRuleMutation = useMutation({
         mutationFn: (payload: Parameters<typeof upsertPointsMatrixRuleAction>[0]) => upsertPointsMatrixRuleAction(payload),
@@ -512,6 +528,84 @@ export default function MastersClient() {
                     <div className="widget-card rounded-xl shadow p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-6">Target Configuration</h3>
                         <p className="text-sm text-gray-500 mb-4">Target management is currently being migrated to real-time data tracking.</p>
+                    </div>
+                </div>
+            </TabPanel>
+
+            <TabPanel value={tab} index={4}>
+                <div className="space-y-6">
+                    <div className="widget-card rounded-xl shadow p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">Pincode Master</h3>
+                            <div className="relative w-64">
+                                <input
+                                    type="text"
+                                    placeholder="Search pincode, city..."
+                                    value={pincodeSearch}
+                                    onChange={(e) => { setPincodeSearch(e.target.value); setPincodePage(1); }}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 shadow-sm"
+                                />
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto min-h-[400px]">
+                            <table className="min-w-full">
+                                <thead>
+                                    <tr className="border-b bg-gray-50">
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Zone</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">State</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">City</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Pincode</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {isPincodeLoading ? (
+                                        <tr>
+                                            <td colSpan={5} className="py-8 text-center text-gray-500">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                                    Loading data...
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (pincodeData?.list || []).map((p) => (
+                                        <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
+                                            <td className="py-3 px-4 text-sm font-medium text-gray-900">{p.zone || '---'}</td>
+                                            <td className="py-3 px-4 text-sm text-gray-600">{p.state}</td>
+                                            <td className="py-3 px-4 text-sm text-gray-600">{p.city}</td>
+                                            <td className="py-3 px-4 text-sm font-mono text-blue-600">{p.pincode}</td>
+                                            <td className="py-3 px-4">
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${p.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                    {p.isActive ? 'ACTIVE' : 'INACTIVE'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div className="flex justify-between items-center mt-4">
+                            <p className="text-xs text-gray-500">
+                                Showing {(pincodePage - 1) * 50 + 1} to {Math.min(pincodePage * 50, pincodeData?.total || 0)} of {pincodeData?.total?.toLocaleString()} entries
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setPincodePage(p => Math.max(1, p - 1))}
+                                    disabled={pincodePage === 1}
+                                    className="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => setPincodePage(p => p + 1)}
+                                    disabled={(pincodeData?.list || []).length < 50}
+                                    className="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </TabPanel>

@@ -21,7 +21,7 @@ import {
     notificationLogs,
     pincodeMaster
 } from '@/db/schema';
-import { desc, eq, sql, and, or, aliasedTable } from 'drizzle-orm';
+import { desc, eq, sql, and, or, aliasedTable, inArray } from 'drizzle-orm';
 
 export interface ReportColumn {
     key: string;
@@ -122,6 +122,7 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
             eq(mechanics.pincode, pincodeMaster.pincode),
             eq(counterSales.pincode, pincodeMaster.pincode)
         ))
+        .where(inArray(users.roleId, [2, 3]))
         .limit(50)
         .orderBy(desc(users.createdAt));
 
@@ -277,8 +278,7 @@ async function getQrScanReport(filters: any): Promise<ReportData> {
 
     const combined = [
         ...retailerRows.map(r => mapRow(r, 'Retailer')),
-        ...mechanicRows.map(r => mapRow(r, 'Mechanic')),
-        ...counterRows.map(r => mapRow(r, 'CounterStaff'))
+        ...mechanicRows.map(r => mapRow(r, 'Mechanic'))
     ];
 
     // sort by date desc and limit
@@ -334,6 +334,7 @@ async function getRedemptionReport(filters: any): Promise<ReportData> {
             eq(mechanics.pincode, pincodeMaster.pincode),
             eq(counterSales.pincode, pincodeMaster.pincode)
         ))
+        .where(inArray(users.roleId, [2, 3]))
         .limit(50)
         .orderBy(desc(redemptions.createdAt));
 
@@ -381,6 +382,10 @@ async function getReferralReport(filters: any): Promise<ReportData> {
         .from(referrals)
         .leftJoin(referrer, eq(referrals.referrerId, referrer.id))
         .leftJoin(referred, eq(referrals.referredId, referred.id))
+        .where(and(
+            inArray(referrer.roleId, [2, 3]),
+            inArray(referred.roleId, [2, 3])
+        ))
         .limit(50)
         .orderBy(desc(referrals.createdAt));
 
@@ -418,6 +423,7 @@ async function getOtpReport(filters: any): Promise<ReportData> {
     })
         .from(otpMaster)
         .leftJoin(users, eq(otpMaster.userId, users.id))
+        .where(inArray(users.roleId, [2, 3]))
         .limit(50)
         .orderBy(desc(otpMaster.createdAt));
 
@@ -451,6 +457,7 @@ async function getNotificationReport(filters: any): Promise<ReportData> {
     })
         .from(notificationLogs)
         .leftJoin(users, eq(notificationLogs.userId, users.id))
+        .where(inArray(users.roleId, [2, 3]))
         .limit(50)
         .orderBy(desc(notificationLogs.createdAt));
 
@@ -478,63 +485,81 @@ async function getGamificationReport(filters: any): Promise<ReportData> {
         rows: []
     };
 }
-
 async function getComplianceReport(filters: any): Promise<ReportData> {
-    const data = await db.select({
-        id: kycDocuments.id,
-        type: kycDocuments.documentType,
-        status: kycDocuments.verificationStatus,
-        reason: kycDocuments.rejectionReason,
-        uploadedAt: kycDocuments.createdAt,
-        userName: users.name,
-        userPhone: users.phone,
-        userEmail: users.email,
+    const rawData = await db.select({
+        id: users.id,
+        name: users.name,
+        phone: users.phone,
+        email: users.email,
         userType: userTypeEntity.typeName,
+        docType: kycDocuments.documentType,
+        docStatus: kycDocuments.verificationStatus,
+        uploadedAt: kycDocuments.createdAt,
         retCity: retailers.city,
         retState: retailers.state,
         mechCity: mechanics.city,
         mechState: mechanics.state,
-        csCity: counterSales.city,
-        csState: counterSales.state,
         zone: pincodeMaster.zone
     })
-        .from(kycDocuments)
-        .leftJoin(users, eq(kycDocuments.userId, users.id))
+        .from(users)
+        .innerJoin(kycDocuments, eq(users.id, kycDocuments.userId))
         .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
         .leftJoin(retailers, eq(users.id, retailers.userId))
         .leftJoin(mechanics, eq(users.id, mechanics.userId))
-        .leftJoin(counterSales, eq(users.id, counterSales.userId))
         .leftJoin(pincodeMaster, or(
             eq(retailers.pincode, pincodeMaster.pincode),
-            eq(mechanics.pincode, pincodeMaster.pincode),
-            eq(counterSales.pincode, pincodeMaster.pincode)
+            eq(mechanics.pincode, pincodeMaster.pincode)
         ))
-        .limit(50)
+        .where(inArray(users.roleId, [2, 3]))
         .orderBy(desc(kycDocuments.createdAt));
+
+    const userGroups = new Map<number, any>();
+    
+    for (const row of rawData) {
+        if (!userGroups.has(row.id)) {
+            userGroups.set(row.id, {
+                id: row.id,
+                name: row.name,
+                phone: row.phone,
+                email: row.email || '-',
+                userType: row.userType,
+                city: row.retCity || row.mechCity || '-',
+                state: row.retState || row.mechState || '-',
+                zone: row.zone || '-',
+                aadhaarFront: 'Not Uploaded',
+                aadhaarBack: 'Not Uploaded',
+                pan: 'Not Uploaded',
+                lastUpdate: row.uploadedAt
+            });
+        }
+        
+        const group = userGroups.get(row.id);
+        if (row.docType === 'aadhaar_front') group.aadhaarFront = row.docStatus;
+        if (row.docType === 'aadhaar_back') group.aadhaarBack = row.docStatus;
+        if (row.docType === 'pan') group.pan = row.docStatus;
+        
+        if (new Date(row.uploadedAt) > new Date(group.lastUpdate)) {
+            group.lastUpdate = row.uploadedAt;
+        }
+    }
 
     return {
         columns: [
-            { key: 'id', label: 'Doc ID', type: 'text' },
-            { key: 'userName', label: 'User Name', type: 'text' },
+            { key: 'id', label: 'User ID', type: 'text' },
+            { key: 'name', label: 'User Name', type: 'text' },
             { key: 'userType', label: 'User Type', type: 'text' },
-            { key: 'userEmail', label: 'Email ID', type: 'text' },
             { key: 'zone', label: 'Zone', type: 'text' },
             { key: 'state', label: 'State', type: 'text' },
             { key: 'city', label: 'City', type: 'text' },
-            { key: 'type', label: 'Document Type', type: 'text' },
-            { key: 'status', label: 'Verification Status', type: 'status' },
-            { key: 'reason', label: 'Rejection Reason', type: 'text' },
-            { key: 'uploadedAt', label: 'Uploaded Date', type: 'date' }
+            { key: 'aadhaarFront', label: 'Aadhaar (F)', type: 'status' },
+            { key: 'aadhaarBack', label: 'Aadhaar (B)', type: 'status' },
+            { key: 'pan', label: 'PAN', type: 'status' },
+            { key: 'lastUpdate', label: 'Last Activity', type: 'date' }
         ],
-        rows: data.map(r => ({
-            ...r,
-            city: r.retCity || r.mechCity || r.csCity || '-',
-            state: r.retState || r.mechState || r.csState || '-',
-            zone: r.zone || '-',
-            userEmail: r.userEmail || '-'
-        }))
+        rows: Array.from(userGroups.values())
     };
 }
+
 
 async function getStakeholderReport(filters: any): Promise<ReportData> {
     const data = await db.select({
@@ -564,8 +589,8 @@ async function getSalesReport(filters: any): Promise<ReportData> {
         date: counterSalesTransactions.createdAt,
     })
         .from(counterSalesTransactions)
-        .limit(50)
-        .orderBy(desc(counterSalesTransactions.createdAt));
+        .where(sql`1=0`) // Exclude since we only want Mechanics and Retailers
+        .limit(0);
 
     return {
         columns: [

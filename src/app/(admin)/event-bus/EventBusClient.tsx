@@ -234,13 +234,12 @@ export default function EventBusClient() {
                         <h3 className="text-lg font-semibold text-gray-900">Event → Handler Pipeline</h3>
                         <div className="flex gap-2">
                             <div className="relative">
-                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                                 <input
                                     type="text"
                                     placeholder="Filter events..."
                                     value={filterText}
                                     onChange={(e) => setFilterText(e.target.value)}
-                                    className="pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+                                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-56 shadow-sm"
                                 />
                             </div>
                             <button onClick={handleOpenCreate} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2">

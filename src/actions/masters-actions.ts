@@ -1,9 +1,9 @@
 'use server';
 
 import { db } from '@/db';
-import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, mechanicTransactions, counterSalesTransactions, users, approvalStatuses } from '@/db/schema';
+import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, mechanicTransactions, counterSalesTransactions, users, approvalStatuses, pincodeMaster } from '@/db/schema';
 import { emitEvent, BUS_EVENTS } from '@/server/rabbitMq/broker';
-import { eq, desc, sql as sqlTag, and, inArray } from 'drizzle-orm';
+import { eq, desc, sql as sqlTag, and, inArray, or, ilike } from 'drizzle-orm';
 
 export interface StakeholderType {
     id: string;
@@ -503,5 +503,39 @@ export async function deletePointsMatrixRuleAction(id: number) {
     } catch (error) {
         console.error("Error deleting points matrix rule:", error);
         return { success: false, error: "Failed to delete rule" };
+    }
+}
+export async function getPincodeMasterAction(page: number = 1, limit: number = 50, search: string = '') {
+    try {
+        const conditions = [];
+        if (search) {
+            conditions.push(or(
+                ilike(pincodeMaster.pincode, `%${search}%`),
+                ilike(pincodeMaster.city, `%${search}%`),
+                ilike(pincodeMaster.state, `%${search}%`),
+                ilike(pincodeMaster.zone, `%${search}%`)
+            ));
+        }
+
+        const query = db.select().from(pincodeMaster);
+        if (conditions.length > 0) {
+            // @ts-ignore
+            query.where(and(...conditions));
+        }
+
+        const list = await query
+            .limit(limit)
+            .offset((page - 1) * limit)
+            .orderBy(desc(pincodeMaster.id));
+
+        const [totalResult] = await db.select({ count: sqlTag`count(*)` }).from(pincodeMaster);
+        
+        return {
+            list,
+            total: Number(totalResult.count)
+        };
+    } catch (error) {
+        console.error("Error fetching pincode master:", error);
+        return { list: [], total: 0 };
     }
 }
