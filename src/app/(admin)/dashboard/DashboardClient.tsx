@@ -267,17 +267,17 @@ export default function DashboardClient() {
                     <div className="space-y-3">
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-500">Active Mechanics</span>
-                            <span className="font-semibold">{stats?.activeMembers?.toLocaleString() ?? 0}</span>
+                            <span className="font-semibold">{dashboardData?.segments?.mechanic?.active?.toLocaleString() ?? 0}</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: '45%' }}></div>
+                            <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.mechanic?.total ? (dashboardData.segments.mechanic.active / dashboardData.segments.mechanic.total) * 100 : 0}%` }}></div>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-500">KYC Compliance</span>
-                            <span className="font-semibold">{kycPercent}%</span>
+                            <span className="font-semibold">{dashboardData?.segments?.mechanic?.kycCompliance ?? 0}%</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${kycPercent}%` }}></div>
+                            <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.mechanic?.kycCompliance ?? 0}%` }}></div>
                         </div>
                     </div>
                     <button className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
@@ -317,6 +317,30 @@ export default function DashboardClient() {
                     </div>
                     <div className="h-64">
                         <Bar data={barChartData} options={barChartOptions} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Admin Activity Overview (New Section) */}
+            <div className="mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Internal Admin Oversight</h3>
+                    <div className="h-px flex-1 bg-gray-100"></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="widget-card rounded-xl p-4 bg-gray-50/50 border-dashed border-2 border-gray-200">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-400">Registered Admins</span>
+                            <i className="fas fa-user-shield text-gray-400 text-xs"></i>
+                        </div>
+                        <p className="text-lg font-bold text-gray-700">{dashboardData?.adminStats?.totalAdmins ?? 0}</p>
+                    </div>
+                    <div className="widget-card rounded-xl p-4 bg-gray-50/50 border-dashed border-2 border-gray-200">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-400">Active Admin Sessions</span>
+                            <i className="fas fa-key text-gray-400 text-xs"></i>
+                        </div>
+                        <p className="text-lg font-bold text-gray-700">{dashboardData?.adminStats?.activeAdmins ?? 0}</p>
                     </div>
                 </div>
             </div>

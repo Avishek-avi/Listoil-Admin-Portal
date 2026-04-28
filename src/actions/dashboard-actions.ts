@@ -19,6 +19,9 @@ import { count, sum, sql, desc, eq, and, gte, lte, inArray, or } from "drizzle-o
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
 
+const STAKEHOLDER_ROLES = [2, 3]; // Retailer, Mechanic
+const ADMIN_ROLES = [1, 9, 10, 11]; // Evolve Admin, Support Admin, Client Admin, Admin
+
 export async function getDashboardDataAction(dateRange?: { from: string, to: string }) {
     try {
         const session = await auth();
@@ -38,8 +41,8 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             return query;
         };
 
-        // 1. Total Members (Scoped)
-        let userCountQuery = db.select({ count: count() }).from(users);
+        // 1. Total Members (Scoped) - Retailers and Mechanics only
+        let userCountQuery = db.select({ count: count() }).from(users).where(inArray(users.roleId, STAKEHOLDER_ROLES));
         if (scope.type !== 'Global') {
             userCountQuery = db.select({ count: count() })
                 .from(users)
@@ -54,8 +57,8 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         }
         const [userCount] = await userCountQuery;
 
-        // 2. Active Members (not suspended) - Scoped
-        let activeUserQuery = db.select({ count: count() }).from(users).where(eq(users.isSuspended, false));
+        // 2. Active Members (not suspended) - Scoped - Stakeholders only
+        let activeUserQuery = db.select({ count: count() }).from(users).where(and(eq(users.isSuspended, false), inArray(users.roleId, STAKEHOLDER_ROLES)));
         if (scope.type !== 'Global') {
             activeUserQuery = db.select({ count: count() })
                 .from(users)
@@ -73,8 +76,8 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         }
         const [activeUserCount] = await activeUserQuery;
 
-        // 3. Blocked Members (Suspended) - Scoped
-        let blockedUserQuery = db.select({ count: count() }).from(users).where(eq(users.isSuspended, true));
+        // 3. Blocked Members (Suspended) - Scoped - Stakeholders only
+        let blockedUserQuery = db.select({ count: count() }).from(users).where(and(eq(users.isSuspended, true), inArray(users.roleId, STAKEHOLDER_ROLES)));
         if (scope.type !== 'Global') {
             blockedUserQuery = db.select({ count: count() })
                 .from(users)
@@ -187,6 +190,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         })
             .from(users)
             .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
+            .where(inArray(users.roleId, STAKEHOLDER_ROLES))
             .$dynamic();
 
         if (scope.type !== 'Global') {
@@ -228,6 +232,10 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                 )) as any;
         }
         const [pendingApprovals] = await pendingApprovalsQuery;
+
+        // 8.5 Admin User Counts
+        const [adminCount] = await db.select({ count: count() }).from(users).where(inArray(users.roleId, ADMIN_ROLES));
+        const [activeAdminCount] = await db.select({ count: count() }).from(users).where(and(inArray(users.roleId, ADMIN_ROLES), eq(users.isSuspended, false)));
 
 
         // 9. Recent Transactions (Scoped)
@@ -448,6 +456,10 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             recentActivity: allRecent,
             topPerformers: topPerformers,
             pendingApprovalsCount: Number(pendingApprovals?.count) || 0,
+            adminStats: {
+                totalAdmins: Number(adminCount?.count) || 0,
+                activeAdmins: Number(activeAdminCount?.count) || 0
+            },
             segments: {
                 retailer: {
                     points: Number(retPointsVal?.value) || 0,
