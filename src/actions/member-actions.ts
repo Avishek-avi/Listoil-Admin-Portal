@@ -414,6 +414,26 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             ));
         }
 
+        // Functional Hierarchy Approval filtering
+        if (kycStatus === 'Approved') {
+            baseConditions.push(eq(users.approvalStatusId, 18)); // KYC_APPROVED
+        } else if (kycStatus === 'Pending') {
+            if (scope.role.toUpperCase() === 'SR') {
+                baseConditions.push(eq(users.approvalStatusId, 15)); // KYC_PENDING
+            } else if (scope.role.toUpperCase() === 'TSM') {
+                baseConditions.push(eq(users.approvalStatusId, 32)); // SR_APPROVED (Pending for TSM)
+            } else {
+                baseConditions.push(or(eq(users.approvalStatusId, 15), eq(users.approvalStatusId, 32)));
+            }
+        } else if (!kycStatus && !searchQuery) {
+            // Default actionable view for SR and TSM
+            if (scope.role.toUpperCase() === 'SR') {
+                baseConditions.push(eq(users.approvalStatusId, 15));
+            } else if (scope.role.toUpperCase() === 'TSM') {
+                baseConditions.push(eq(users.approvalStatusId, 32));
+            }
+        }
+
         const listQuery = db.select({
             id: users.id,
             name: users.name,
@@ -469,13 +489,48 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
 
         const total = totalResult[0]?.count || 0;
 
+        const kycApprovedResult = await db.select({ count: count() })
+            .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .where(and(
+                ...baseConditions,
+                or(
+                    eq(retailers.isKycVerified, true),
+                    eq(mechanics.isKycVerified, true),
+                    eq(counterSales.isKycVerified, true)
+                )
+            ));
+
+        const kycApproved = kycApprovedResult[0]?.count || 0;
+        
+        // Count Pending based on role context
+        const pendingConditions = [...baseConditions];
+        if (scope.role.toUpperCase() === 'SR') {
+            pendingConditions.push(eq(users.approvalStatusId, 15));
+        } else if (scope.role.toUpperCase() === 'TSM') {
+            pendingConditions.push(eq(users.approvalStatusId, 32));
+        } else {
+            pendingConditions.push(or(eq(users.approvalStatusId, 15), eq(users.approvalStatusId, 32)));
+        }
+
+        const kycPendingResult = await db.select({ count: count() })
+            .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .where(and(...pendingConditions));
+
+        const kycPending = kycPendingResult[0]?.count || 0;
+
         const stats: MemberStats = {
             total: total,
             totalTrend: '+0',
-            kycPending: 0,
+            kycPending: kycPending,
             kycPendingTrend: '0',
-            kycApproved: total,
-            kycApprovedRate: '100%',
+            kycApproved: kycApproved,
+            kycApprovedRate: total > 0 ? `${Math.round((kycApproved / total) * 100)}%` : '0%',
             activeToday: Math.floor(total * 0.3),
             activeTodayTrend: '+0'
         };
@@ -648,8 +703,17 @@ export async function createMemberAction(formData: any) {
         if (creatorRole === 'TSM' && targetRoleName !== 'SR') {
             throw new Error("TSMs can only create Sales Representatives.");
         }
-        if (creatorRole === 'SR' && !['MECHANIC', 'RETAILER'].includes(targetRoleName)) {
-            throw new Error("SRs can only create Mechanics or Retailers.");
+        if (creatorRole === 'SR') {
+            if (!['MECHANIC', 'RETAILER'].includes(targetRoleName)) {
+                throw new Error("SRs can only create Mechanics or Retailers.");
+            }
+            // Validate city is within SR territory
+            if (city) {
+                const isAssigned = creatorScope.entityNames.some(c => c.toUpperCase() === city.toUpperCase());
+                if (!isAssigned) {
+                    throw new Error(`The city "${city}" is outside your assigned territory.`);
+                }
+            }
         }
 
         // Extract PAN from GST if Retailer
@@ -660,12 +724,25 @@ export async function createMemberAction(formData: any) {
             }
         }
 
+        // Check if attached retailer exists if provided
+        if (attachedRetailerId) {
+            const retailerExists = await db.select().from(users).where(and(eq(users.id, Number(attachedRetailerId)), eq(users.roleId, 2))).limit(1);
+            if (retailerExists.length === 0) {
+                throw new Error("The selected retailer for mapping is invalid or does not exist.");
+            }
+        }
+
         // 2. Database Transaction
         return await db.transaction(async (tx) => {
             // Check if phone already exists
-            const existingUser = await tx.select().from(users).where(eq(users.phone, phone)).limit(1);
+            // Check if phone or email already exists
+            const userConditions = [eq(users.phone, phone)];
+            if (email) userConditions.push(eq(users.email, email));
+            
+            const existingUser = await tx.select().from(users).where(or(...userConditions)).limit(1);
             if (existingUser.length > 0) {
-                throw new Error("A user with this phone number already exists.");
+                const isPhoneMatch = existingUser[0].phone === phone;
+                throw new Error(isPhoneMatch ? "A user with this phone number already exists." : "A user with this email address already exists.");
             }
 
             // Create User record
@@ -799,7 +876,37 @@ export async function createMemberAction(formData: any) {
         });
     } catch (error: any) {
         console.error("Error creating member:", error);
-        return { success: false, error: error.message };
+        
+        let userMessage = error.message;
+        
+        // Handle common database errors with friendly messages
+        if (error.message.includes('unique constraint') || error.message.includes('duplicate key')) {
+            if (error.message.includes('users_phone_key') || error.message.includes('phone')) {
+                userMessage = "This phone number is already registered.";
+            } else if (error.message.includes('users_email_key') || error.message.includes('email')) {
+                userMessage = "This email address is already registered.";
+            } else if (error.message.includes('unique_id_key')) {
+                userMessage = "A member with this generated ID already exists. Please try again.";
+            } else {
+                userMessage = "A record with these details already exists in the system.";
+            }
+        } else if (error.message.includes('foreign key constraint')) {
+            if (error.message.includes('attached_retailer_id')) {
+                userMessage = "The selected retailer for mapping was not found or is invalid.";
+            } else {
+                userMessage = "One of the selected references is invalid.";
+            }
+        } else if (error.message.includes('not-null constraint')) {
+            userMessage = "One or more required fields are missing.";
+        } else if (error.message.includes('invalid input syntax for type numeric')) {
+            userMessage = "One of the numeric fields contains invalid characters.";
+        }
+
+        return { 
+            success: false, 
+            error: userMessage,
+            technicalDetails: process.env.NODE_ENV === 'development' ? error.message : undefined 
+        };
     }
 }
 
@@ -830,9 +937,24 @@ export async function getLocationEntitiesAction(levelId: number, parentId?: numb
 
 export async function getPincodesAction(city?: string) {
     try {
+        const session = await auth();
+        const userId = Number(session?.user?.id);
+        const userScope = await getUserScope(userId);
+        
         const query = db.select().from(pincodeMaster);
+        
+        if (userScope.role.toUpperCase() === 'SR') {
+            const cities = userScope.entityNames;
+            if (city) {
+                const isAssigned = cities.some(c => c.toUpperCase() === city.toUpperCase());
+                if (!isAssigned) return [];
+                return await query.where(eq(sql`UPPER(${pincodeMaster.city})`, city.toUpperCase()));
+            }
+            return await query.where(inArray(sql`UPPER(${pincodeMaster.city})`, cities.map(c => c.toUpperCase())));
+        }
+
         if (city) {
-            return await query.where(eq(pincodeMaster.city, city));
+            return await query.where(eq(sql`UPPER(${pincodeMaster.city})`, city.toUpperCase()));
         }
         return await query.limit(100);
     } catch (error) {
@@ -843,6 +965,15 @@ export async function getPincodesAction(city?: string) {
 
 export async function getRetailersByCityAction(city: string) {
     try {
+        const session = await auth();
+        const userId = Number(session?.user?.id);
+        const userScope = await getUserScope(userId);
+        
+        if (userScope.role.toUpperCase() === 'SR') {
+            const isAssigned = userScope.entityNames.some(c => c.toUpperCase() === city.toUpperCase());
+            if (!isAssigned) return [];
+        }
+
         const result = await db.select({
             id: users.id,
             name: users.name,
@@ -851,7 +982,7 @@ export async function getRetailersByCityAction(city: string) {
         .from(users)
         .innerJoin(retailers, eq(users.id, retailers.userId))
         .where(and(
-            eq(retailers.city, city),
+            eq(sql`UPPER(${retailers.city})`, city.toUpperCase()),
             eq(users.roleId, 2) // Retailer Role ID
         ));
         return result;
@@ -863,6 +994,10 @@ export async function getRetailersByCityAction(city: string) {
 
 export async function getLocationByPincodeAction(pincode: string) {
     try {
+        const session = await auth();
+        const userId = Number(session?.user?.id);
+        const userScope = await getUserScope(userId);
+
         const result = await db.select()
             .from(pincodeMaster)
             .where(and(
@@ -870,7 +1005,16 @@ export async function getLocationByPincodeAction(pincode: string) {
                 eq(pincodeMaster.isActive, true)
             ))
             .limit(1);
-        return result[0] || null;
+
+        const location = result[0];
+        if (!location) return null;
+
+        if (userScope.role.toUpperCase() === 'SR') {
+            const isAssigned = userScope.entityNames.some(c => c.toUpperCase() === location.city?.toUpperCase());
+            if (!isAssigned) return null;
+        }
+
+        return location;
     } catch (error) {
         console.error("Error getting location by pincode:", error);
         return null;
@@ -904,5 +1048,55 @@ export async function uploadMemberFileAction(formData: FormData) {
     } catch (error: any) {
         console.error("Error uploading file:", error);
         return { success: false, error: error.message };
+    }
+}
+
+export async function approveMemberAction(userId: number) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+        const userRole = (scope?.role || '').toUpperCase();
+
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
+        if (!user) throw new Error("User not found");
+
+        let nextStatusId = user.approvalStatusId;
+        
+        if (userRole === 'SR' && user.approvalStatusId === 15) {
+            nextStatusId = 32; // SR_APPROVED
+        } else if (userRole === 'TSM' && user.approvalStatusId === 32) {
+            nextStatusId = 18; // KYC_APPROVED
+            // Sync with specific tables
+            if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
+            if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
+        } else if (userRole === 'ADMIN' || userRole === 'SUPER ADMIN') {
+            nextStatusId = 18; // Admin can skip
+            if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
+            if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
+        }
+
+        if (nextStatusId !== user.approvalStatusId) {
+            await db.update(users).set({ approvalStatusId: nextStatusId, updatedAt: new Date().toISOString() }).where(eq(users.id, userId));
+        }
+        
+        return { success: true };
+    } catch (error) {
+        console.error("Error approving member:", error);
+        return { success: false, error: "Failed to approve member" };
+    }
+}
+
+export async function rejectMemberAction(userId: number, reason: string) {
+    try {
+        await db.update(users).set({ 
+            approvalStatusId: 24, // BLOCKED
+            updatedAt: new Date().toISOString()
+        }).where(eq(users.id, userId));
+        
+        return { success: true };
+    } catch (error) {
+        console.error("Error rejecting member:", error);
+        return { success: false, error: "Failed to reject member" };
     }
 }

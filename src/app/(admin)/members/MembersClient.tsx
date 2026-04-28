@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction } from '@/actions/member-actions';
+import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction, approveMemberAction, rejectMemberAction } from '@/actions/member-actions';
 
 /* ── Reusable dropdown (click-outside auto-close) ── */
 function ActionDropdown({ label, icon, children }: { label: string; icon: string; children: React.ReactNode }) {
@@ -112,6 +112,10 @@ export default function MembersClient() {
                 return {
                     ...level,
                     displayName: labelMap[normalizedName] || level.name,
+                    entities: (level.entities || []).filter((e: any) => 
+                        !e.name.toLowerCase().includes('counter staff') && 
+                        !e.name.toLowerCase().includes('counter sales')
+                    )
                 };
             })
             .sort((a: any, b: any) => {
@@ -260,7 +264,7 @@ export default function MembersClient() {
     const handleUpdateBlockStatus = async (userId: number, statusId: number) => {
         try {
             await updateMemberApprovalStatusAction(userId, statusId);
-            queryClient.invalidateQueries({ queryKey: ['members-data'] });
+            queryClient.invalidateQueries({ queryKey: ['members-list'] });
             setSnackbarMessage('Member status updated successfully');
             setSnackbarOpen(true);
         } catch (error) {
@@ -270,7 +274,46 @@ export default function MembersClient() {
         }
     };
 
-    const getKycBadge = (status: string) => {
+    const handleApproveMember = async (userId: number) => {
+        try {
+            const res = await approveMemberAction(userId);
+            if (res.success) {
+                setKycModalOpen(false);
+                setSnackbarMessage('Member approval processed');
+                setSnackbarOpen(true);
+                queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            } else {
+                setSnackbarMessage(res.error || 'Failed to approve member');
+                setSnackbarOpen(true);
+            }
+        } catch (error) {
+            console.error("Failed to approve member:", error);
+            setSnackbarMessage('Error approving member');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const handleRejectMember = async (userId: number) => {
+        try {
+            const res = await rejectMemberAction(userId, 'Rejected during review');
+            if (res.success) {
+                setKycModalOpen(false);
+                setSnackbarMessage('Member rejected');
+                setSnackbarOpen(true);
+                queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            } else {
+                setSnackbarMessage(res.error || 'Failed to reject member');
+                setSnackbarOpen(true);
+            }
+        } catch (error) {
+            console.error("Failed to reject member:", error);
+            setSnackbarMessage('Error rejecting member');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const getKycBadge = (status: string, approvalStatus?: string) => {
+        if (approvalStatus === 'SR_APPROVED') return <span className="badge badge-info">SR Approved</span>;
         switch (status) {
             case 'Approved':
                 return <span className="badge badge-success">Approved</span>;
@@ -278,7 +321,7 @@ export default function MembersClient() {
                 return <span className="badge badge-danger">Rejected</span>;
             case 'Pending':
             default:
-                return <span className="badge badge-warning">Pending</span>;
+                return <span className="badge badge-warning">Pending Review</span>;
         }
     };
 
@@ -291,10 +334,16 @@ export default function MembersClient() {
     };
 
     const getApprovalBadge = (status: string) => {
-        const cls = status?.includes('APPROVED') ? 'badge badge-success' :
-            status?.includes('BLOCKED') ? 'badge badge-danger' :
-                status?.includes('REJECTED') ? 'badge badge-warning' : 'badge badge-primary';
-        return <span className={cls}>{status}</span>;
+        const s = status?.toUpperCase() || '';
+        const cls = s.includes('APPROVED') || s === 'ACTIVE' ? 'badge badge-success' :
+            s.includes('BLOCKED') ? 'badge badge-danger' :
+                s.includes('REJECTED') || s === 'SR_APPROVED' ? 'badge badge-warning' : 'badge badge-primary';
+        
+        let label = status;
+        if (s === 'SR_APPROVED') label = 'Pending TSM Review';
+        if (s === 'KYC_PENDING') label = 'Pending SR Review';
+
+        return <span className={cls}>{label}</span>;
     };
 
     const getDocIcon = (type: string) => {
@@ -513,7 +562,7 @@ export default function MembersClient() {
                                                     <p className="text-sm">{member.regions || 'N/A'}</p>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4">{getKycBadge(member.kycStatus)}</td>
+                                            <td className="py-3 px-4">{getKycBadge(member.kycStatus, member.approvalStatus)}</td>
                                             <td className="py-3 px-4">{getApprovalBadge(member.approvalStatus)}</td>
                                             {currentEntity.name.toLowerCase().includes('mechanic') && (
                                                 <td className="py-3 px-4 text-sm">{member.joinedDate}</td>
@@ -818,8 +867,28 @@ export default function MembersClient() {
                                 </div>
                             )}
                         </div>
-                        <div className="flex justify-end p-4 border-t">
-                            <button onClick={() => setKycModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition">Close</button>
+                        <div className="flex justify-between p-4 border-t bg-gray-50">
+                            <div className="flex gap-2">
+                                {((selectedKycMember?.approvalStatus === 'KYC_PENDING' && userScope?.role.toUpperCase() === 'SR') ||
+                                  (selectedKycMember?.approvalStatus === 'SR_APPROVED' && userScope?.role.toUpperCase() === 'TSM') ||
+                                  (['ADMIN', 'SUPER ADMIN'].includes(userScope?.role.toUpperCase() || ''))) && (
+                                    <>
+                                        <button 
+                                            onClick={() => handleApproveMember(selectedKycMember.dbId)} 
+                                            className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-md flex items-center gap-2"
+                                        >
+                                            <i className="fas fa-check-double"></i> Approve Profile
+                                        </button>
+                                        <button 
+                                            onClick={() => handleRejectMember(selectedKycMember.dbId)} 
+                                            className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-medium border border-red-200 hover:bg-red-100 transition"
+                                        >
+                                            Reject
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                            <button onClick={() => setKycModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition font-medium">Close</button>
                         </div>
                     </div>
                 </div>
@@ -1091,14 +1160,14 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
             const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
             if (['MECHANIC', 'RETAILER'].includes(targetRole as string)) {
                 let city = formData.city;
-                if (!city && userScope?.role.toUpperCase() === 'SR') {
+                if (!city && userScope?.role.toUpperCase() === 'SR' && userScope.entityNames.length === 1) {
                     city = userScope.entityNames[0];
                     setFormData((prev: any) => ({ ...prev, city }));
                 }
-                if (city) {
-                    const pins = await getPincodesAction(city);
-                    setPincodes(pins);
-                }
+                
+                // Fetch pincodes (getPincodesAction is already scoped in member-actions.ts)
+                const pins = await getPincodesAction(city || undefined);
+                setPincodes(pins);
             }
         };
         fetchPincodes();
@@ -1266,15 +1335,26 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pincode</label>
+                                    <div className="flex justify-between items-end">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pincode</label>
+                                        {userScope?.role.toUpperCase() === 'SR' && (
+                                            <span className="text-[10px] font-bold text-blue-600 uppercase">Your Territory Only</span>
+                                        )}
+                                    </div>
                                     <input 
                                         type="text" 
+                                        list="pincodes-list"
                                         value={formData.pincode} 
                                         onChange={e => setFormData({ ...formData, pincode: e.target.value })} 
                                         className={inputClass} 
                                         maxLength={6}
                                         required 
                                     />
+                                    <datalist id="pincodes-list">
+                                        {pincodes.map(p => (
+                                            <option key={p.id} value={p.pincode}>{p.city}</option>
+                                        ))}
+                                    </datalist>
                                 </div>
 
                                 <div className="space-y-1">

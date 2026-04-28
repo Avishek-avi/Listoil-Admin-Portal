@@ -32,7 +32,7 @@ export async function getTeamHierarchyAction(): Promise<TeamMember[]> {
         } else if (role === 'TSM') {
             // 2. TSM View: Fetch only SRs mapped to their states
             const stateIds = userScope.entityIds;
-            return await getTSMHierarchy(stateIds, userId, userScope.name);
+            return await getTSMHierarchy(stateIds, userId, userScope.entityNames);
         } else if (role === 'SR') {
             // 3. SR View: Fetch users/retailers mapped to their cities
             const cities = userScope.entityNames;
@@ -130,7 +130,7 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
     }));
 }
 
-async function getTSMHierarchy(stateIds: number[], tsmId: number, tsmName: string): Promise<TeamMember[]> {
+async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: string[]): Promise<TeamMember[]> {
     // Fetch SRs under these state IDs
     const srs = await db.select({
         id: users.id,
@@ -155,21 +155,21 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, tsmName: strin
         name: mechanics.name,
         city: mechanics.city
     }).from(mechanics)
-    .where(inArray(mechanics.state, tsmName.split(',').map(s => s.trim()))); // Simplified, ideally use stateIds
+    .where(inArray(mechanics.state, stateNames));
 
     const allRets = await db.select({
         userId: retailers.userId,
         name: retailers.name,
         city: retailers.city
     }).from(retailers)
-    .where(inArray(retailers.state, tsmName.split(',').map(s => s.trim())));
+    .where(inArray(retailers.state, stateNames));
 
     return [{
         id: tsmId,
         name: 'My Territory',
         role: 'TSM',
         scopeType: 'State',
-        scopeName: tsmName,
+        scopeName: stateNames.join(', '),
         children: srs.map(sr => ({
             id: sr.id,
             name: sr.name || 'Unknown',
