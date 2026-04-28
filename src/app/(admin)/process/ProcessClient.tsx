@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getProcessDataAction } from '@/actions/process-actions'
+import { getProcessDataAction, getAllTransactionsAction, type TransactionRecord } from '@/actions/process-actions'
 import {
     getAdminOrdersAction, updateAdminOrderStatusAction,
     AdminOrder,
@@ -859,6 +859,87 @@ function RedemptionTab({ data }: { data: any }) {
     )
 }
 
+function TransactionsTab() {
+    const { data: transactions, isLoading } = useQuery({
+        queryKey: ['all-transactions'],
+        queryFn: () => getAllTransactionsAction(),
+        staleTime: 30 * 1000
+    });
+
+    if (isLoading) return <Box display="flex" justifyContent="center" py={8}><CircularProgress /></Box>;
+
+    return (
+        <div className="widget-card p-6">
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+                <Typography variant="h6" fontWeight={600}>Global Platform Transactions</Typography>
+                <Chip label={transactions?.length || 0} size="small" color="primary" sx={{ fontWeight: 700 }} />
+            </Box>
+            <TableContainer sx={{ boxShadow: 'none' }}>
+                <Table sx={{ minWidth: 800 }}>
+                    <TableHead>
+                        <TableRow sx={{ '& th': { borderBottom: '1px solid #f1f5f9', fontSize: '0.72rem', fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase' } }}>
+                            <TableCell>Date</TableCell>
+                            <TableCell>User Details</TableCell>
+                            <TableCell>User Type</TableCell>
+                            <TableCell>Transaction Type</TableCell>
+                            <TableCell>Reference (QR / Invoice)</TableCell>
+                            <TableCell align="right">Points</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {transactions?.map((t) => (
+                            <TableRow key={`${t.transactionType}-${t.id}`} hover sx={{ '& td': { borderBottom: '1px solid #f1f5f9' } }}>
+                                <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                    {new Date(t.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </TableCell>
+                                <TableCell>
+                                    <Typography variant="body2" fontWeight={600}>{t.userName}</Typography>
+                                    <Typography variant="caption" color="text.secondary">{t.phone}</Typography>
+                                </TableCell>
+                                <TableCell>
+                                    <Chip label={t.userType} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                                </TableCell>
+                                <TableCell>
+                                    <Typography variant="body2" sx={{ color: t.transactionType === 'Scan' ? 'primary.main' : 'secondary.main', fontWeight: 500 }}>
+                                        {t.transactionType}
+                                    </Typography>
+                                </TableCell>
+                                <TableCell>
+                                    {t.qrCode && (
+                                        <Box display="flex" alignItems="center" gap={1}>
+                                            <i className="fas fa-qrcode text-gray-400 text-xs"></i>
+                                            <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>{t.qrCode}</Typography>
+                                        </Box>
+                                    )}
+                                    {t.invoiceNo && (
+                                        <Box display="flex" alignItems="center" gap={1}>
+                                            <i className="fas fa-file-invoice text-gray-400 text-xs"></i>
+                                            <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>{t.invoiceNo}</Typography>
+                                        </Box>
+                                    )}
+                                    {!t.qrCode && !t.invoiceNo && <Typography variant="caption" color="text.disabled">—</Typography>}
+                                </TableCell>
+                                <TableCell align="right">
+                                    <Typography variant="body2" fontWeight={700} color="success.main">
+                                        +{t.points}
+                                    </Typography>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                        {(!transactions || transactions.length === 0) && (
+                            <TableRow>
+                                <TableCell colSpan={6} align="center" sx={{ py: 8, color: 'text.secondary' }}>
+                                    No transactions found.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </div>
+    );
+}
+
 export default function ProcessClient() {
     const { data } = useQuery({
         queryKey: ['process-data'],
@@ -869,7 +950,7 @@ export default function ProcessClient() {
     if (!data) return null;
 
     const [activeTab, setActiveTab] = useState(0);
-    const tabLabels = ['Redemption Requests', 'Orders', 'Amazon Marketplace', 'Manual Entry'];
+    const tabLabels = ['Transactions', 'Redemption Requests', 'Orders', 'Amazon Marketplace', 'Manual Entry'];
 
     return (
         <div className="w-full">
@@ -880,17 +961,20 @@ export default function ProcessClient() {
                 ))}
             </div>
 
+            {/* Transactions Tab */}
+            {activeTab === 0 && <TransactionsTab />}
+
             {/* Redemption Tab */}
-            {activeTab === 0 && <RedemptionTab data={data} />}
+            {activeTab === 1 && <RedemptionTab data={data} />}
 
             {/* Orders Tab */}
-            {activeTab === 1 && <AmazonOrdersTab />}
+            {activeTab === 2 && <AmazonOrdersTab />}
 
             {/* Amazon Marketplace Tab */}
-            {activeTab === 2 && <AmazonProductsClient />}
+            {activeTab === 3 && <AmazonProductsClient />}
 
             {/* Manual Entry Tab */}
-            {activeTab === 3 && (
+            {activeTab === 4 && (
                 <div>
                     <div className="widget-card p-8 max-w-2xl mx-auto">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Manual Points Entry</h3>

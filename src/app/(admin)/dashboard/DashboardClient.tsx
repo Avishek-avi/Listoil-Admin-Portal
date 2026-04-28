@@ -368,7 +368,7 @@ export default function DashboardClient() {
                             >
                             <div className="flex items-center">
                                   <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-qrcode text-white text-xs"></i></div>
-                                  <span className="text-sm font-medium text-gray-700">Generate QR Code</span>
+                                  <span className="text-sm font-medium text-gray-700">Sync QR Codes</span>
                             </div>
                                <i className="fas fa-chevron-right text-gray-300 group-hover:text-emerald-500 transition text-xs"></i>
                         </button>

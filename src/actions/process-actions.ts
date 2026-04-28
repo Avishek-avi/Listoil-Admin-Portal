@@ -58,6 +58,18 @@ export interface RedemptionStats {
     totalValueTodayTrend: string;
 }
 
+export interface TransactionRecord {
+    id: number;
+    userName: string;
+    phone: string;
+    userType: string;
+    createdAt: string;
+    transactionType: string;
+    qrCode?: string;
+    invoiceNo?: string;
+    points: number;
+}
+
 function getInitials(name: string) {
     if (!name) return '??';
     const parts = name.split(' ');
@@ -308,5 +320,102 @@ export async function getProcessDataAction() {
                 totalValueTodayTrend: '0%'
             }
         };
+    }
+}
+
+export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
+        // 1. Mechanic Transactions
+        const mechQuery = db.select({
+            id: mechanicTransactionLogs.id,
+            userName: users.name,
+            phone: users.phone,
+            userType: sql<string>`'Mechanic'`,
+            createdAt: mechanicTransactionLogs.createdAt,
+            transactionType: sql<string>`'Scan'`,
+            qrCode: mechanicTransactionLogs.qrCode,
+            points: mechanicTransactionLogs.points,
+            metadata: mechanicTransactionLogs.metadata
+        })
+        .from(mechanicTransactionLogs)
+        .leftJoin(users, eq(mechanicTransactionLogs.userId, users.id))
+        .leftJoin(mechanics, eq(users.id, mechanics.userId))
+        .$dynamic();
+
+        // 2. Retailer Transactions
+        const retQuery = db.select({
+            id: retailerTransactionLogs.id,
+            userName: users.name,
+            phone: users.phone,
+            userType: sql<string>`'Retailer'`,
+            createdAt: retailerTransactionLogs.createdAt,
+            transactionType: sql<string>`'Invoice'`,
+            qrCode: retailerTransactionLogs.qrCode,
+            points: retailerTransactionLogs.points,
+            metadata: retailerTransactionLogs.metadata
+        })
+        .from(retailerTransactionLogs)
+        .leftJoin(users, eq(retailerTransactionLogs.userId, users.id))
+        .leftJoin(retailers, eq(users.id, retailers.userId))
+        .$dynamic();
+
+        // 3. Counter Sales Transactions
+        const csQuery = db.select({
+            id: counterSalesTransactionLogs.id,
+            userName: users.name,
+            phone: users.phone,
+            userType: sql<string>`'Counter Staff'`,
+            createdAt: counterSalesTransactionLogs.createdAt,
+            transactionType: sql<string>`'Transaction'`,
+            qrCode: counterSalesTransactionLogs.qrCode,
+            points: counterSalesTransactionLogs.points,
+            metadata: counterSalesTransactionLogs.metadata
+        })
+        .from(counterSalesTransactionLogs)
+        .leftJoin(users, eq(counterSalesTransactionLogs.userId, users.id))
+        .leftJoin(counterSales, eq(users.id, counterSales.userId))
+        .$dynamic();
+
+        if (scope.type !== 'Global') {
+            const scopeFilter = (table: any) => scope.type === 'State' 
+                ? inArray(table.state, scope.entityNames) 
+                : inArray(table.city, scope.entityNames);
+            
+            mechQuery.where(scopeFilter(mechanics));
+            retQuery.where(scopeFilter(retailers));
+            csQuery.where(scopeFilter(counterSales));
+        }
+
+        const [mechData, retData, csData] = await Promise.all([
+            mechQuery.limit(500).orderBy(desc(mechanicTransactionLogs.createdAt)),
+            retQuery.limit(500).orderBy(desc(retailerTransactionLogs.createdAt)),
+            csQuery.limit(500).orderBy(desc(counterSalesTransactionLogs.createdAt))
+        ]);
+
+        const allTransactions: TransactionRecord[] = [...mechData, ...retData, ...csData]
+            .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
+            .map(t => {
+                const metadata = t.metadata as any;
+                return {
+                    id: t.id,
+                    userName: t.userName || 'Unknown',
+                    phone: t.phone || 'N/A',
+                    userType: t.userType,
+                    createdAt: t.createdAt || '',
+                    transactionType: t.transactionType,
+                    qrCode: t.qrCode || metadata?.qrCode || metadata?.scannedCode,
+                    invoiceNo: metadata?.invoiceNumber || metadata?.invoiceNo || metadata?.billNumber,
+                    points: Number(t.points)
+                };
+            });
+
+        return allTransactions;
+    } catch (error) {
+        console.error("Error in getAllTransactionsAction:", error);
+        return [];
     }
 }
