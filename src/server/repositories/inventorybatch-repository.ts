@@ -87,6 +87,61 @@ class InventoryBatchRepository {
             throw this.customError;
         }
     }
+    async createBatchWithItems(batchData: { skuCode: string, quantity: number, type: 'inner' | 'outer', createdBy?: number }, items: { serialNumber: string, isActive: boolean }[]): Promise<number> {
+        try {
+            return await db.transaction(async (tx) => {
+                const [batch] = await tx.insert(inventoryBatch).values({
+                    skuCode: batchData.skuCode,
+                    quantity: batchData.quantity,
+                    type: batchData.type,
+                    isActive: true,
+                    createdBy: batchData.createdBy,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }).returning({ id: inventoryBatch.batchId });
+
+                if (items.length > 0) {
+                    // Chunk inserts if too many items
+                    const chunkSize = 1000;
+                    for (let i = 0; i < items.length; i += chunkSize) {
+                        const chunk = items.slice(i, i + chunkSize);
+                        await tx.insert(inventory).values(chunk.map(item => ({
+                            serialNumber: item.serialNumber,
+                            batchId: batch.id,
+                            isActive: item.isActive,
+                            isQrScanned: false
+                        })));
+                    }
+                }
+
+                return batch.id;
+            });
+        } catch (error: any) {
+            console.error("Error creating batch with items:", error);
+            this.customError.responseMessage = error.message || "Failed to create Inventory Batch.";
+            throw this.customError;
+        }
+    }
+
+    async fetchInventoryItemsByBatch(batchId: number, page: number = 0, limit: number = 100): Promise<{ items: any[], total: number }> {
+        try {
+            const offset = page * limit;
+            const items = await db.select()
+                .from(inventory)
+                .where(eq(inventory.batchId, batchId))
+                .limit(limit)
+                .offset(offset);
+            
+            const [totalResult] = await db.select({ count: sql<number>`count(*)` }).from(inventory).where(eq(inventory.batchId, batchId));
+            const total = Number(totalResult?.count || 0);
+
+            return { items, total };
+        } catch (error: any) {
+            console.error("Error fetching inventory items:", error);
+            throw error;
+        }
+    }
 }
 
 export const inventoryBatchRepository = new InventoryBatchRepository();
+
