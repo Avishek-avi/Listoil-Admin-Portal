@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction, approveMemberAction, rejectMemberAction } from '@/actions/member-actions';
+import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction, approveMemberAction, rejectMemberAction, getPincodeStatesAction, getPincodeCitiesAction } from '@/actions/member-actions';
+
 
 /* ── Reusable dropdown (click-outside auto-close) ── */
 function ActionDropdown({ label, icon, children, direction = 'down' }: { label: string; icon: string; children: React.ReactNode; direction?: 'up' | 'down' }) {
@@ -32,8 +35,14 @@ function ActionDropdown({ label, icon, children, direction = 'down' }: { label: 
 
 export default function MembersClient() {
     const queryClient = useQueryClient();
+    const searchParams = useSearchParams();
+    
     const [levelTab, setLevelTab] = useState(0);
     const [entityTab, setEntityTab] = useState(0);
+
+
+
+
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [kycStatusFilter, setKycStatusFilter] = useState('All Status');
@@ -124,14 +133,63 @@ export default function MembersClient() {
                 return aIndex - bIndex;
             });
     }, [hierarchyData]);
+    
+    // Sync tabs with URL params if they exist
+    useEffect(() => {
+        if (!filteredLevels || filteredLevels.length === 0) return;
+
+        const level = searchParams.get('level');
+        const entity = searchParams.get('entity');
+        const type = searchParams.get('type');
+        const kycStatus = searchParams.get('kycStatus');
+        
+        if (kycStatus) {
+            setKycStatusFilter(kycStatus);
+        }
+
+        if (type) {
+            const normalizedType = type.toLowerCase();
+            let found = false;
+            for (let l = 0; l < filteredLevels.length; l++) {
+                for (let e = 0; e < filteredLevels[l].entities.length; e++) {
+                    if (filteredLevels[l].entities[e].name.toLowerCase().includes(normalizedType)) {
+                        setLevelTab(l);
+                        setEntityTab(e);
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+        } else {
+            if (level !== null) {
+                const levelIdx = parseInt(level);
+                if (!isNaN(levelIdx) && levelIdx < filteredLevels.length) setLevelTab(levelIdx);
+            }
+            
+            if (entity !== null) {
+                const entityIdx = parseInt(entity);
+                if (level !== null) {
+                    const lIdx = parseInt(level);
+                    if (!isNaN(lIdx) && lIdx < filteredLevels.length && entityIdx < filteredLevels[lIdx].entities.length) {
+                        setEntityTab(entityIdx);
+                    }
+                } else if (entityIdx < filteredLevels[levelTab].entities.length) {
+                    setEntityTab(entityIdx);
+                }
+            }
+        }
+    }, [searchParams, filteredLevels]);
+
 
     useEffect(() => {
-        if (levelTab >= filteredLevels.length) {
+        if (filteredLevels.length > 0 && levelTab >= filteredLevels.length) {
             setLevelTab(0);
             setEntityTab(0);
             setPage(1);
         }
     }, [levelTab, filteredLevels.length]);
+
 
     const currentLevel = filteredLevels[levelTab];
     const activeEntityTab = currentLevel && entityTab >= currentLevel.entities.length ? 0 : entityTab;
@@ -1084,7 +1142,10 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
 
     const [allowedRoles, setAllowedRoles] = useState<{ id: number, name: string }[]>([]);
     const [locations, setLocations] = useState<any[]>([]);
+    const [allStates, setAllStates] = useState<any[]>([]);
+    const [selectedState, setSelectedState] = useState<string>('');
     const [pincodes, setPincodes] = useState<any[]>([]);
+
     const [cityRetailers, setCityRetailers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -1124,7 +1185,16 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
     const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white";
 
     useEffect(() => {
+        setSelectedState('');
+        setAllStates([]);
+        setLocations([]);
+        setFormData((prev: any) => ({ ...prev, scopeEntityId: '' }));
+    }, [formData.roleId]);
+
+    useEffect(() => {
         if (userScope) {
+
+
             const role = userScope.role.toUpperCase();
             let roles = [];
             if (role === 'ADMIN' || userScope.permissions.includes('all')) {
@@ -1152,23 +1222,47 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
             if (!userScope) return;
             const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
             const creatorRole = userScope.role.toUpperCase();
+            const isAdmin = creatorRole.includes('ADMIN') || userScope.permissions.includes('all');
 
             if (creatorRole === 'TSM' && targetRole === 'SR') {
                 // Fetch cities in TSM's state
                 const cities = await getLocationEntitiesAction(5, userScope.entityIds[0]);
                 setLocations(cities);
-            } else if (targetRole === 'TSM') {
-                // Admin creating TSM, fetch states
-                const states = await getLocationEntitiesAction(4);
-                setLocations(states);
-            } else if (targetRole === 'SR' && creatorRole === 'ADMIN') {
-                // Admin creating SR, fetch cities
-                const cities = await getLocationEntitiesAction(5);
-                setLocations(cities);
+            } else if (targetRole === 'TSM' && isAdmin) {
+                // Admin creating TSM, fetch states from pincode master
+                const states = await getPincodeStatesAction();
+                setLocations(states.map(s => ({ id: s, name: s })));
+            } else if (targetRole === 'SR' && isAdmin) {
+                // Admin creating SR, fetch states first from pincode master
+                const states = await getPincodeStatesAction();
+                setAllStates(states.map(s => ({ id: s, name: s })));
+                setLocations([]); // Clear cities until state is selected
             }
+
+
         };
         if (formData.roleId) fetchLocations();
     }, [formData.roleId, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const fetchCitiesForState = async () => {
+            if (selectedState) {
+                const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+                const isAdmin = userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all');
+                
+                if (targetRole === 'SR' && isAdmin) {
+                    const cities = await getPincodeCitiesAction(selectedState);
+                    setLocations(cities.map(c => ({ id: c, name: c })));
+                } else {
+                    const cities = await getLocationEntitiesAction(5, parseInt(selectedState));
+                    setLocations(cities);
+                }
+            }
+        };
+        fetchCitiesForState();
+    }, [selectedState, formData.roleId, userScope, allowedRoles]);
+
+
 
     useEffect(() => {
         const fetchPincodes = async () => {
@@ -1230,7 +1324,11 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
             return;
         }
 
-        const res = await createMemberAction(formData);
+        const res = await createMemberAction({ 
+            ...formData, 
+            state: (formData.roleId === '16' && selectedState) ? selectedState : formData.state 
+        });
+
         if (res.success) {
             onSuccess();
         } else {
@@ -1291,21 +1389,56 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
 
                         {/* Hierarchy Mapping */}
                         {(formData.roleId === '15' || formData.roleId === '16') && (
-                            <div className="space-y-1">
-                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Map to {formData.roleId === '15' ? 'State' : 'City'}
-                                </label>
-                                <select 
-                                    value={formData.scopeEntityId} 
-                                    onChange={e => setFormData({ ...formData, scopeEntityId: e.target.value })} 
-                                    className={selectClass}
-                                    required
-                                >
-                                    <option value="">Select Location</option>
-                                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                </select>
-                            </div>
+                            <>
+                                {/* Show State dropdown if creating TSM or if Admin is creating SR */}
+                                {(formData.roleId === '15' || (formData.roleId === '16' && (userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all')))) && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            {formData.roleId === '15' ? 'Map to State' : 'Select State'}
+                                        </label>
+                                        <select 
+                                            value={formData.roleId === '15' ? formData.scopeEntityId : selectedState} 
+                                            onChange={e => {
+                                                if (formData.roleId === '15') {
+                                                    setFormData({ ...formData, scopeEntityId: e.target.value });
+                                                } else {
+                                                    setSelectedState(e.target.value);
+                                                    setFormData({ ...formData, scopeEntityId: '' }); // Reset city
+                                                }
+                                            }} 
+                                            className={selectClass}
+                                            required
+                                        >
+                                            <option value="">Select State</option>
+                                            {(formData.roleId === '15' ? locations : allStates).map(l => (
+                                                <option key={l.id} value={l.id}>{l.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Show City dropdown if creating SR */}
+                                {formData.roleId === '16' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            Map to City
+                                        </label>
+                                        <select 
+                                            value={formData.scopeEntityId} 
+                                            onChange={e => setFormData({ ...formData, scopeEntityId: e.target.value })} 
+                                            className={selectClass}
+                                            required
+                                            disabled={(userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all')) && !selectedState}
+                                        >
+                                            <option value="">{(userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all')) && !selectedState ? 'Select State First' : 'Select City'}</option>
+                                            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+
+                            </>
                         )}
+
 
                         {/* Member Specific Fields */}
                         {isMember && (

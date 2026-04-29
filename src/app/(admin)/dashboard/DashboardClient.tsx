@@ -243,9 +243,14 @@ export default function DashboardClient() {
                             <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.retailer?.kycCompliance ?? 0}%` }}></div>
                         </div>
                     </div>
-                    <button className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                    <button 
+                        onClick={() => router.push('/members?type=retailer')}
+                        className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+                    >
                         View Detailed Analytics
                     </button>
+
+
                 </div>
 
                 {/* Mechanic Segment */}
@@ -280,9 +285,14 @@ export default function DashboardClient() {
                             <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.mechanic?.kycCompliance ?? 0}%` }}></div>
                         </div>
                     </div>
-                    <button className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+                    <button 
+                        onClick={() => router.push('/members?type=mechanic')}
+                        className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+                    >
                         View Detailed Analytics
                     </button>
+
+
                 </div>
             </div>
 
@@ -477,20 +487,22 @@ export default function DashboardClient() {
                     <div className="space-y-3">
                         {dashboardData?.pendingApprovalsCount > 0 ? (
                             <>
-                                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                                    <div>
-                                        <p className="text-sm font-medium">Redemption Request</p>
-                                        <p className="text-xs text-gray-500">Pending review</p>
+                                {dashboardData.pendingApprovals.map((item: any, idx: number) => (
+                                    <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${item.type === 'KYC' ? 'bg-orange-50' : 'bg-blue-50'}`}>
+                                        <div>
+                                            <p className="text-sm font-medium">{item.label}</p>
+                                            <p className="text-xs text-gray-500">{item.subLabel}</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => router.push(item.type === 'KYC' ? `/members?type=${item.label.includes('Retailer') ? 'retailer' : 'mechanic'}&kycStatus=Pending` : '/process?tab=1')}
+                                            className={`text-xs font-medium hover:underline ${item.type === 'KYC' ? 'text-orange-600' : 'text-blue-600'}`}
+                                        >
+                                            Review
+                                        </button>
+
                                     </div>
-                                    <button className="text-xs text-orange-600 hover:text-orange-800">Review</button>
-                                </div>
-                                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                                    <div>
-                                        <p className="text-sm font-medium">Scan Transaction</p>
-                                        <p className="text-xs text-gray-500">Awaiting approval</p>
-                                    </div>
-                                    <button className="text-xs text-blue-600 hover:text-blue-800">Review</button>
-                                </div>
+                                ))}
+
                                 <div className="text-center py-2">
                                     <p className="text-sm text-gray-600 mb-2">
                                         {dashboardData.pendingApprovalsCount} pending requests total

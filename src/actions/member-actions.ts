@@ -825,26 +825,83 @@ export async function createMemberAction(formData: any) {
 
             // Handle Scope Mapping
             let scopeType = 'National';
-            let scopeEntityId = null;
+            let scopeEntityIdValue: number | null = null;
 
-            if (targetRoleName === 'TSM') {
-                scopeType = 'State';
-                // TSM is mapped to a state. Admin should have provided the state entity ID.
-                scopeEntityId = formData.scopeEntityId; 
-            } else if (targetRoleName === 'SR') {
-                scopeType = 'City';
-                // SR is mapped to a city. TSM should have provided the city entity ID.
-                scopeEntityId = formData.scopeEntityId;
+            if (targetRoleName === 'TSM' || targetRoleName === 'SR') {
+                const locationValue = formData.scopeEntityId;
+                if (locationValue) {
+                    if (isNaN(Number(locationValue))) {
+                        // It's a name (likely from pincode master)
+                        if (targetRoleName === 'TSM') {
+                            scopeType = 'State';
+                            const [existing] = await tx.select().from(locationEntity).where(and(eq(locationEntity.levelId, 4), eq(locationEntity.name, locationValue)));
+                            if (existing) {
+                                scopeEntityIdValue = existing.id;
+                            } else {
+                                const [inserted] = await tx.insert(locationEntity).values({
+                                    clientId: 1,
+                                    levelId: 4,
+                                    name: locationValue,
+                                    code: locationValue.toUpperCase().slice(0, 10)
+                                }).returning();
+                                scopeEntityIdValue = inserted.id;
+                            }
+                        } else if (targetRoleName === 'SR') {
+                            scopeType = 'City';
+                            const stateName = formData.state;
+                            
+                            // Find or create parent state first to ensure hierarchy
+                            let parentStateId = null;
+                            if (stateName) {
+                                const [stateEnt] = await tx.select().from(locationEntity).where(and(eq(locationEntity.levelId, 4), eq(locationEntity.name, stateName)));
+                                if (stateEnt) {
+                                    parentStateId = stateEnt.id;
+                                } else {
+                                    const [newState] = await tx.insert(locationEntity).values({
+                                        clientId: 1,
+                                        levelId: 4,
+                                        name: stateName,
+                                        code: stateName.toUpperCase().slice(0, 10)
+                                    }).returning();
+                                    parentStateId = newState.id;
+                                }
+                            }
+
+                            const [existing] = await tx.select().from(locationEntity).where(and(
+                                eq(locationEntity.levelId, 5), 
+                                eq(locationEntity.name, locationValue),
+                                parentStateId ? eq(locationEntity.parentEntityId, parentStateId) : sql`true`
+                            ));
+                            
+                            if (existing) {
+                                scopeEntityIdValue = existing.id;
+                            } else {
+                                const [inserted] = await tx.insert(locationEntity).values({
+                                    clientId: 1,
+                                    levelId: 5,
+                                    name: locationValue,
+                                    parentEntityId: parentStateId,
+                                    code: locationValue.toUpperCase().slice(0, 10)
+                                }).returning();
+                                scopeEntityIdValue = inserted.id;
+                            }
+                        }
+                    } else {
+                        scopeEntityIdValue = Number(locationValue);
+                        scopeType = targetRoleName === 'TSM' ? 'State' : 'City';
+                    }
+                }
             }
 
-            if (scopeEntityId) {
+            if (scopeEntityIdValue) {
                 await tx.insert(userScopeMapping).values({
                     userId: newUser.id,
                     scopeType,
-                    scopeEntityId: Number(scopeEntityId),
+                    scopeEntityId: scopeEntityIdValue,
                     isActive: true
                 });
             }
+
 
             // Also save docs to kyc_documents table
             if (docs && typeof docs === 'object') {
@@ -1100,5 +1157,52 @@ export async function rejectMemberAction(userId: number, reason: string) {
     } catch (error) {
         console.error("Error rejecting member:", error);
         return { success: false, error: "Failed to reject member" };
+    }
+}
+
+export async function getPincodeStatesAction() {
+    try {
+        const VALID_STATES = [
+            "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", 
+            "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", 
+            "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jammu & Kashmir", "Jharkhand", 
+            "Karnataka", "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", 
+            "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", 
+            "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", 
+            "Uttarakhand", "West Bengal"
+        ];
+
+        const results = await db.selectDistinct({ state: pincodeMaster.state })
+            .from(pincodeMaster)
+            .where(eq(pincodeMaster.isActive, true))
+            .orderBy(pincodeMaster.state);
+        
+        const states = results.map(r => r.state).filter(Boolean) as string[];
+        
+        // Filter to only include valid states (handling "The " prefix and variations)
+        return states.filter(s => {
+            const normalized = s.toLowerCase().replace(/^the\s+/i, '').trim();
+            return VALID_STATES.some(vs => vs.toLowerCase().trim() === normalized || vs.toLowerCase().replace(/and/g, '&').trim() === normalized);
+        });
+    } catch (error) {
+        console.error("Error fetching pincode states:", error);
+        return [];
+    }
+}
+
+
+export async function getPincodeCitiesAction(state: string) {
+    try {
+        const results = await db.selectDistinct({ city: pincodeMaster.city })
+            .from(pincodeMaster)
+            .where(and(
+                eq(pincodeMaster.state, state),
+                eq(pincodeMaster.isActive, true)
+            ))
+            .orderBy(pincodeMaster.city);
+        return results.map(r => r.city).filter(Boolean) as string[];
+    } catch (error) {
+        console.error("Error fetching pincode cities:", error);
+        return [];
     }
 }

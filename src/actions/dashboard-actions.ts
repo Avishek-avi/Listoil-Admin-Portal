@@ -13,8 +13,10 @@ import {
     redemptionApprovals,
     physicalRewardsRedemptions,
     retailers,
-    mechanics
+    mechanics,
+    userTypeEntity
 } from "@/db/schema"
+
 import { count, sum, sql, desc, eq, and, gte, lte, inArray, or } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
@@ -211,14 +213,43 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
         const kycPending = kycStats.find(s => s.status === 'KYC_PENDING' || s.status === 'PENDING')?.count || 0;
 
         // 8. Pending Approvals (Scoped)
-        let pendingApprovalsQuery = db.select({ count: count() })
+        // Redemptions
+        let pendingRedemptionsQuery = db.select({
+            id: redemptionApprovals.approvalId,
+            type: sql<string>`'Redemption'`,
+            label: sql<string>`'Redemption Request'`,
+            subLabel: users.name,
+            createdAt: redemptionApprovals.createdAt
+        })
             .from(redemptionApprovals)
+            .leftJoin(users, eq(redemptionApprovals.userId, users.id))
             .where(eq(redemptionApprovals.approvalStatus, 'PENDING'))
             .$dynamic();
 
+        // KYC
+        let pendingKycQuery = db.select({
+            id: users.id,
+            type: sql<string>`'KYC'`,
+            label: sql<string>`CONCAT(user_type_entity.type_name, ' KYC Approval')`,
+            subLabel: users.name,
+            createdAt: users.createdAt
+        })
+            .from(users)
+            .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
+            .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
+            .where(and(
+
+                inArray(users.roleId, STAKEHOLDER_ROLES),
+                or(
+                    eq(approvalStatuses.name, 'KYC_PENDING'),
+                    eq(approvalStatuses.name, 'PENDING'),
+                    eq(approvalStatuses.name, 'SR_APPROVED')
+                )
+            ))
+            .$dynamic();
+
         if (scope.type !== 'Global') {
-            pendingApprovalsQuery = pendingApprovalsQuery
-                .leftJoin(users, eq(redemptionApprovals.userId, users.id))
+            pendingRedemptionsQuery = pendingRedemptionsQuery
                 .leftJoin(retailers, eq(users.id, retailers.userId))
                 .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
@@ -230,8 +261,35 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                         scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
                     )
                 )) as any;
+
+            pendingKycQuery = pendingKycQuery
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(and(
+                    inArray(users.roleId, STAKEHOLDER_ROLES),
+                    or(
+                        eq(approvalStatuses.name, 'KYC_PENDING'),
+                        eq(approvalStatuses.name, 'PENDING'),
+                        eq(approvalStatuses.name, 'SR_APPROVED')
+                    ),
+                    or(
+                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
+                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    )
+                )) as any;
         }
-        const [pendingApprovals] = await pendingApprovalsQuery;
+
+        const redemptionsList = await pendingRedemptionsQuery.limit(10);
+        const kycList = await pendingKycQuery.limit(10);
+
+        const pendingItems = [...(redemptionsList || []), ...(kycList || [])]
+            .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime())
+            .slice(0, 10);
+        
+        const totalPendingCount = pendingItems.length;
+
 
         // 8.5 Admin User Counts
         const [adminCount] = await db.select({ count: count() }).from(users).where(inArray(users.roleId, ADMIN_ROLES));
@@ -455,7 +513,9 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             },
             recentActivity: allRecent,
             topPerformers: topPerformers,
-            pendingApprovalsCount: Number(pendingApprovals?.count) || 0,
+            pendingApprovalsCount: totalPendingCount,
+            pendingApprovals: pendingItems,
+
             adminStats: {
                 totalAdmins: Number(adminCount?.count) || 0,
                 activeAdmins: Number(activeAdminCount?.count) || 0
@@ -489,6 +549,8 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             recentActivity: [],
             topPerformers: [],
             pendingApprovalsCount: 0,
+            pendingApprovals: [],
+
             segments: { 
                 retailer: { points: 0, active: 0, kycCompliance: 0, total: 0 },
                 mechanic: { points: 0, active: 0, kycCompliance: 0, total: 0 }
