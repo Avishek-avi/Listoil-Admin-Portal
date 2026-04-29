@@ -695,6 +695,7 @@ export async function createMemberAction(formData: any) {
         const targetRoleId = Number(roleId);
         const roleNames: Record<number, string> = {
             11: 'ADMIN',
+            17: 'SALES HEAD',
             15: 'TSM',
             16: 'SR',
             3: 'MECHANIC',
@@ -702,7 +703,13 @@ export async function createMemberAction(formData: any) {
         };
         const targetRoleName = roleNames[targetRoleId];
 
-        if (creatorRole === 'TSM' && targetRoleName !== 'SR') {
+        if (creatorRole === 'ADMIN' || creatorScope.permissions.includes('all')) {
+            // Admin can create anything
+        } else if (creatorRole === 'SALES HEAD') {
+            if (targetRoleName !== 'TSM') {
+                throw new Error("Sales Heads can only create TSMs.");
+            }
+        } else if (creatorRole === 'TSM' && targetRoleName !== 'SR') {
             throw new Error("TSMs can only create Sales Representatives.");
         }
         if (creatorRole === 'SR') {
@@ -724,6 +731,11 @@ export async function createMemberAction(formData: any) {
             if (gst.length >= 12) {
                 finalPan = gst.substring(2, 12).toUpperCase();
             }
+        }
+
+        // Validate attached retailer for Mechanics
+        if (targetRoleName === 'MECHANIC' && !attachedRetailerId) {
+            throw new Error("A Mechanic must be mapped to an existing Retailer.");
         }
 
         // Check if attached retailer exists if provided
@@ -827,7 +839,9 @@ export async function createMemberAction(formData: any) {
             let scopeType = 'National';
             let scopeEntityIdValue: number | null = null;
 
-            if (targetRoleName === 'TSM' || targetRoleName === 'SR') {
+            if (targetRoleName === 'SALES HEAD') {
+                scopeType = 'Global'; // Sales Head has national scope
+            } else if (targetRoleName === 'TSM' || targetRoleName === 'SR') {
                 const locationValue = formData.scopeEntityId;
                 if (locationValue) {
                     if (isNaN(Number(locationValue))) {
@@ -893,11 +907,32 @@ export async function createMemberAction(formData: any) {
                 }
             }
 
+            // Validation: Only one SR allowed per city
+            if (targetRoleName === 'SR' && scopeEntityIdValue) {
+                const [existingSRMapping] = await tx.select({
+                    userName: users.name
+                })
+                .from(userScopeMapping)
+                .innerJoin(users, eq(userScopeMapping.userId, users.id))
+                .where(and(
+                    eq(userScopeMapping.scopeEntityId, scopeEntityIdValue),
+                    eq(userScopeMapping.scopeType, 'City'),
+                    eq(userScopeMapping.isActive, true),
+                    eq(users.roleId, 16)
+                ))
+                .limit(1);
+
+                if (existingSRMapping) {
+                    throw new Error(`The city is already assigned to SR: ${existingSRMapping.userName}. Only one SR is allowed per city.`);
+                }
+            }
+
             if (scopeEntityIdValue) {
                 await tx.insert(userScopeMapping).values({
                     userId: newUser.id,
                     scopeType,
                     scopeEntityId: scopeEntityIdValue,
+                    scopeLevelId: scopeType === 'State' ? 4 : (scopeType === 'City' ? 5 : 0),
                     isActive: true
                 });
             }
@@ -1121,16 +1156,25 @@ export async function approveMemberAction(userId: number) {
         if (!user) throw new Error("User not found");
 
         let nextStatusId = user.approvalStatusId;
-        
-        if (userRole === 'SR' && user.approvalStatusId === 15) {
-            nextStatusId = 32; // SR_APPROVED
-        } else if (userRole === 'TSM' && user.approvalStatusId === 32) {
-            nextStatusId = 18; // KYC_APPROVED
-            // Sync with specific tables
-            if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
-            if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
-        } else if (userRole === 'ADMIN' || userRole === 'SUPER ADMIN') {
-            nextStatusId = 18; // Admin can skip
+        const isSR = userRole === 'SR' || userRole.includes('REPRESENTATIVE');
+        const isTSM = userRole === 'TSM' || userRole.includes('MANAGER');
+        const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER ADMIN' || scope?.permissions.includes('all');
+
+        if (user.approvalStatusId === 15) { // KYC_PENDING
+            if (isSR || isAdmin) {
+                nextStatusId = 32; // SR_APPROVED
+            }
+        } else if (user.approvalStatusId === 32) { // SR_APPROVED
+            if (isTSM || isAdmin) {
+                nextStatusId = 18; // KYC_APPROVED
+                
+                // Sync with specific tables on final approval
+                if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
+                if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
+            }
+        } else if (isAdmin && user.approvalStatusId !== 18) {
+            // Admin can force approve if in any other state (except already approved)
+            nextStatusId = 18;
             if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
             if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
         }

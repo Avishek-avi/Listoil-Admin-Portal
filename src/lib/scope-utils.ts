@@ -38,7 +38,7 @@ export async function getUserScope(userId: number): Promise<UserScope> {
             permissions = ['dashboard.view', 'members.view', 'tickets.manage', 'mis.view'];
         } else if (normalizedRole === 'SR' || normalizedRole.includes('REPRESENTATIVE')) {
             permissions = ['dashboard.view', 'members.view', 'tickets.manage', 'mis.view'];
-        } else if (levelId < 5 || normalizedRole.includes('ADMIN')) {
+        } else if (levelId < 5 || normalizedRole.includes('ADMIN') || normalizedRole.includes('SALES HEAD')) {
             permissions = ['all'];
         } else if (normalizedRole.includes('SUPPORT') || normalizedRole.includes('CALL CENTER')) {
             permissions = ['members.view', 'tickets.manage', 'process.manage'];

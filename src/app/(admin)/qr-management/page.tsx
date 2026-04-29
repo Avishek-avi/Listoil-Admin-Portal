@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
 
@@ -314,8 +314,8 @@ export default function QRGeneration() {
                     <tr><td colSpan={7} className="py-12 text-center text-gray-400">No sync batches found</td></tr>
                   ) : (
                     batches.map((batch: any) => (
-                      <>
-                        <tr key={batch.batchId} className={`border-t hover:bg-gray-50/80 transition-colors ${expandedBatchId === batch.batchId ? 'bg-red-50/30' : ''}`}>
+                      <Fragment key={batch.batchId}>
+                        <tr className={`border-t hover:bg-gray-50/80 transition-colors ${expandedBatchId === batch.batchId ? 'bg-red-50/30' : ''}`}>
                           <td className="py-4 px-2 text-center">
                               <button 
                                 onClick={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
@@ -360,7 +360,7 @@ export default function QRGeneration() {
                                 </td>
                             </tr>
                         )}
-                      </>
+                      </Fragment>
                     ))
                   )}
                 </tbody>

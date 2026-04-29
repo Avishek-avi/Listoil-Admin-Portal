@@ -167,7 +167,7 @@ const accessLogsData: AccessLog[] = [
 
 import { db } from "@/db";
 import { users, userTypeEntity, approvalStatuses, eventLogs, eventMaster, userScopeMapping } from "@/db/schema";
-import { eq, and, count, or, ilike, sql, desc, lt } from "drizzle-orm";
+import { eq, and, count, or, ilike, sql, desc, lt, ne } from "drizzle-orm";
 export interface UserFilters {
     searchTerm?: string;
     roleFilter?: string;
@@ -182,6 +182,7 @@ export async function getRoleDataAction(filters?: UserFilters) {
             id: users.id,
             name: users.name,
             email: users.email,
+            roleId: users.roleId,
             role: userTypeEntity.typeName,
             status: approvalStatuses.name,
             lastLogin: users.lastLoginAt,
@@ -332,6 +333,26 @@ export async function createPortalUserAction(userData: {
 }) {
     try {
         const hashedPassword = await hashPassword(userData.password || 'Temporary@123');
+        // Validation: Only one SR allowed per city
+        if (userData.roleId === 16 && userData.scopes && userData.scopes.type === 'City') {
+            for (const entityId of userData.scopes.entityIds) {
+                const [existingSR] = await db.select({ name: users.name })
+                    .from(userScopeMapping)
+                    .innerJoin(users, eq(userScopeMapping.userId, users.id))
+                    .where(and(
+                        eq(userScopeMapping.scopeEntityId, entityId),
+                        eq(userScopeMapping.scopeType, 'City'),
+                        eq(userScopeMapping.isActive, true),
+                        eq(users.roleId, 16)
+                    ))
+                    .limit(1);
+                
+                if (existingSR) {
+                    return { success: false, error: `The city is already assigned to SR: ${existingSR.name}. Only one SR is allowed per city.` };
+                }
+            }
+        }
+
         const [newUser] = await db.insert(users).values({
             name: userData.name,
             email: userData.email,
@@ -350,7 +371,7 @@ export async function createPortalUserAction(userData: {
                 userId: newUser.id,
                 scopeType: userData.scopes!.type,
                 scopeEntityId: id,
-                scopeLevelId: 0,
+                scopeLevelId: userData.scopes!.type === 'State' ? 4 : (userData.scopes!.type === 'City' ? 5 : 0),
                 isActive: true
             }));
             await db.insert(userScopeMapping).values(scopeValues);
@@ -382,6 +403,29 @@ export async function updatePortalUserAction(userId: number, userData: {
 
         // Handle scopes if provided
         if (scopes) {
+            // Validation: Only one SR allowed per city
+            const targetRoleId = userData.roleId || (await db.select({ roleId: users.roleId }).from(users).where(eq(users.id, userId)).limit(1))[0]?.roleId;
+            
+            if (targetRoleId === 16 && scopes.type === 'City') {
+                for (const entityId of scopes.entityIds) {
+                    const [existingSR] = await db.select({ name: users.name })
+                        .from(userScopeMapping)
+                        .innerJoin(users, eq(userScopeMapping.userId, users.id))
+                        .where(and(
+                            eq(userScopeMapping.scopeEntityId, entityId),
+                            eq(userScopeMapping.scopeType, 'City'),
+                            eq(userScopeMapping.isActive, true),
+                            eq(users.roleId, 16),
+                            ne(users.id, userId)
+                        ))
+                        .limit(1);
+                    
+                    if (existingSR) {
+                        return { success: false, error: `The city is already assigned to SR: ${existingSR.name}. Only one SR is allowed per city.` };
+                    }
+                }
+            }
+
             await db.update(userScopeMapping)
                 .set({ isActive: false })
                 .where(eq(userScopeMapping.userId, userId));
@@ -391,7 +435,7 @@ export async function updatePortalUserAction(userId: number, userData: {
                     userId,
                     scopeType: scopes.type,
                     scopeEntityId: id,
-                    scopeLevelId: 0,
+                    scopeLevelId: scopes.type === 'State' ? 4 : (scopes.type === 'City' ? 5 : 0),
                     isActive: true
                 }));
                 await db.insert(userScopeMapping).values(scopeValues);

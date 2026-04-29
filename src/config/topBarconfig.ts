@@ -88,11 +88,6 @@ export const TOPBAR_CONFIG: Record<string, PageConfig> = {
     subtitle: "Manage user roles, permissions, and access control",
     actions: [
       {
-        label: "Add User",
-        icon: "fas fa-user-plus",
-        onClick: () => alert("Add User"),
-      },
-      {
         label: "Create Role",
         icon: "fas fa-shield-alt",
         variant: "secondary",
@@ -133,13 +128,6 @@ export const TOPBAR_CONFIG: Record<string, PageConfig> = {
   "/members": {
     title: "Members Management",
     subtitle: "Manage users, KYC verification, and account controls",
-    actions: [
-      {
-        label: "Add Member",
-        icon: "fas fa-user-plus",
-        onClick: () => alert("Add Member"),
-      },
-    ],
   },
 
   "/configuration": {

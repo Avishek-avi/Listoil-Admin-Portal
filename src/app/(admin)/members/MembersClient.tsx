@@ -1200,11 +1200,14 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
             let roles = [];
             if (role === 'ADMIN' || userScope.permissions.includes('all')) {
                 roles = [
+                    { id: 17, name: 'Sales Head' },
                     { id: 15, name: 'TSM' },
                     { id: 16, name: 'SR' },
                     { id: 3, name: 'Mechanic' },
                     { id: 2, name: 'Retailer' }
                 ];
+            } else if (role === 'SALES HEAD') {
+                roles = [{ id: 15, name: 'TSM' }];
             } else if (role === 'TSM') {
                 roles = [{ id: 16, name: 'SR' }];
             } else if (role === 'SR') {

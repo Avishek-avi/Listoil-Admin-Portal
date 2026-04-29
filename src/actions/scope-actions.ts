@@ -1,8 +1,8 @@
 'use server'
 
 import { db } from "@/db"
-import { locationEntity, locationLevelMaster, userScopeMapping } from "@/db/schema"
-import { eq, and, inArray } from "drizzle-orm"
+import { locationEntity, locationLevelMaster, userScopeMapping, users } from "@/db/schema"
+import { eq, and, inArray, ne } from "drizzle-orm"
 
 export async function getStatesAction() {
     try {
@@ -63,6 +63,30 @@ export async function getUserScopesAction(userId: number) {
 
 export async function updateUserScopesAction(userId: number, scopes: { type: 'State' | 'City', entityIds: number[] }) {
     try {
+        // Validation: Only one SR allowed per city
+        const user = await db.select({ roleId: users.roleId }).from(users).where(eq(users.id, userId)).limit(1);
+        const userRoleId = user[0]?.roleId;
+
+        if (userRoleId === 16 && scopes.type === 'City') {
+            for (const entityId of scopes.entityIds) {
+                const [existingSR] = await db.select({ name: users.name })
+                    .from(userScopeMapping)
+                    .innerJoin(users, eq(userScopeMapping.userId, users.id))
+                    .where(and(
+                        eq(userScopeMapping.scopeEntityId, entityId),
+                        eq(userScopeMapping.scopeType, 'City'),
+                        eq(userScopeMapping.isActive, true),
+                        eq(users.roleId, 16),
+                        ne(users.id, userId)
+                    ))
+                    .limit(1);
+                
+                if (existingSR) {
+                    return { success: false, error: `The city is already assigned to SR: ${existingSR.name}. Only one SR is allowed per city.` };
+                }
+            }
+        }
+
         // 1. Deactivate existing scopes
         await db.update(userScopeMapping)
             .set({ isActive: false })
@@ -74,7 +98,7 @@ export async function updateUserScopesAction(userId: number, scopes: { type: 'St
                 userId,
                 scopeType: scopes.type,
                 scopeEntityId: id,
-                scopeLevelId: 0, // We can determine this if needed, but entityId is unique enough
+                scopeLevelId: scopes.type === 'State' ? 4 : (scopes.type === 'City' ? 5 : 0),
                 isActive: true
             }));
             await db.insert(userScopeMapping).values(values);
