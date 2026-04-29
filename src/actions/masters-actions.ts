@@ -15,7 +15,10 @@ export interface StakeholderType {
     maxDailyScans: number;
     requiredKycLevel: string;
     allowedRedemptionChannels: number[];
+    maxRedemptionLimit: number;
+    minRedemptionLimit: number;
 }
+
 
 export interface PointsRule {
     id: string;
@@ -55,7 +58,10 @@ export async function getMastersDataAction() {
             isActive: userTypeEntity.isActive,
             maxDailyScans: userTypeEntity.maxDailyScans,
             requiredKycLevel: userTypeEntity.requiredKycLevel,
-            allowedRedemptionChannels: userTypeEntity.allowedRedemptionChannels
+            allowedRedemptionChannels: userTypeEntity.allowedRedemptionChannels,
+            maxRedemptionLimit: userTypeEntity.maxRedemptionLimit,
+            minRedemptionLimit: userTypeEntity.minRedemptionLimit
+
         }).from(userTypeEntity).orderBy(desc(userTypeEntity.id));
 
         const stakeholderTypes: StakeholderType[] = stakeholders.map(s => ({
@@ -65,7 +71,10 @@ export async function getMastersDataAction() {
             status: s.isActive ? 'Active' : 'Inactive',
             maxDailyScans: s.maxDailyScans || 50,
             requiredKycLevel: s.requiredKycLevel || 'Basic',
-            allowedRedemptionChannels: (s.allowedRedemptionChannels as number[]) || []
+            allowedRedemptionChannels: (s.allowedRedemptionChannels as number[]) || [],
+            maxRedemptionLimit: s.maxRedemptionLimit || 5000,
+            minRedemptionLimit: s.minRedemptionLimit || 100
+
         }));
 
         // 2. Fetch Points Config (Base Points)
@@ -271,14 +280,19 @@ export async function updateStakeholderConfigAction(data: {
     maxDailyScans: number;
     requiredKycLevel: string;
     allowedRedemptionChannels: number[];
+    maxRedemptionLimit: number;
+    minRedemptionLimit: number;
 }) {
     try {
         await db.update(userTypeEntity)
             .set({
                 maxDailyScans: data.maxDailyScans,
                 requiredKycLevel: data.requiredKycLevel,
-                allowedRedemptionChannels: data.allowedRedemptionChannels
+                allowedRedemptionChannels: data.allowedRedemptionChannels,
+                maxRedemptionLimit: data.maxRedemptionLimit,
+                minRedemptionLimit: data.minRedemptionLimit
             })
+
             .where(eq(userTypeEntity.id, data.id));
 
         await emitEvent(BUS_EVENTS.MEMBER_MASTER_CONFIG_UPDATE, {

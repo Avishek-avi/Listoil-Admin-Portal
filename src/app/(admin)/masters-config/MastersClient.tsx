@@ -90,7 +90,10 @@ export default function MastersClient() {
     const [stakeholderMaxDailyScans, setStakeholderMaxDailyScans] = useState<number>(50);
     const [stakeholderKycLevel, setStakeholderKycLevel] = useState<string>('Basic');
     const [stakeholderChannelIds, setStakeholderChannelIds] = useState<number[]>([]);
+    const [stakeholderMaxRedemptionLimit, setStakeholderMaxRedemptionLimit] = useState<number>(5000);
+    const [stakeholderMinRedemptionLimit, setStakeholderMinRedemptionLimit] = useState<number>(100);
     const [stakeholderSaveStatus, setStakeholderSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
     const [confirmOpen, setConfirmOpen] = useState(false);
 
     const stakeholderMutation = useMutation({
@@ -315,9 +318,12 @@ export default function MastersClient() {
                 setStakeholderKycLevel(s.requiredKycLevel || 'Basic');
                 const channels = s.allowedRedemptionChannels || [];
                 setStakeholderChannelIds(channels.map((c: any) => Number(c)));
+                setStakeholderMaxRedemptionLimit(s.maxRedemptionLimit || 5000);
+                setStakeholderMinRedemptionLimit(s.minRedemptionLimit || 100);
             }
         }
     }, [selectedStakeholderId, stakeholderTypes]);
+
 
     if (isLoading) return (
         <div className="flex justify-center p-8">
@@ -355,6 +361,8 @@ export default function MastersClient() {
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Description</th>
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Max Daily Scans</th>
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">KYC Level</th>
+                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Min Redemption</th>
+                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Max Redemption</th>
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Status</th>
                                     </tr>
                                 </thead>
@@ -364,9 +372,13 @@ export default function MastersClient() {
                                             <td className="py-3 text-sm text-gray-600">{row.id}</td>
                                             <td className="py-3 text-sm text-gray-600">{row.code || row.name}</td>
                                             <td className="py-3 text-sm text-gray-600">{row.desc}</td>
-                                            <td className="py-3 text-sm text-gray-600">{row.maxDailyScans}</td>
+                                            <td className="py-3 text-sm text-gray-600">{row.name?.toLowerCase().includes('retailer') ? 'N/A' : row.maxDailyScans}</td>
                                             <td className="py-3 text-sm text-gray-600">{row.requiredKycLevel}</td>
+
+                                            <td className="py-3 text-sm text-gray-600">{row.minRedemptionLimit}</td>
+                                            <td className="py-3 text-sm text-gray-600">{row.maxRedemptionLimit}</td>
                                             <td className="py-3 text-sm">
+
                                                 <span className={`badge ${row.status === 'Active' ? 'badge-success' : 'badge-warning'}`}>{row.status}</span>
                                             </td>
                                         </tr>
@@ -388,10 +400,13 @@ export default function MastersClient() {
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Daily Scans</label>
-                                    <input type="number" value={stakeholderMaxDailyScans} onChange={(e) => setStakeholderMaxDailyScans(Number(e.target.value))} className={inputClass} />
-                                </div>
+                                {stakeholderTypes.find(s => s.id === selectedStakeholderId)?.name?.toLowerCase().includes('retailer') ? null : (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Max Daily Scans</label>
+                                        <input type="number" value={stakeholderMaxDailyScans} onChange={(e) => setStakeholderMaxDailyScans(Number(e.target.value))} className={inputClass} />
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Required KYC Level</label>
                                     <select value={stakeholderKycLevel} onChange={(e) => setStakeholderKycLevel(e.target.value)} className={selectClass}>
@@ -400,7 +415,18 @@ export default function MastersClient() {
                                         <option value="Advanced">Advanced</option>
                                     </select>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Min Redemption Limit</label>
+                                        <input type="number" value={stakeholderMinRedemptionLimit} onChange={(e) => setStakeholderMinRedemptionLimit(Number(e.target.value))} className={inputClass} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Max Redemption Limit</label>
+                                        <input type="number" value={stakeholderMaxRedemptionLimit} onChange={(e) => setStakeholderMaxRedemptionLimit(Number(e.target.value))} className={inputClass} />
+                                    </div>
+                                </div>
+
+                                {/* <div className="space-y-2">
                                     <p className="text-sm text-gray-500">Allowed Redemption Channels</p>
                                     {(data?.redemptionChannels || []).map((ch: any) => (
                                         <label key={ch.id} className="flex items-center gap-2 text-sm">
@@ -414,7 +440,8 @@ export default function MastersClient() {
                                             {ch.name}
                                         </label>
                                     ))}
-                                </div>
+                                </div> */}
+
                                 <div className="flex justify-end gap-2 items-center">
                                     <button type="button" className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50" onClick={() => {
                                         if (selectedStakeholderId) {
@@ -424,9 +451,12 @@ export default function MastersClient() {
                                                 setStakeholderKycLevel(s.requiredKycLevel || 'Basic');
                                                 const channels = s.allowedRedemptionChannels || [];
                                                 setStakeholderChannelIds(channels.map((c: any) => Number(c)));
+                                                setStakeholderMaxRedemptionLimit(s.maxRedemptionLimit || 5000);
+                                                setStakeholderMinRedemptionLimit(s.minRedemptionLimit || 100);
                                             }
                                         }
                                     }}>Cancel</button>
+
                                     <button type="button" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50" onClick={() => {
                                         if (!selectedStakeholderId) return;
                                         setConfirmOpen(true);
@@ -447,9 +477,12 @@ export default function MastersClient() {
                                                         id: Number(selectedStakeholderId),
                                                         maxDailyScans: stakeholderMaxDailyScans,
                                                         requiredKycLevel: stakeholderKycLevel,
-                                                        allowedRedemptionChannels: stakeholderChannelIds
+                                                        allowedRedemptionChannels: stakeholderChannelIds,
+                                                        maxRedemptionLimit: stakeholderMaxRedemptionLimit,
+                                                        minRedemptionLimit: stakeholderMinRedemptionLimit
                                                     });
                                                     setConfirmOpen(false);
+
                                                 }}>Confirm</button>
                                             </div>
                                         </div>

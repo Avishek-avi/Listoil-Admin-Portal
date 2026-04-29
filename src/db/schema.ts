@@ -1161,6 +1161,9 @@ export const userTypeEntity = pgTable("user_type_entity", {
 	referralValidityDays: integer("referral_validity_days"),
 	referralSuccessMessage: text("referral_success_message"),
 	allowedRedemptionChannels: jsonb("allowed_redemption_channels").default([]),
+	maxRedemptionLimit: integer("max_redemption_limit").default(5000),
+	minRedemptionLimit: integer("min_redemption_limit").default(100),
+
 }, (table) => [
 	foreignKey({
 		columns: [table.levelId],
