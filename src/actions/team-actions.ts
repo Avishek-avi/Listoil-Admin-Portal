@@ -237,20 +237,22 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
     ));
 
     // Fetch all Mechanics and Retailers in these states
+    const lowerStateNames = stateNames.map(s => s.toLowerCase());
+
     const allMechs = await db.select({
         userId: mechanics.userId,
         name: mechanics.name,
         city: mechanics.city,
         attachedRetailerId: mechanics.attachedRetailerId
     }).from(mechanics)
-    .where(inArray(mechanics.state, stateNames));
+    .where(inArray(sql`LOWER(${mechanics.state})`, lowerStateNames));
 
     const allRets = await db.select({
         userId: retailers.userId,
         name: retailers.name,
         city: retailers.city
     }).from(retailers)
-    .where(inArray(retailers.state, stateNames));
+    .where(inArray(sql`LOWER(${retailers.state})`, lowerStateNames));
 
     return [{
         id: tsmId,
@@ -298,6 +300,7 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
     }
 
     // Fetch Retailers in these cities
+    const lowerCities = cities.map(c => c.toLowerCase());
     const rets = await db.select({
         id: retailers.id,
         userId: retailers.userId,
@@ -305,7 +308,7 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
         city: retailers.city
     })
     .from(retailers)
-    .where(inArray(retailers.city, cities));
+    .where(inArray(sql`LOWER(${retailers.city})`, lowerCities));
 
     // Fetch Mechanics mapped to these retailers
     const retIds = rets.map(r => r.userId);

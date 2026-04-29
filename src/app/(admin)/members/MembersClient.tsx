@@ -311,12 +311,27 @@ export default function MembersClient() {
     };
 
     const handleUpdateDocStatus = async (docId: number, status: 'verified' | 'rejected') => {
+        let rejectionReason = undefined;
+        if (status === 'rejected') {
+            rejectionReason = window.prompt("Please enter the reason for rejection:");
+            if (rejectionReason === null) return; // User cancelled
+        }
+
         try {
-            await updateKycDocumentStatusAction(docId, status);
-            queryClient.invalidateQueries({ queryKey: ['member-kyc-docs'] });
-            queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            const res = await updateKycDocumentStatusAction(docId, status, rejectionReason);
+            if (res.success) {
+                setSnackbarMessage(`Document ${status === 'verified' ? 'verified' : 'rejected'} successfully`);
+                setSnackbarOpen(true);
+                queryClient.invalidateQueries({ queryKey: ['member-kyc-docs'] });
+                queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            } else {
+                setSnackbarMessage(res.error || `Failed to update document status`);
+                setSnackbarOpen(true);
+            }
         } catch (error) {
             console.error("Failed to update document status:", error);
+            setSnackbarMessage('Error updating document status');
+            setSnackbarOpen(true);
         }
     };
 
@@ -353,11 +368,14 @@ export default function MembersClient() {
     };
 
     const handleRejectMember = async (userId: number) => {
+        const reason = window.prompt("Please enter the reason for rejection:", "Rejected during review");
+        if (reason === null) return; // User cancelled
+
         try {
-            const res = await rejectMemberAction(userId, 'Rejected during review');
+            const res = await rejectMemberAction(userId, reason);
             if (res.success) {
                 setKycModalOpen(false);
-                setSnackbarMessage('Member rejected');
+                setSnackbarMessage('Member profile rejected');
                 setSnackbarOpen(true);
                 queryClient.invalidateQueries({ queryKey: ['members-list'] });
             } else {
@@ -885,6 +903,17 @@ export default function MembersClient() {
                             <button onClick={() => setKycModalOpen(false)} className="text-gray-400 hover:text-gray-600"><i className="fas fa-times"></i></button>
                         </div>
                         <div className="p-6 overflow-y-auto flex-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="space-y-1">
+                                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Aadhaar Number</p>
+                                    <p className="text-lg font-mono font-bold text-gray-800">{selectedKycMember?.aadhaar || 'N/A'}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">PAN Number</p>
+                                    <p className="text-lg font-mono font-bold text-gray-800 uppercase">{selectedKycMember?.pan || 'N/A'}</p>
+                                </div>
+                            </div>
+
                             {isLoadingKycDocs ? (
                                 <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div></div>
                             ) : !kycDocuments || kycDocuments.length === 0 ? (

@@ -317,25 +317,9 @@ export async function updateKycDocumentStatusAction(documentId: number, status: 
 
                 // Check fulfillment
                 const isKycComplete = requiredDocs.length > 0 && requiredDocs.every(doc => verifiedDocs.includes(doc));
-
-                if (isKycComplete) {
-                    // Update Role Table
-                    if (roleName.includes('retailer')) {
-                        await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
-                    } else if (roleName.includes('mechanic')) {
-                        await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
-                    } else if (roleName.includes('counter staff')) {
-                        await db.update(counterSales).set({ isKycVerified: true }).where(eq(counterSales.userId, userId));
-                    }
-
-                    // Update User Status to TDS_CONSENT_PENDING
-                    const tdsPendingStatus = await db.select().from(approvalStatuses).where(ilike(approvalStatuses.name, 'TDS_CONSENT_PENDING')).limit(1);
-                    if (tdsPendingStatus.length > 0) {
-                        await db.update(users)
-                            .set({ approvalStatusId: tdsPendingStatus[0].id })
-                            .where(eq(users.id, userId));
-                    }
-                }
+                
+                // We no longer auto-transition status here to respect the SR -> TSM approval hierarchy.
+                // Status transitions are now handled exclusively in approveMemberAction.
             }
         }
 
@@ -407,17 +391,28 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
         }
 
         if (scope.type !== 'Global') {
-            baseConditions.push(or(
-                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
-            ));
+            const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+            if (scope.type === 'State') {
+                baseConditions.push(or(
+                    inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.state})`, lowerNames)
+                ));
+            } else {
+                baseConditions.push(or(
+                    inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                ));
+            }
         }
 
         // Functional Hierarchy Approval filtering
-        if (kycStatus === 'Approved') {
+        const normalizedKycStatus = (kycStatus || '').toLowerCase();
+
+        if (normalizedKycStatus.includes('approved')) {
             baseConditions.push(eq(users.approvalStatusId, 18)); // KYC_APPROVED
-        } else if (kycStatus === 'Pending') {
+        } else if (normalizedKycStatus.includes('pending')) {
             if (scope.role.toUpperCase() === 'SR') {
                 baseConditions.push(eq(users.approvalStatusId, 15)); // KYC_PENDING
             } else if (scope.role.toUpperCase() === 'TSM') {
@@ -426,7 +421,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
                 baseConditions.push(or(eq(users.approvalStatusId, 15), eq(users.approvalStatusId, 32)));
             }
         } else if (!kycStatus && !searchQuery) {
-            // Default actionable view for SR and TSM
+            // Default actionable view ONLY when no filter is provided at all (initial load)
             if (scope.role.toUpperCase() === 'SR') {
                 baseConditions.push(eq(users.approvalStatusId, 15));
             } else if (scope.role.toUpperCase() === 'TSM') {
@@ -447,7 +442,9 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             counterSalesKyc: counterSales.isKycVerified,
             approvalStatus: approvalStatuses.name,
             approvalStatusId: users.approvalStatusId,
-            retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`
+            retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`,
+            aadhaar: sql<string>`COALESCE(${retailers.aadhaar}, ${mechanics.aadhaar}, ${counterSales.aadhaar})`,
+            pan: sql<string>`COALESCE(${retailers.pan}, ${mechanics.pan}, ${counterSales.pan})`
         })
             .from(users)
             .leftJoin(retailers, eq(users.id, retailers.userId))
@@ -478,7 +475,9 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
                 approvalStatusId: u.approvalStatusId,
                 regions: '---',
                 joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '---',
-                mappedRetailer: u.retailerName || '---'
+                mappedRetailer: u.retailerName || '---',
+                aadhaar: u.aadhaar,
+                pan: u.pan
             };
         });
 
@@ -1166,11 +1165,15 @@ export async function approveMemberAction(userId: number) {
             }
         } else if (user.approvalStatusId === 32) { // SR_APPROVED
             if (isTSM || isAdmin) {
-                nextStatusId = 18; // KYC_APPROVED
+                nextStatusId = 26; // TDS_CONSENT_PENDING
                 
                 // Sync with specific tables on final approval
                 if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
                 if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
+            }
+        } else if (user.approvalStatusId === 26) { // TDS_CONSENT_PENDING
+            if (isAdmin) {
+                nextStatusId = 18; // KYC_APPROVED
             }
         } else if (isAdmin && user.approvalStatusId !== 18) {
             // Admin can force approve if in any other state (except already approved)
