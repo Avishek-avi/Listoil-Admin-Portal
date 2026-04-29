@@ -45,24 +45,37 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat bg-fixed relative"
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{
-        backgroundImage:
-          "url('https://ik.imagekit.io/ewxcertfq/UE9tZVRRbWZFbjhITUdhcGxjS0VoZz09.webp')",
-        fontFamily: "'Inter', sans-serif",
+        backgroundColor: "#D6001C",
+        backgroundImage: `
+          radial-gradient(circle at 50% 50%, rgba(255, 45, 74, 0.4) 0%, transparent 70%),
+          radial-gradient(circle at 50% 50%, #D6001C 0%, #8b0000 100%)
+        `,
+        fontFamily: "var(--font-sans), sans-serif",
       }}
     >
-      {/* Dark overlay */}
-      <div className="fixed inset-0 bg-black/28 pointer-events-none z-0" />
+      {/* Central glow focus */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/10 rounded-full blur-[120px] pointer-events-none" />
+      
+      {/* Artistic vignette and framing elements */}
+      <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-white/5 rounded-full blur-[100px] animate-pulse" />
+      <div className="absolute bottom-[-15%] left-[-5%] w-[30rem] h-[30rem] bg-black/30 rounded-full blur-[120px]" />
+      
+      {/* Subtle edge vignette */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)] pointer-events-none" />
+
+
 
       {/* Login card */}
       <div className="relative z-10 w-full max-w-md mx-auto px-4">
         <div
           className="rounded-2xl overflow-hidden p-8"
           style={{
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
+            background: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.4)",
           }}
         >
           {/* Header */}
@@ -105,8 +118,9 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
-                className="block w-full px-3 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="block w-full px-3 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30"
               />
+
             </div>
 
             {/* Password */}
@@ -125,7 +139,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="block w-full px-3 pr-10 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="block w-full px-3 pr-10 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30"
                 />
                 <div className="absolute inset-y-0 right-0 w-12 flex items-center justify-center">
                   <button
@@ -149,7 +163,7 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                  className="h-4 w-4 text-red-600 rounded focus:ring-red-500"
                 />
                 <label
                   htmlFor="remember-me"
@@ -160,7 +174,7 @@ export default function LoginPage() {
               </div>
               <a
                 href="#"
-                className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                className="text-sm font-medium text-red-600 hover:text-red-800"
               >
                 Forgot password?
               </a>
@@ -170,11 +184,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 rounded-lg font-medium text-white transition disabled:opacity-60"
+              className="w-full py-3 px-4 rounded-lg font-medium text-white transition disabled:opacity-60 shadow-lg shadow-red-200"
               style={{
                 background: loading
-                  ? "#93c5fd"
-                  : "linear-gradient(to right, #2563eb, #1d4ed8)",
+                  ? "#fca5a5"
+                  : "linear-gradient(to right, #D6001C, #be123c)",
               }}
             >
               {loading ? "Signing in..." : "Sign in"}

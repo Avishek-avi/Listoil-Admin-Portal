@@ -4,17 +4,22 @@ import { db } from "@/db"
 import {
     users,
     retailerTransactions,
-    electricianTransactions,
+    mechanicTransactions,
     counterSalesTransactions,
     redemptions,
     userTypeEntity,
     campaigns,
     redemptionStatuses,
     retailerTransactionLogs,
-    electricianTransactionLogs,
-    counterSalesTransactionLogs
+    mechanicTransactionLogs,
+    counterSalesTransactionLogs,
+    retailers,
+    mechanics,
+    counterSales
 } from "@/db/schema"
-import { count, sum, sql, desc, eq, and, gte, lt } from "drizzle-orm"
+import { count, sum, sql, desc, eq, and, gte, lt, or, inArray } from "drizzle-orm"
+import { auth } from "@/lib/auth"
+import { getUserScope } from "@/lib/scope-utils"
 
 export async function getMisAnalyticsAction() {
     try {
@@ -24,28 +29,99 @@ export async function getMisAnalyticsAction() {
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
         // --- 1. EXECUTIVE DASHBOARD DATA ---
-        const [memberCount] = await db.select({ value: count() }).from(users);
+        let memberCountQuery = db.select({ value: count() }).from(users);
+        let rPointsQuery = db.select({ value: sum(retailerTransactionLogs.points) }).from(retailerTransactionLogs).where(eq(retailerTransactionLogs.status, 'SUCCESS'));
+        let mechPointsQuery = db.select({ value: sum(mechanicTransactionLogs.points) }).from(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.status, 'SUCCESS'));
+        let csPointsQuery = db.select({ value: sum(counterSalesTransactionLogs.points) }).from(counterSalesTransactionLogs).where(eq(counterSalesTransactionLogs.status, 'SUCCESS'));
+        let redeemSumQuery = db.select({ value: sum(redemptions.pointsRedeemed) }).from(redemptions);
 
-        const [rSum] = await db.select({ value: sum(retailerTransactionLogs.points) }).from(retailerTransactionLogs).where(eq(retailerTransactionLogs.status, 'SUCCESS'));
-        const [eSum] = await db.select({ value: sum(electricianTransactionLogs.points) }).from(electricianTransactionLogs).where(eq(electricianTransactionLogs.status, 'SUCCESS'));
-        const [csSum] = await db.select({ value: sum(counterSalesTransactionLogs.points) }).from(counterSalesTransactionLogs).where(eq(counterSalesTransactionLogs.status, 'SUCCESS'));
-        const totalPointsAllotted = Number(rSum?.value || 0) + Number(eSum?.value || 0) + Number(csSum?.value || 0);
+        if (scope.type !== 'Global') {
+            const scopeFilter = or(
+                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
+                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+            );
 
-        const activeRecentResult = await db.execute(sql`
-            SELECT count(DISTINCT user_id) as count FROM (
+            memberCountQuery.leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(scopeFilter);
+
+            rPointsQuery.leftJoin(retailers, eq(retailerTransactionLogs.userId, retailers.userId))
+                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            
+            mechPointsQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
+                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+
+            csPointsQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
+                .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+
+            redeemSumQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
+                .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
+                .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
+                .where(scopeFilter);
+        }
+
+        const [memberCount] = await memberCountQuery;
+        const [rSum] = await rPointsQuery;
+        const [mechSum] = await mechPointsQuery;
+        const [csSum] = await csPointsQuery;
+        const totalPointsAllotted = Number(rSum?.value || 0) + Number(mechSum?.value || 0) + Number(csSum?.value || 0);
+
+        let activeRecentSql = sql`
+            SELECT count(DISTINCT activity.user_id) as count FROM (
                 SELECT user_id, created_at FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT user_id, created_at FROM electrician_transaction_logs WHERE status = 'SUCCESS'
+                SELECT user_id, created_at FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
                 SELECT user_id, created_at FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as activity
-            WHERE created_at >= ${thirtyDaysAgo.toISOString()}
-        `);
+        `;
+
+        if (scope.type !== 'Global') {
+            const scopeJoin = `
+                LEFT JOIN retailers r ON activity.user_id = r.user_id
+                LEFT JOIN mechanics m ON activity.user_id = m.user_id
+                LEFT JOIN counter_sales cs ON activity.user_id = cs.user_id
+            `;
+            const scopeWhere = scope.type === 'State' 
+                ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
+            
+            activeRecentSql = sql`
+                SELECT count(DISTINCT activity.user_id) as count FROM (
+                    SELECT user_id, created_at FROM retailer_transaction_logs WHERE status = 'SUCCESS'
+                    UNION ALL
+                    SELECT user_id, created_at FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
+                    UNION ALL
+                    SELECT user_id, created_at FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
+                ) as activity
+                ${sql.raw(scopeJoin)}
+                WHERE activity.created_at >= ${thirtyDaysAgo.toISOString()} AND ${sql.raw(scopeWhere)}
+            `;
+        } else {
+            activeRecentSql = sql`
+                SELECT count(DISTINCT activity.user_id) as count FROM (
+                    SELECT user_id, created_at FROM retailer_transaction_logs WHERE status = 'SUCCESS'
+                    UNION ALL
+                    SELECT user_id, created_at FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
+                    UNION ALL
+                    SELECT user_id, created_at FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
+                ) as activity
+                WHERE created_at >= ${thirtyDaysAgo.toISOString()}
+            `;
+        }
+
+        const activeRecentResult = await db.execute(activeRecentSql);
         const activeRecentCount = Number(activeRecentResult.rows[0]?.count || 0);
         const engagementRate = Number(memberCount.value) > 0 ? (activeRecentCount / Number(memberCount.value)) * 100 : 0;
 
-        const [redeemSum] = await db.select({ value: sum(redemptions.pointsRedeemed) }).from(redemptions);
+        const [redeemSum] = await redeemSumQuery;
         const redemptionRate = totalPointsAllotted > 0 ? (Number(redeemSum?.value || 0) / totalPointsAllotted) * 100 : 0;
 
         const pointsTrendResult = await db.execute(sql`
@@ -53,7 +129,7 @@ export async function getMisAnalyticsAction() {
             FROM (
                 SELECT created_at, points FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT created_at, points FROM electrician_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at, points FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
                 SELECT created_at, points FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
@@ -74,7 +150,7 @@ export async function getMisAnalyticsAction() {
             FROM (
                 SELECT created_at FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT created_at FROM electrician_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
                 SELECT created_at FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
@@ -87,7 +163,7 @@ export async function getMisAnalyticsAction() {
             FROM (
                 SELECT category, points FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT category, points FROM electrician_transaction_logs WHERE status = 'SUCCESS'
+                SELECT category, points FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
                 SELECT category, points FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
@@ -98,7 +174,7 @@ export async function getMisAnalyticsAction() {
             SELECT count(*)::integer as count FROM (
                 SELECT id FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT id FROM electrician_transaction_logs WHERE status = 'SUCCESS'
+                SELECT id FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
                 SELECT id FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
@@ -109,7 +185,7 @@ export async function getMisAnalyticsAction() {
             SELECT count(*)::integer as count FROM (
                 SELECT id FROM retailer_transaction_logs
                 UNION ALL
-                SELECT id FROM electrician_transaction_logs
+                SELECT id FROM mechanic_transaction_logs
                 UNION ALL
                 SELECT id FROM counter_sales_transaction_logs
             ) as t
@@ -142,7 +218,7 @@ export async function getMisAnalyticsAction() {
             FROM (
                 SELECT user_id, created_at, points, sku FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT user_id, created_at, points, sku FROM electrician_transaction_logs WHERE status = 'SUCCESS'
+                SELECT user_id, created_at, points, sku FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
                 SELECT user_id, created_at, points, sku FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as activity
@@ -154,11 +230,11 @@ export async function getMisAnalyticsAction() {
 
         const topMembersResult = await db.execute(sql`
             SELECT u.name, ut.type_name as role, 
-                   (COALESCE(r.total_earnings, 0) + COALESCE(e.total_earnings, 0) + COALESCE(cs.total_earnings, 0))::numeric as earnings
+                   (COALESCE(r.total_earnings, 0) + COALESCE(m.total_earnings, 0) + COALESCE(cs.total_earnings, 0))::numeric as earnings
             FROM users u
             LEFT JOIN user_type_entity ut ON u.role_id = ut.id
             LEFT JOIN retailers r ON u.id = r.user_id
-            LEFT JOIN electricians e ON u.id = e.user_id
+            LEFT JOIN mechanics m ON u.id = m.user_id
             LEFT JOIN counter_sales cs ON u.id = cs.user_id
             ORDER BY earnings DESC LIMIT 5
         `);
@@ -170,7 +246,7 @@ export async function getMisAnalyticsAction() {
             FROM (
                 SELECT category, points FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT category, points FROM electrician_transaction_logs WHERE status = 'SUCCESS'
+                SELECT category, points FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
                 SELECT category, points FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
@@ -182,7 +258,7 @@ export async function getMisAnalyticsAction() {
             FROM (
                 SELECT state, total_earnings FROM retailers WHERE state IS NOT NULL
                 UNION ALL
-                SELECT state, total_earnings FROM electricians WHERE state IS NOT NULL
+                SELECT state, total_earnings FROM mechanics WHERE state IS NOT NULL
                 UNION ALL
                 SELECT state, total_earnings FROM counter_sales WHERE state IS NOT NULL
             ) as t

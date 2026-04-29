@@ -77,7 +77,7 @@ export default function CommunicationClient() {
 
     if (loadingTemplates || loadingLogs) return (
         <div className="flex justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
         </div>
     );
 
@@ -106,7 +106,7 @@ export default function CommunicationClient() {
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Compose Campaign</h3>
                         <div className="mb-3">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Select Template</label>
-                            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
                                 <option value="">-- Select Template --</option>
                                 {templates.filter((t: any) => t.triggerType === 'campaign' || t.triggerType === 'manual').map((t: any) => (
                                     <option key={t.id} value={t.id}>{t.name}</option>
@@ -115,11 +115,11 @@ export default function CommunicationClient() {
                         </div>
                         <div className="mb-3">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Target User Group / IDs</label>
-                            <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} placeholder="Enter User IDs separated by comma"></textarea>
+                            <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" rows={2} placeholder="Enter User IDs separated by comma"></textarea>
                         </div>
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Custom Data (JSON)</label>
-                            <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} placeholder='{"name": "John"}'></textarea>
+                            <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" rows={3} placeholder='{"name": "John"}'></textarea>
                         </div>
                         <button className="btn btn-primary w-full">
                             <i className="fas fa-paper-plane mr-2"></i>Launch Campaign
@@ -155,7 +155,7 @@ export default function CommunicationClient() {
                 <div className="widget-card rounded-xl shadow p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Notification Templates</h3>
-                        <button onClick={() => { setEditingTemplate(null); setOpenTemplateModal(true); }} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                        <button onClick={() => { setEditingTemplate(null); setOpenTemplateModal(true); }} className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
                             <i className="fas fa-plus mr-2"></i>Create Template
                         </button>
                     </div>
@@ -180,7 +180,7 @@ export default function CommunicationClient() {
                                             <span className={`badge ${t.isActive ? 'badge-success' : 'badge-danger'}`}>{t.isActive ? 'Active' : 'Inactive'}</span>
                                         </td>
                                         <td className="py-3 text-sm">
-                                            <button onClick={() => handleEditTemplate(t)} className="text-blue-600 hover:text-blue-800 mr-3"><i className="fas fa-edit"></i></button>
+                                            <button onClick={() => handleEditTemplate(t)} className="text-red-600 hover:text-red-800 mr-3"><i className="fas fa-edit"></i></button>
                                             <button className="text-green-600 hover:text-green-800"><i className="fas fa-play"></i></button>
                                         </td>
                                     </tr>
@@ -274,22 +274,22 @@ export default function CommunicationClient() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
-                                        <input type="text" name="name" defaultValue={editingTemplate?.name} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        <input type="text" name="name" defaultValue={editingTemplate?.name} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Slug *</label>
-                                        <input type="text" name="slug" defaultValue={editingTemplate?.slug} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        <input type="text" name="slug" defaultValue={editingTemplate?.slug} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
                                     </div>
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-semibold text-gray-700 mb-2">Push Notification</h4>
-                                    <input type="text" name="pushTitle" defaultValue={editingTemplate?.pushTitle} placeholder="Push Title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2" />
-                                    <textarea name="pushBody" defaultValue={editingTemplate?.pushBody} placeholder="Push Body" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                                    <input type="text" name="pushTitle" defaultValue={editingTemplate?.pushTitle} placeholder="Push Title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 mb-2" />
+                                    <textarea name="pushBody" defaultValue={editingTemplate?.pushBody} placeholder="Push Body" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
                                     <p className="text-xs text-gray-400 mt-1">Use &#123;&#123;key&#125;&#125; for placeholders</p>
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-semibold text-gray-700 mb-2">SMS Message</h4>
-                                    <textarea name="smsBody" defaultValue={editingTemplate?.smsBody} placeholder="SMS Body" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                                    <textarea name="smsBody" defaultValue={editingTemplate?.smsBody} placeholder="SMS Body" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
                                     <p className="text-xs text-gray-400 mt-1">Use &#123;&#123;key&#125;&#125; for placeholders</p>
                                 </div>
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -299,7 +299,7 @@ export default function CommunicationClient() {
                             </div>
                             <div className="px-6 py-4 border-t flex justify-end gap-3">
                                 <button type="button" onClick={() => setOpenTemplateModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                                <button type="submit" disabled={upsertMutation.isPending} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                                <button type="submit" disabled={upsertMutation.isPending} className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">
                                     {upsertMutation.isPending ? 'Saving...' : 'Save Template'}
                                 </button>
                             </div>

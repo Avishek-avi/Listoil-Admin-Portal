@@ -30,7 +30,7 @@ function UserAutocomplete({ value, onChange, options, onSearch, placeholder }: {
             <input type="text" value={inputValue} placeholder={placeholder}
                 onChange={(e) => { setInputValue(e.target.value); onSearch(e.target.value); setOpen(true) }}
                 onFocus={() => { if (options.length) setOpen(true) }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500" />
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500" />
             {value && (
                 <button type="button" onClick={() => { onChange(null); setInputValue('') }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -41,7 +41,7 @@ function UserAutocomplete({ value, onChange, options, onSearch, placeholder }: {
                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                     {options.map((opt: any) => (
                         <div key={opt.id} onClick={() => { onChange(opt); setInputValue(`${opt.name} (${opt.type})`); setOpen(false) }}
-                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0">
+                            className="px-3 py-2 hover:bg-red-50 cursor-pointer border-b border-gray-50 last:border-0">
                             <p className="text-sm font-semibold">{opt.name}</p>
                             <p className="text-xs text-gray-500">{opt.type}{opt.uniqueId && opt.uniqueId !== 'N/A' ? ` • ID: ${opt.uniqueId}` : ''}{opt.phone ? ` • ${opt.phone}` : ''}</p>
                         </div>
@@ -58,8 +58,8 @@ export default function TicketsClient() {
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [priorityFilter, setPriorityFilter] = useState('All Priority')
 
-    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
-    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white"
+    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500"
 
     const { data: ticketStatuses = [] } = useQuery({
         queryKey: ['ticket-statuses'],
@@ -203,7 +203,7 @@ export default function TicketsClient() {
 
     const getStatusDot = (status: string) => {
         if (status === 'Open') return 'bg-amber-500'
-        if (status === 'In Progress') return 'bg-blue-500'
+        if (status === 'In Progress') return 'bg-red-500'
         if (status === 'Resolved') return 'bg-emerald-500'
         return 'bg-slate-500'
     }
@@ -321,7 +321,7 @@ export default function TicketsClient() {
                     <div className="widget-card p-6 rounded-xl shadow">
                         <div className="flex justify-between items-center mb-2">
                             <p className="text-sm text-gray-500">Total Tickets</p>
-                            <i className="fas fa-ticket-alt text-blue-500"></i>
+                            <i className="fas fa-ticket-alt text-red-500"></i>
                         </div>
                         <h3 className="text-3xl font-bold mb-1">{tickets.length}</h3>
                         <span className="text-sm text-gray-500">Real-time data</span>
@@ -339,7 +339,7 @@ export default function TicketsClient() {
                     <div className="widget-card p-6 rounded-xl shadow">
                         <div className="flex justify-between items-center mb-2">
                             <p className="text-sm text-gray-500">In Progress</p>
-                            <i className="fas fa-spinner text-blue-500"></i>
+                            <i className="fas fa-spinner text-red-500"></i>
                         </div>
                         <h3 className="text-3xl font-bold mb-1">
                             {tickets.filter((t: any) => (t.statusName || t.status) === 'In Progress').length}
@@ -391,7 +391,7 @@ export default function TicketsClient() {
             <div className="widget-card p-6 rounded-xl shadow">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                         {activeTab === 0 ? 'All Tickets' :
                             activeTab === 1 ? 'Open Tickets' :
                                 activeTab === 2 ? 'Tickets In Progress' :
@@ -404,7 +404,7 @@ export default function TicketsClient() {
 
                 {isLoading ? (
                     <div className="flex justify-center p-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
                     </div>
                 ) : (
                     <div className="flex flex-col gap-3">
@@ -441,7 +441,7 @@ export default function TicketsClient() {
                                             </span>
                                         </div>
 
-                                        <h4 className="font-semibold mb-1 text-[15px] text-gray-900 group-hover:text-blue-700 transition-colors">
+                                        <h4 className="font-semibold mb-1 text-[15px] text-gray-900 group-hover:text-red-700 transition-colors">
                                             {ticket.subject}
                                         </h4>
                                         <p className="text-sm text-gray-600 mb-4 leading-relaxed">
@@ -450,7 +450,7 @@ export default function TicketsClient() {
 
                                         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold border border-blue-200">
+                                                <div className="w-9 h-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center text-sm font-semibold border border-red-200">
                                                     {ticket.requester?.[0] || 'U'}
                                                 </div>
                                                 <div>
@@ -462,7 +462,7 @@ export default function TicketsClient() {
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleView(ticket.id) }}
-                                                    className="text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition"
+                                                    className="text-xs font-semibold text-red-700 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg transition"
                                                 >
                                                     <i className="fas fa-eye mr-1"></i>View
                                                 </button>
@@ -504,7 +504,7 @@ export default function TicketsClient() {
                         {/* Header */}
                         <div className="flex justify-between items-center p-5 border-b border-gray-200">
                             <div className="flex items-center gap-3">
-                                <div className="bg-blue-50 p-2 rounded-lg"><FileText className="text-blue-600" size={20} /></div>
+                                <div className="bg-red-50 p-2 rounded-lg"><FileText className="text-red-600" size={20} /></div>
                                 <div>
                                     <h3 className="text-lg font-bold">Create New Ticket</h3>
                                     <p className="text-xs text-gray-500">Create a support request for a member</p>
@@ -530,7 +530,7 @@ export default function TicketsClient() {
                                                 <label className="text-xs font-semibold text-gray-500 mb-1 block">Description *</label>
                                                 <textarea rows={4} placeholder="Detailed information about the issue" value={formData.description}
                                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 resize-none" />
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
@@ -619,8 +619,8 @@ export default function TicketsClient() {
                         {/* Header */}
                         <div className="flex justify-between items-center p-5 border-b border-gray-100">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                                    <FileText size={20} className="text-blue-600" />
+                                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                                    <FileText size={20} className="text-red-600" />
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-bold">Ticket Details</h3>
@@ -634,7 +634,7 @@ export default function TicketsClient() {
                         <div className="bg-gray-50">
                             {isLoadingDetails ? (
                                 <div className="flex justify-center p-16">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
                                 </div>
                             ) : ticketDetails ? (
                                 <div className="grid grid-cols-1 md:grid-cols-12">
@@ -642,7 +642,7 @@ export default function TicketsClient() {
                                     <div className="md:col-span-8 p-6 bg-white">
                                         <div className="mb-6">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <span className="bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-md">{ticketDetails.typeName}</span>
+                                                <span className="bg-red-50 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-md">{ticketDetails.typeName}</span>
                                                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-md ${ticketDetails.priority === 'High' ? 'bg-red-50 text-red-700' : ticketDetails.priority === 'Medium' ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}`}>{ticketDetails.priority}</span>
                                             </div>
                                             <h2 className="text-xl font-bold mb-3">{ticketDetails.subject}</h2>
@@ -715,7 +715,7 @@ export default function TicketsClient() {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
+                                                        <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-medium">
                                                             {ticketDetails.assigneeName?.[0] || '?'}
                                                         </div>
                                                         <div>
@@ -792,7 +792,7 @@ export default function TicketsClient() {
                             <label className="text-xs font-semibold text-gray-500 mb-2 block">Resolution Notes *</label>
                             <textarea rows={4} placeholder="Describe the solution..." value={resolutionNotes}
                                 onChange={(e) => setResolutionNotes(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 resize-none" />
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 resize-none" />
                         </div>
                         <div className="flex justify-end gap-3 p-5 bg-gray-50 border-t border-gray-100 rounded-b-xl">
                             <button onClick={() => setIsResolveModalOpen(false)}

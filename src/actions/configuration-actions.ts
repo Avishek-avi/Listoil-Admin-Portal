@@ -61,7 +61,7 @@ export async function getConfigurationAction() {
             redemptionMatrix: {
                 retailer: { minPoints: 500, maxDay: 5000, maxWeek: 25000, maxMonth: 100000 },
                 csb: { minPoints: 200, maxDay: 2000, maxWeek: 10000, maxMonth: 40000 },
-                electrician: { minPoints: 100, maxDay: 1000, maxWeek: 5000, maxMonth: 20000 },
+                mechanic: { minPoints: 100, maxDay: 1000, maxWeek: 5000, maxMonth: 20000 },
             },
             referralConfig: {
                 global: globalReferralConfig,

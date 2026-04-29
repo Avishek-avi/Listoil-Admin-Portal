@@ -6,7 +6,7 @@ import {
     amazonOrderItems,
     users,
     retailers,
-    electricians,
+    mechanics,
     counterSales,
     userTypeEntity,
     amazonMarketplaceProducts,
@@ -143,9 +143,9 @@ export async function getAdminOrdersAction(params: {
                 if (role?.typeName === 'Retailer') {
                     const [ret] = await db.select({ p: retailers.totalBalance }).from(retailers).where(eq(retailers.userId, o.userId)).limit(1);
                     userPoints = Number(ret?.p || 0);
-                } else if (role?.typeName === 'Electrician') {
-                    const [elec] = await db.select({ p: electricians.totalBalance }).from(electricians).where(eq(electricians.userId, o.userId)).limit(1);
-                    userPoints = Number(elec?.p || 0);
+                } else if (role?.typeName === 'Mechanic') {
+                    const [mech] = await db.select({ p: mechanics.totalBalance }).from(mechanics).where(eq(mechanics.userId, o.userId)).limit(1);
+                    userPoints = Number(mech?.p || 0);
                 } else if (role?.typeName === 'CounterSales' || role?.typeName === 'Counter Staff') {
                     const [cs] = await db.select({ p: counterSales.totalBalance }).from(counterSales).where(eq(counterSales.userId, o.userId)).limit(1);
                     userPoints = Number(cs?.p || 0);
@@ -296,9 +296,9 @@ export async function updateAdminOrderStatusAction(
                     if (role?.typeName === 'Retailer') {
                         const [retailer] = await tx.select({ points: retailers.totalBalance }).from(retailers).where(eq(retailers.userId, user.id)).limit(1);
                         currentPoints = Number(retailer?.points || 0);
-                    } else if (role?.typeName === 'Electrician') {
-                        const [electrician] = await tx.select({ points: electricians.totalBalance }).from(electricians).where(eq(electricians.userId, user.id)).limit(1);
-                        currentPoints = Number(electrician?.points || 0);
+                    } else if (role?.typeName === 'Mechanic') {
+                        const [mechanic] = await tx.select({ points: mechanics.totalBalance }).from(mechanics).where(eq(mechanics.userId, user.id)).limit(1);
+                        currentPoints = Number(mechanic?.points || 0);
                     } else if (role?.typeName === 'CounterSales' || role?.typeName === 'Counter Staff') {
                         const [cs] = await tx.select({ points: counterSales.totalBalance }).from(counterSales).where(eq(counterSales.userId, user.id)).limit(1);
                         currentPoints = Number(cs?.points || 0);
@@ -320,8 +320,8 @@ export async function updateAdminOrderStatusAction(
 
                     if (role?.typeName === 'Retailer') {
                         await tx.update(retailers).set(updatePointsPayload).where(eq(retailers.userId, user.id));
-                    } else if (role?.typeName === 'Electrician') {
-                        await tx.update(electricians).set(updatePointsPayload).where(eq(electricians.userId, user.id));
+                    } else if (role?.typeName === 'Mechanic') {
+                        await tx.update(mechanics).set(updatePointsPayload).where(eq(mechanics.userId, user.id));
                     } else if (role?.typeName === 'CounterSales' || role?.typeName === 'Counter Staff') {
                         await tx.update(counterSales).set(updatePointsPayload).where(eq(counterSales.userId, user.id));
                     }
@@ -359,8 +359,8 @@ export async function updateAdminOrderStatusAction(
 
                         if (role?.typeName === 'Retailer') {
                             await tx.update(retailers).set(restorePayload).where(eq(retailers.userId, user.id));
-                        } else if (role?.typeName === 'Electrician') {
-                            await tx.update(electricians).set(restorePayload).where(eq(electricians.userId, user.id));
+                        } else if (role?.typeName === 'Mechanic') {
+                            await tx.update(mechanics).set(restorePayload).where(eq(mechanics.userId, user.id));
                         } else if (role?.typeName === 'CounterSales' || role?.typeName === 'Counter Staff') {
                             await tx.update(counterSales).set(restorePayload).where(eq(counterSales.userId, user.id));
                         }

@@ -1,19 +1,74 @@
 @import "tailwindcss";
 
 /* ============================================================
+   FONTS (RBNo 3.1)
+   ============================================================ */
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-Thin.otf') format('opentype');
+  font-weight: 100;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-ExtraLight.otf') format('opentype');
+  font-weight: 200;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-Book.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'RBNo3.1';
+  src: url('/fonts/RBNo3.1-Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+/* ============================================================
    DESIGN TOKENS
    ============================================================ */
 :root {
   color-scheme: light;
 
-  /* Brand palette - Listoil Blues */
-  --brand-50:  #f0f7ff;
-  --brand-100: #e0f0ff;
-  --brand-200: #bae0ff;
-  --brand-500: #2563eb;
-  --brand-600: #1d4ed8;
-  --brand-700: #1e40af;
-  --brand-900: #1e3a8a;
+  /* Brand palette - Vistony Guidelines */
+  --brand-primary:   #D6001C; /* Rojo Vistony */
+  --brand-secondary: #0957C3; /* Azul Vistony */
+  --brand-tertiary:  #253746; /* A. Oscuro Vistony */
+
+  --brand-50:  #fff1f2;
+  --brand-100: #ffe4e6;
+  --brand-200: #fecdd3;
+  --brand-500: #D6001C;
+  --brand-600: #be123c;
+  --brand-700: #9f1239;
+  --brand-900: #881337;
+
+  --secondary-50:  #f0f7ff;
+  --secondary-500: #0957C3;
+  --secondary-600: #0747a1;
+
 
   /* Surfaces */
   --bg-base:      #f8f9f7;
@@ -26,7 +81,8 @@
   --text-primary:   #1f2937;
   --text-secondary: #6b7280;
   --text-tertiary:  #9ca3af;
-  --text-accent:    #2563eb;
+  --text-accent:    var(--brand-primary);
+
 
   /* Cards & Widgets */
   --card-bg:           #ffffff;
@@ -38,9 +94,10 @@
   --sidebar-bg:          #ffffff;
   --sidebar-border:      rgba(0,0,0,0.06);
   --sidebar-text:        #6b7280;
-  --sidebar-text-active: #1d4ed8;
-  --sidebar-active-bg:   #eff6ff;
-  --sidebar-active-accent: #3b82f6;
+  --sidebar-text-active: var(--brand-secondary);
+  --sidebar-active-bg:   var(--secondary-50);
+  --sidebar-active-accent: var(--brand-secondary);
+
   --sidebar-hover-bg:    #f9fafb;
   --sidebar-width:       256px;
 
@@ -50,7 +107,7 @@
   --topbar-height: 68px;
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'RBNo3.1', system-ui, -apple-system, sans-serif;
 
   /* Semantic colors */
   --color-success:  #10b981;
@@ -292,13 +349,13 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(to right, #2563eb, #1d4ed8);
+  background: linear-gradient(to right, var(--brand-primary), var(--brand-600));
   color: #fff;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 1px 2px rgba(214, 0, 28, 0.3);
 }
 .btn-primary:hover {
-  background: linear-gradient(to right, #1d4ed8, #1e40af);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  background: linear-gradient(to right, var(--brand-600), var(--brand-700));
+  box-shadow: 0 4px 12px rgba(214, 0, 28, 0.2);
   transform: translateY(-1px);
 }
 
@@ -412,10 +469,10 @@ textarea:focus {
 }
 
 .tab.active {
-  color: var(--brand-600);
-  border-bottom-color: var(--brand-600);
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
   font-weight: 600;
-  background: rgba(99,102,241,0.04);
+  background: var(--brand-50);
 }
 
 /* ============================================================

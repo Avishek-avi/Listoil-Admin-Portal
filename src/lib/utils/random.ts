@@ -22,6 +22,12 @@ export const getFileUrl = (type: string) => {
     case "creatives":
       finalUrl = `img/creatives/`;
       break;
+    case "gst_certificate":
+      finalUrl = `img/gst_certificate/`;
+      break;
+    case "shop_image":
+      finalUrl = `img/shop_image/`;
+      break;
   }
   return finalUrl;
 };

@@ -1,7 +1,8 @@
 
 import { db } from "@/db/index";
 import { skuEntity, skuLevelMaster, skuVariant } from "../../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
+
 
 class SkuLevelRepository {
     // Fetch L1 values
@@ -176,15 +177,30 @@ class SkuLevelRepository {
             .where(and(...whereConditions));
     }
 
-    async doesVariantExist(variantName: string): Promise<boolean> {
-        const result = await db
+    async doesVariantExist(code: string): Promise<boolean> {
+        const variantMatch = await db
             .select({ id: skuVariant.id })
             .from(skuVariant)
-            .where(eq(skuVariant.variantName, variantName))
+            .where(eq(skuVariant.variantName, code))
             .limit(1);
 
-        return result.length > 0;
+        if (variantMatch.length > 0) return true;
+
+        const entityMatch = await db
+            .select({ id: skuVariant.id })
+            .from(skuVariant)
+            .innerJoin(skuEntity, eq(skuVariant.skuEntityId, skuEntity.id))
+            .where(
+                or(
+                    eq(skuEntity.name, code),
+                    eq(skuEntity.code, code)
+                )
+            )
+            .limit(1);
+
+        return entityMatch.length > 0;
     }
+
 }
 
 export const skuLevelRepository = new SkuLevelRepository();

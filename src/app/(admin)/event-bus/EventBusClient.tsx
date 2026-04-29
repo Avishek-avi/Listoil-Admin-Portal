@@ -127,7 +127,7 @@ export default function EventBusClient() {
     const getHandlerBadgeColor = (name: string) => {
         switch (name) {
             case 'AuditLogHandler': return 'bg-slate-100 text-slate-700 border-slate-200';
-            case 'NotificationHandler': return 'bg-blue-50 text-blue-700 border-blue-200';
+            case 'NotificationHandler': return 'bg-red-50 text-red-700 border-red-200';
             case 'WelcomeBonusHandler': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
             case 'ReferralBonusHandler': return 'bg-purple-50 text-purple-700 border-purple-200';
             default: return 'bg-gray-100 text-gray-700 border-gray-200';
@@ -149,7 +149,7 @@ export default function EventBusClient() {
     if (loadingSummary || loadingConfigs) {
         return (
             <div className="flex justify-center items-center p-12">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600"></div>
             </div>
         );
     }
@@ -174,8 +174,8 @@ export default function EventBusClient() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="widget-card rounded-xl shadow p-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                            <i className="fas fa-bolt text-blue-600"></i>
+                        <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+                            <i className="fas fa-bolt text-red-600"></i>
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-gray-900">{summary?.totalEvents || 0}</p>
@@ -234,16 +234,15 @@ export default function EventBusClient() {
                         <h3 className="text-lg font-semibold text-gray-900">Event → Handler Pipeline</h3>
                         <div className="flex gap-2">
                             <div className="relative">
-                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
                                 <input
                                     type="text"
                                     placeholder="Filter events..."
                                     value={filterText}
                                     onChange={(e) => setFilterText(e.target.value)}
-                                    className="pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+                                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 w-56 shadow-sm"
                                 />
                             </div>
-                            <button onClick={handleOpenCreate} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                            <button onClick={handleOpenCreate} className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition flex items-center gap-2">
                                 <i className="fas fa-plus"></i>Add Binding
                             </button>
                         </div>
@@ -309,7 +308,7 @@ export default function EventBusClient() {
                                                                     >
                                                                         <span className={`absolute w-3 h-3 bg-white rounded-full top-0.5 transition-transform ${h.isActive ? 'right-0.5' : 'left-0.5'}`}></span>
                                                                     </button>
-                                                                    <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(h); }} className="text-blue-500 hover:text-blue-700 text-xs p-1">
+                                                                    <button onClick={(e) => { e.stopPropagation(); handleOpenEdit(h); }} className="text-red-500 hover:text-red-700 text-xs p-1">
                                                                         <i className="fas fa-edit"></i>
                                                                     </button>
                                                                     <button
@@ -342,7 +341,7 @@ export default function EventBusClient() {
                 <div className="widget-card rounded-xl shadow p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">All Handler Configurations</h3>
-                        <button onClick={handleOpenCreate} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                        <button onClick={handleOpenCreate} className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
                             <i className="fas fa-plus mr-2"></i>Add Binding
                         </button>
                     </div>
@@ -392,7 +391,7 @@ export default function EventBusClient() {
                                             </button>
                                         </td>
                                         <td className="py-3 text-sm">
-                                            <button onClick={() => handleOpenEdit(c)} className="text-blue-600 hover:text-blue-800 mr-3">
+                                            <button onClick={() => handleOpenEdit(c)} className="text-red-600 hover:text-red-800 mr-3">
                                                 <i className="fas fa-edit"></i>
                                             </button>
                                             <button
@@ -431,8 +430,8 @@ export default function EventBusClient() {
                         return (
                             <div key={handler.name} className="widget-card rounded-xl shadow p-5">
                                 <div className="flex items-start gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center flex-shrink-0">
-                                        <i className={`${handler.icon} text-blue-600`}></i>
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-50 to-indigo-50 flex items-center justify-center flex-shrink-0">
+                                        <i className={`${handler.icon} text-red-600`}></i>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h4 className="text-sm font-bold text-gray-900">{handler.name}</h4>
@@ -480,7 +479,7 @@ export default function EventBusClient() {
                                         name="eventKey"
                                         defaultValue={editingConfig?.eventKey || ''}
                                         required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
                                     >
                                         <option value="">— Select Event —</option>
                                         {eventKeys.map((e: any) => (
@@ -498,7 +497,7 @@ export default function EventBusClient() {
                                         name="handlerName"
                                         defaultValue={editingConfig?.handlerName || ''}
                                         required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
                                     >
                                         <option value="">— Select Handler —</option>
                                         {AVAILABLE_HANDLERS.map((h) => (
@@ -518,7 +517,7 @@ export default function EventBusClient() {
                                         defaultValue={editingConfig?.priority ?? 0}
                                         min={0}
                                         max={100}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                                     />
                                     <p className="text-xs text-gray-400 mt-1">Lower number = runs first. Convention: 0=Audit, 10=Business Logic, 20=Notification</p>
                                 </div>
@@ -533,7 +532,7 @@ export default function EventBusClient() {
                                             try { JSON.parse(e.target.value); setJsonError(''); } catch { setJsonError('Invalid JSON'); }
                                         }}
                                         rows={4}
-                                        className={`w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${jsonError ? 'border-red-400' : 'border-gray-300'}`}
+                                        className={`w-full px-3 py-2 border rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-500 ${jsonError ? 'border-red-400' : 'border-gray-300'}`}
                                         placeholder='{"bonusPoints": 100}'
                                     />
                                     {jsonError && <p className="text-xs text-red-500 mt-1">{jsonError}</p>}
@@ -567,7 +566,7 @@ export default function EventBusClient() {
                                 <button
                                     type="submit"
                                     disabled={upsertMutation.isPending || !!jsonError}
-                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                    className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
                                 >
                                     {upsertMutation.isPending ? 'Saving...' : 'Save Binding'}
                                 </button>

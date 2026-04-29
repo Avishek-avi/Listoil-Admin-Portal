@@ -1,7 +1,4 @@
-﻿// src/components/TopBar.tsx
-"use client";
-
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 
 export type ActionButton = {
   label: string;
@@ -17,19 +14,27 @@ type TopBarProps = {
 };
 
 export default function TopBar({ title, subtitle, actions = [] }: TopBarProps) {
+  const { data: session } = useSession();
+  
   const variantClasses: Record<string, string> = {
     primary:   "btn btn-primary",
     secondary: "btn btn-secondary",
     danger:    "btn btn-danger",
   };
 
+
+
   return (
     <div className="flex items-center justify-between w-full">
-      <div>
-        <h1 className="font-bold tracking-tight" style={{ fontSize: "1.0625rem", color: "#111827", letterSpacing: "-0.01em" }}>
-          {title}
-        </h1>
-        <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{subtitle}</p>
+      <div className="flex items-center gap-6">
+        <div>
+          <h1 className="font-bold tracking-tight" style={{ fontSize: "1.0625rem", color: "#111827", letterSpacing: "-0.01em" }}>
+            {title}
+          </h1>
+          <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{subtitle}</p>
+        </div>
+
+
       </div>
 
       <div className="flex items-center gap-2">

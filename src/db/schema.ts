@@ -232,7 +232,7 @@ export const appConfigs = pgTable("app_configs", {
 	unique("app_configs_key_key").on(table.key),
 ]);
 
-export const electricianLedger = pgTable("electrician_ledger", {
+export const mechanicLedger = pgTable("mechanic_ledger", {
 	id: serial().primaryKey().notNull(),
 	userId: integer("user_id").notNull(),
 	earningType: integer("earning_type").notNull(),
@@ -247,7 +247,7 @@ export const electricianLedger = pgTable("electrician_ledger", {
 	foreignKey({
 		columns: [table.userId],
 		foreignColumns: [users.id],
-		name: "electrician_ledger_user_id_fkey"
+		name: "mechanic_ledger_user_id_fkey"
 	}).onDelete("cascade"),
 ]);
 
@@ -271,7 +271,7 @@ export const earningTypes = pgTable("earning_types", {
 	unique("earning_types_name_key").on(table.name),
 ]);
 
-export const electricianTransactionLogs = pgTable("electrician_transaction_logs", {
+export const mechanicTransactionLogs = pgTable("mechanic_transaction_logs", {
 	id: serial().primaryKey().notNull(),
 	userId: integer("user_id").notNull(),
 	earningType: integer("earning_type").notNull(),
@@ -293,17 +293,17 @@ export const electricianTransactionLogs = pgTable("electrician_transaction_logs"
 	foreignKey({
 		columns: [table.earningType],
 		foreignColumns: [earningTypes.id],
-		name: "electrician_transaction_logs_earning_type_fkey"
+		name: "mechanic_transaction_logs_earning_type_fkey"
 	}),
 	foreignKey({
 		columns: [table.schemeId],
 		foreignColumns: [schemes.id],
-		name: "electrician_transaction_logs_scheme_id_fkey"
+		name: "mechanic_transaction_logs_scheme_id_fkey"
 	}),
 	foreignKey({
 		columns: [table.userId],
 		foreignColumns: [users.id],
-		name: "electrician_transaction_logs_user_id_fkey"
+		name: "mechanic_transaction_logs_user_id_fkey"
 	}).onDelete("cascade"),
 ]);
 
@@ -363,7 +363,7 @@ export const locationEntityPincode = pgTable("location_entity_pincode", {
 	}),
 ]);
 
-export const electricians = pgTable("electricians", {
+export const mechanics = pgTable("mechanics", {
 	id: serial().primaryKey().notNull(),
 	userId: integer("user_id").notNull(),
 	uniqueId: text("unique_id").notNull(),
@@ -390,7 +390,7 @@ export const electricians = pgTable("electricians", {
 	pointsBalance: numeric("points_balance", { precision: 10, scale: 2 }).default('0'),
 	sapCustomerCode: text("sap_customer_code"),
 	kycDocuments: jsonb("kyc_documents"),
-	electricianCertificate: text("electrician_certificate"),
+	mechanicCertificate: text("mechanic_certificate"),
 	totalEarnings: numeric("total_earnings", { precision: 10, scale: 2 }).default('0'),
 	totalBalance: numeric("total_balance", { precision: 10, scale: 2 }).default('0'),
 	totalRedeemed: numeric("total_redeemed", { precision: 10, scale: 2 }).default('0'),
@@ -398,6 +398,7 @@ export const electricians = pgTable("electricians", {
 	tdsKitty: numeric("tds_kitty", { precision: 10, scale: 2 }).default('0'),
 	tdsDeducted: numeric("tds_deducted", { precision: 10, scale: 2 }).default('0'),
 	lastSettlementDate: timestamp("last_settlement_date", { mode: 'string' }),
+	attachedRetailerId: integer("attached_retailer_id"),
 	addressLine1: text("address_line_1"),
 	addressLine2: text("address_line_2"),
 	pincode: text(),
@@ -407,11 +408,16 @@ export const electricians = pgTable("electricians", {
 	foreignKey({
 		columns: [table.userId],
 		foreignColumns: [users.id],
-		name: "electricians_user_id_fkey"
+		name: "mechanics_user_id_fkey"
 	}),
-	unique("electricians_unique_id_key").on(table.uniqueId),
-	unique("electricians_phone_key").on(table.phone),
-	unique("electricians_referral_code_key").on(table.referralCode),
+	foreignKey({
+		columns: [table.attachedRetailerId],
+		foreignColumns: [users.id],
+		name: "mechanics_attached_retailer_id_fkey"
+	}),
+	unique("mechanics_unique_id_key").on(table.uniqueId),
+	unique("mechanics_phone_key").on(table.phone),
+	unique("mechanics_referral_code_key").on(table.referralCode),
 ]);
 
 export const kycDocuments = pgTable("kyc_documents", {
@@ -447,7 +453,7 @@ export const languages = pgTable("languages", {
 	unique("languages_name_key").on(table.name),
 ]);
 
-export const electricianTransactions = pgTable("electrician_transactions", {
+export const mechanicTransactions = pgTable("mechanic_transactions", {
 	id: serial().primaryKey().notNull(),
 	userId: integer("user_id").notNull(),
 	earningType: integer("earning_type").notNull(),
@@ -468,17 +474,17 @@ export const electricianTransactions = pgTable("electrician_transactions", {
 	foreignKey({
 		columns: [table.earningType],
 		foreignColumns: [earningTypes.id],
-		name: "electrician_transactions_earning_type_fkey"
+		name: "mechanic_transactions_earning_type_fkey"
 	}),
 	foreignKey({
 		columns: [table.schemeId],
 		foreignColumns: [schemes.id],
-		name: "electrician_transactions_scheme_id_fkey"
+		name: "mechanic_transactions_scheme_id_fkey"
 	}),
 	foreignKey({
 		columns: [table.userId],
 		foreignColumns: [users.id],
-		name: "electrician_transactions_user_id_fkey"
+		name: "mechanic_transactions_user_id_fkey"
 	}).onDelete("cascade"),
 ]);
 
@@ -1155,6 +1161,9 @@ export const userTypeEntity = pgTable("user_type_entity", {
 	referralValidityDays: integer("referral_validity_days"),
 	referralSuccessMessage: text("referral_success_message"),
 	allowedRedemptionChannels: jsonb("allowed_redemption_channels").default([]),
+	maxRedemptionLimit: integer("max_redemption_limit").default(5000),
+	minRedemptionLimit: integer("min_redemption_limit").default(100),
+
 }, (table) => [
 	foreignKey({
 		columns: [table.levelId],

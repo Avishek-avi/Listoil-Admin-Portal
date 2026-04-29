@@ -3,10 +3,10 @@
 import { db } from "@/db"
 import {
     retailers,
-    electricians,
+    mechanics,
     counterSales,
     retailerTransactions,
-    electricianTransactions,
+    mechanicTransactions,
     counterSalesTransactions,
     redemptions,
     users,
@@ -14,7 +14,9 @@ import {
     kycDocuments,
     userTypeEntity
 } from "@/db/schema"
-import { sum, sql, desc, eq, and } from "drizzle-orm"
+import { sum, sql, desc, eq, and, or, inArray } from "drizzle-orm"
+import { auth } from "@/lib/auth"
+import { getUserScope } from "@/lib/scope-utils"
 
 export interface FinanceFilters {
     startDate?: string;
@@ -27,103 +29,109 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
     try {
         const { startDate, endDate, type, status } = filters || {};
 
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
         // Helper to apply filters
-        const applyFilters = (table: any, dateField: any) => {
+        const applyDateFilters = (table: any, dateField: any) => {
             const conditions = [];
             if (startDate) conditions.push(sql`${dateField} >= ${startDate}`);
             if (endDate) conditions.push(sql`${dateField} <= ${endDate}`);
-            return conditions.length > 0 ? and(...conditions) : undefined;
+            return conditions;
         };
 
+        const rCond = applyDateFilters(retailerTransactions, retailerTransactions.createdAt);
+        const eCond = applyDateFilters(mechanicTransactions, mechanicTransactions.createdAt);
+        const csCond = applyDateFilters(counterSalesTransactions, counterSalesTransactions.createdAt);
+        const redCond = applyDateFilters(redemptions, redemptions.createdAt);
+
+        const scopeFilter = or(
+            scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+            scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
+            scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+        );
+
         // 1. Overview Metrics Calculations
+        let rSumQuery = db.select({ value: sum(retailerTransactions.points) }).from(retailerTransactions);
+        let eSumQuery = db.select({ value: sum(mechanicTransactions.points) }).from(mechanicTransactions);
+        let csSumQuery = db.select({ value: sum(counterSalesTransactions.points) }).from(counterSalesTransactions);
+        let redeemSumQuery = db.select({ value: sum(redemptions.pointsRedeemed) }).from(redemptions);
 
-        // Total Points Issued (Sum of all earning transactions)
-        const retailerConditions = applyFilters(retailerTransactions, retailerTransactions.createdAt);
-        const [retailerSum] = await db.select({ value: sum(retailerTransactions.points) })
-            .from(retailerTransactions)
-            .where(retailerConditions);
+        if (scope.type !== 'Global') {
+            rSumQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
+                .where(and(...rCond, scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames)));
+            
+            eSumQuery.leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId))
+                .where(and(...eCond, scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames)));
 
-        const electricianConditions = applyFilters(electricianTransactions, electricianTransactions.createdAt);
-        const [electricianSum] = await db.select({ value: sum(electricianTransactions.points) })
-            .from(electricianTransactions)
-            .where(electricianConditions);
+            csSumQuery.leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId))
+                .where(and(...csCond, scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)));
 
-        const counterSalesConditions = applyFilters(counterSalesTransactions, counterSalesTransactions.createdAt);
-        const [counterSalesSum] = await db.select({ value: sum(counterSalesTransactions.points) })
-            .from(counterSalesTransactions)
-            .where(counterSalesConditions);
+            redeemSumQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
+                .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
+                .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
+                .where(and(...redCond, scopeFilter));
+        } else {
+            rSumQuery.where(and(...rCond));
+            eSumQuery.where(and(...eCond));
+            csSumQuery.where(and(...csCond));
+            redeemSumQuery.where(and(...redCond));
+        }
 
-        const totalPointsIssued = Number(retailerSum?.value || 0) +
-            Number(electricianSum?.value || 0) +
-            Number(counterSalesSum?.value || 0);
+        const [retailerSum] = await rSumQuery;
+        const [mechanicSum] = await eSumQuery;
+        const [counterSalesSum] = await csSumQuery;
+        const [redeemSum] = await redeemSumQuery;
 
-        // Total Points Redeemed (Sum of pointsRedeemed from redemptions)
-        const redemptionConditions = applyFilters(redemptions, redemptions.createdAt);
-        const [redemptionSum] = await db.select({ value: sum(redemptions.pointsRedeemed) })
-            .from(redemptions)
-            .where(redemptionConditions);
-        const totalPointsRedeemed = Number(redemptionSum?.value || 0);
+        const totalPointsIssued = Number(retailerSum?.value || 0) + Number(mechanicSum?.value || 0) + Number(counterSalesSum?.value || 0);
+        const totalPointsRedeemed = Number(redeemSum?.value || 0);
 
-        // Active Points Value (Sum of pointsBalance from all stakeholder tables)
-        const [rBalance] = await db.select({ value: sum(retailers.pointsBalance) }).from(retailers);
-        const [eBalance] = await db.select({ value: sum(electricians.pointsBalance) }).from(electricians);
-        const [csBalance] = await db.select({ value: sum(counterSales.pointsBalance) }).from(counterSales);
+        // Active Points Value
+        let rBalQuery = db.select({ value: sum(retailers.pointsBalance) }).from(retailers);
+        let eBalQuery = db.select({ value: sum(mechanics.pointsBalance) }).from(mechanics);
+        let csBalQuery = db.select({ value: sum(counterSales.pointsBalance) }).from(counterSales);
 
-        const activePointsValue = Number(rBalance?.value || 0) +
-            Number(eBalance?.value || 0) +
-            Number(csBalance?.value || 0);
+        if (scope.type !== 'Global') {
+            rBalQuery.where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            eBalQuery.where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+            csBalQuery.where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+        }
 
-        // 2. Fetch Recent Transactions (Combined Credits and Debits)
+        const [rBalance] = await rBalQuery;
+        const [eBalance] = await eBalQuery;
+        const [csBalance] = await csBalQuery;
 
+        const activePointsValue = Number(rBalance?.value || 0) + Number(eBalance?.value || 0) + Number(csBalance?.value || 0);
+
+        // 2. Fetch Recent Transactions
         let latestRetailerTx = [];
-        let latestElectricianTx = [];
+        let latestMechanicTx = [];
         let latestCounterSalesTx = [];
         let latestRedemptions = [];
 
         if (!type || type === 'credit') {
-            latestRetailerTx = await db.select({
-                id: retailerTransactions.id,
-                date: retailerTransactions.createdAt,
-                points: retailerTransactions.points,
-                userId: retailerTransactions.userId,
-                type: sql<string>`'Credit'`,
-                status: sql<string>`'Completed'`
-            }).from(retailerTransactions)
-                .where(retailerConditions)
-                .orderBy(desc(retailerTransactions.createdAt)).limit(50);
+            let rTxQuery = db.select({ id: retailerTransactions.id, date: retailerTransactions.createdAt, points: retailerTransactions.points, userId: retailerTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(retailerTransactions);
+            let eTxQuery = db.select({ id: mechanicTransactions.id, date: mechanicTransactions.createdAt, points: mechanicTransactions.points, userId: mechanicTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(mechanicTransactions);
+            let csTxQuery = db.select({ id: counterSalesTransactions.id, date: counterSalesTransactions.createdAt, points: counterSalesTransactions.points, userId: counterSalesTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(counterSalesTransactions);
 
-            latestElectricianTx = await db.select({
-                id: electricianTransactions.id,
-                date: electricianTransactions.createdAt,
-                points: electricianTransactions.points,
-                userId: electricianTransactions.userId,
-                type: sql<string>`'Credit'`,
-                status: sql<string>`'Completed'`
-            }).from(electricianTransactions)
-                .where(electricianConditions)
-                .orderBy(desc(electricianTransactions.createdAt)).limit(50);
+            if (scope.type !== 'Global') {
+                rTxQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId)).where(and(...rCond, scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames)));
+                eTxQuery.leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId)).where(and(...eCond, scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames)));
+                csTxQuery.leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId)).where(and(...csCond, scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)));
+            } else {
+                rTxQuery.where(and(...rCond));
+                eTxQuery.where(and(...eCond));
+                csTxQuery.where(and(...csCond));
+            }
 
-            latestCounterSalesTx = await db.select({
-                id: counterSalesTransactions.id,
-                date: counterSalesTransactions.createdAt,
-                points: counterSalesTransactions.points,
-                userId: counterSalesTransactions.userId,
-                type: sql<string>`'Credit'`,
-                status: sql<string>`'Completed'`
-            }).from(counterSalesTransactions)
-                .where(counterSalesConditions)
-                .orderBy(desc(counterSalesTransactions.createdAt)).limit(50);
+            latestRetailerTx = await rTxQuery.orderBy(desc(retailerTransactions.createdAt)).limit(50);
+            latestMechanicTx = await eTxQuery.orderBy(desc(mechanicTransactions.createdAt)).limit(50);
+            latestCounterSalesTx = await csTxQuery.orderBy(desc(counterSalesTransactions.createdAt)).limit(50);
         }
 
         if (!type || type === 'debit') {
-            const redConditions = [];
-            if (redemptionConditions) redConditions.push(redemptionConditions);
-            if (status) {
-                // Map status string to status name if needed, or assume it's ID
-                // For simplicity, let's just filter by redemptionStatus.name if possible
-            }
-
-            let query = db.select({
+            let redQuery = db.select({
                 id: redemptions.id,
                 date: redemptions.createdAt,
                 points: redemptions.pointsRedeemed,
@@ -131,31 +139,33 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
                 type: sql<string>`'Debit'`,
                 status: redemptionStatuses.name
             })
-                .from(redemptions)
-                .leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id));
+            .from(redemptions)
+            .leftJoin(redemptionStatuses, eq(redemptions.status, redemptionStatuses.id));
 
-            const whereConditions = [];
-            if (redemptionConditions) whereConditions.push(redemptionConditions);
-            if (status) whereConditions.push(eq(redemptionStatuses.name, status.charAt(0).toUpperCase() + status.slice(1)));
+            const finalRedCond = [...redCond];
+            if (status) finalRedCond.push(eq(redemptionStatuses.name, status.charAt(0).toUpperCase() + status.slice(1)));
 
-            if (whereConditions.length > 0) {
-                latestRedemptions = await query.where(and(...whereConditions)).orderBy(desc(redemptions.createdAt)).limit(50);
+            if (scope.type !== 'Global') {
+                redQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
+                    .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
+                    .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
+                    .where(and(...finalRedCond, scopeFilter));
             } else {
-                latestRedemptions = await query.orderBy(desc(redemptions.createdAt)).limit(50);
+                redQuery.where(and(...finalRedCond));
             }
+
+            latestRedemptions = await redQuery.orderBy(desc(redemptions.createdAt)).limit(50);
         }
 
-        // Combine all, add prefixes to IDs to avoid collisions, and sort by date
         const rawTransactions = [
             ...latestRetailerTx.map(t => ({ ...t, id: `RXN${t.id}`, points: Number(t.points) })),
-            ...latestElectricianTx.map(t => ({ ...t, id: `EXN${t.id}`, points: Number(t.points) })),
+            ...latestMechanicTx.map(t => ({ ...t, id: `EXN${t.id}`, points: Number(t.points) })),
             ...latestCounterSalesTx.map(t => ({ ...t, id: `CSX${t.id}`, points: Number(t.points) })),
             ...latestRedemptions.map(t => ({ ...t, id: `RED${t.id}`, points: Number(t.points) }))
         ]
-            .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime())
-            .slice(0, 50);
+        .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime())
+        .slice(0, 50);
 
-        // Fetch User names for the combined list
         const formattedTransactions = await Promise.all(rawTransactions.map(async (tx) => {
             const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, tx.userId)).limit(1);
             return {
@@ -170,132 +180,119 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             };
         }));
 
-        // 3. Monthly Points Flow Analysis (Optional: could also be filtered)
-        const issuedMonthlyResult = await db.execute(sql`
-            SELECT 
-                TO_CHAR(created_at, 'Mon') as month,
-                TO_CHAR(created_at, 'YYYY-MM') as "monthFull",
-                sum(points)::numeric as total
+        // 3. Monthly Analysis
+        let issuedMonthlySql = sql`
+            SELECT TO_CHAR(created_at, 'Mon') as month, TO_CHAR(created_at, 'YYYY-MM') as "monthFull", sum(points)::numeric as total
             FROM (
-                SELECT created_at, points FROM retailer_transactions
+                SELECT created_at, points, user_id FROM retailer_transactions
                 UNION ALL
-                SELECT created_at, points FROM electrician_transactions
+                SELECT created_at, points, user_id FROM mechanic_transactions
                 UNION ALL
-                SELECT created_at, points FROM counter_sales_transactions
+                SELECT created_at, points, user_id FROM counter_sales_transactions
             ) as t
-            GROUP BY 1, 2
-            ORDER BY 2 DESC
-            LIMIT 10
-        `);
+        `;
+        
+        if (scope.type !== 'Global') {
+            const scopeJoin = `
+                LEFT JOIN retailers r ON t.user_id = r.user_id
+                LEFT JOIN mechanics e ON t.user_id = e.user_id
+                LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
+            `;
+            const scopeWhere = scope.type === 'State' 
+                ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
+            
+            issuedMonthlySql = sql`
+                SELECT TO_CHAR(t.created_at, 'Mon') as month, TO_CHAR(t.created_at, 'YYYY-MM') as "monthFull", sum(t.points)::numeric as total
+                FROM (
+                    SELECT created_at, points, user_id FROM retailer_transactions
+                    UNION ALL
+                    SELECT created_at, points, user_id FROM mechanic_transactions
+                    UNION ALL
+                    SELECT created_at, points, user_id FROM counter_sales_transactions
+                ) as t
+                ${sql.raw(scopeJoin)}
+                WHERE ${sql.raw(scopeWhere)}
+                GROUP BY 1, 2 ORDER BY 2 DESC LIMIT 10
+            `;
+        } else {
+            issuedMonthlySql = sql`${issuedMonthlySql} GROUP BY 1, 2 ORDER BY 2 DESC LIMIT 10`;
+        }
+
+        const issuedMonthlyResult = await db.execute(issuedMonthlySql);
         const issuedMonthly = issuedMonthlyResult.rows as any[];
 
-        const redeemedMonthly = await db.select({
-            month: sql<string>`TO_CHAR(created_at, 'Mon')`,
-            monthFull: sql<string>`TO_CHAR(created_at, 'YYYY-MM')`,
+        let redMonthlyQuery = db.select({
+            month: sql<string>`TO_CHAR(redemptions.created_at, 'Mon')`,
+            monthFull: sql<string>`TO_CHAR(redemptions.created_at, 'YYYY-MM')`,
             total: sum(redemptions.pointsRedeemed)
         })
-            .from(redemptions)
-            .groupBy(sql`TO_CHAR(created_at, 'YYYY-MM')`, sql`TO_CHAR(created_at, 'Mon')`)
-            .orderBy(sql`TO_CHAR(created_at, 'YYYY-MM') DESC`)
+        .from(redemptions);
+
+        if (scope.type !== 'Global') {
+            redMonthlyQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
+                .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
+                .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
+                .where(scopeFilter);
+        }
+
+        const redeemedMonthly = await redMonthlyQuery
+            .groupBy(sql`TO_CHAR(redemptions.created_at, 'YYYY-MM')`, sql`TO_CHAR(redemptions.created_at, 'Mon')`)
+            .orderBy(sql`TO_CHAR(redemptions.created_at, 'YYYY-MM') DESC`)
             .limit(10);
 
-        // Merge and prepare for UI
-        const labelsMap = new Map();
-        issuedMonthly.forEach(row => {
-            labelsMap.set(row.monthFull, { label: row.month, issued: Number(row.total), redeemed: 0 });
-        });
-        redeemedMonthly.forEach(row => {
-            if (labelsMap.has(row.monthFull)) {
-                labelsMap.get(row.monthFull).redeemed = Number(row.total);
-            } else {
-                labelsMap.set(row.monthFull, { label: row.month, issued: 0, redeemed: Number(row.total) });
-            }
-        });
-
-        const sortedMonths = Array.from(labelsMap.keys()).sort();
-        const graphLabels = sortedMonths.map(m => labelsMap.get(m).label);
-        const graphIssued = sortedMonths.map(m => labelsMap.get(m).issued);
-        const graphRedeemed = sortedMonths.map(m => labelsMap.get(m).redeemed);
-
-        return {
-            overview: {
-                totalRevenue: 24567890,
-                pointsIssued: totalPointsIssued,
-                pointsRedeemed: totalPointsRedeemed,
-                activePointsValue: activePointsValue,
-                revenueTrend: {
-                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
-                    data: [18000000, 19500000, 21000000, 19800000, 22000000, 23500000, 24500000, 23800000, 25200000, 24567890]
-                },
-                pointsFlow: {
-                    labels: graphLabels.length > 0 ? graphLabels : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
-                    issued: graphIssued.length > 0 ? graphIssued : [3200000, 3450000, 3800000, 3600000, 3900000, 4200000, 4523456, 4380000, 4650000, 4523456],
-                    redeemed: graphRedeemed.length > 0 ? graphRedeemed : [2800000, 2950000, 3100000, 3050000, 3200000, 3350000, 3210987, 3180000, 3320000, 3210987]
-                }
-            },
-            transactions: formattedTransactions
-        }
-    } catch (error) {
-        console.error("Error fetching finance data:", error);
-        return {
-            overview: {
-                totalRevenue: 0,
-                pointsIssued: 0,
-                pointsRedeemed: 0,
-                activePointsValue: 0,
-                revenueTrend: { labels: [], data: [] },
-                pointsFlow: { labels: [], issued: [], redeemed: [] }
-            },
-            transactions: []
+        const labels = issuedMonthly.map(m => m.month).reverse();
+        const flowData = {
+            labels,
+            allotted: labels.map(l => Number(issuedMonthly.find(m => m.month === l)?.total || 0)),
+            redeemed: labels.map(l => Number(redeemedMonthly.find(m => m.month === l)?.total || 0))
         };
-    }
-}
 
-export async function getComplianceDataAction(filters?: { status?: string, type?: string }) {
-    try {
-        const { status, type } = filters || {};
-
-        let query = db.select({
-            id: kycDocuments.id,
-            userId: kycDocuments.userId,
-            documentType: kycDocuments.documentType,
-            status: kycDocuments.verificationStatus,
-            rejectionReason: kycDocuments.rejectionReason,
-            createdAt: kycDocuments.createdAt,
-            userName: users.name,
-            userType: userTypeEntity.typeName
+        // 4. Sector-wise distribution
+        let sectorQuery = db.select({
+            sector: userTypeEntity.typeName,
+            value: sum(retailerTransactions.points) // This will be adjusted based on join
         })
-            .from(kycDocuments)
-            .leftJoin(users, eq(kycDocuments.userId, users.id))
-            .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
-            .$dynamic();
+        .from(userTypeEntity);
+        // Sector distribution is complex because it depends on different transaction tables.
+        // For simplicity, we'll do 3 separate scoped queries.
 
-        const conditions = [];
-        if (status && status !== 'All Status') {
-            conditions.push(eq(kycDocuments.verificationStatus, status.toLowerCase()));
+        const getSectorPoints = async (type: string) => {
+            let q;
+            if (type === 'Retailer') {
+                q = db.select({ total: sum(retailerTransactions.points) }).from(retailerTransactions).leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId));
+                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            } else if (type === 'Mechanic') {
+                q = db.select({ total: sum(mechanicTransactions.points) }).from(mechanicTransactions).leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId));
+                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+            } else {
+                q = db.select({ total: sum(counterSalesTransactions.points) }).from(counterSalesTransactions).leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId));
+                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+            }
+            const [res] = await q;
+            return Number(res?.total || 0);
         }
-        if (type && type !== 'All Stakeholders') {
-            conditions.push(eq(userTypeEntity.typeName, type));
-        }
 
-        if (conditions.length > 0) {
-            query = query.where(and(...conditions));
-        }
+        const sectors = [
+            { name: 'Retailers', value: await getSectorPoints('Retailer'), color: '#3B82F6' },
+            { name: 'Mechanics', value: await getSectorPoints('Mechanic'), color: '#10B981' },
+            { name: 'Counter Staff', value: await getSectorPoints('Counter Staff'), color: '#F59E0B' }
+        ];
 
-        const data = await query.orderBy(desc(kycDocuments.createdAt)).limit(50);
+        return {
+            metrics: {
+                totalPointsIssued,
+                totalPointsRedeemed,
+                activePointsValue,
+                payoutsProcessed: totalPointsRedeemed // Simple assumption
+            },
+            transactions: formattedTransactions,
+            flowData,
+            sectors
+        };
 
-        return data.map(d => ({
-            id: `KYC-${d.id.toString().padStart(4, '0')}`,
-            member: d.userName || 'Unknown',
-            type: d.userType || 'N/A',
-            document: d.documentType,
-            status: d.status.charAt(0).toUpperCase() + d.status.slice(1),
-            date: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '---',
-            badgeColor: d.status === 'verified' ? 'badge-success' : (d.status === 'pending' ? 'badge-warning' : (d.status === 'rejected' ? 'badge-danger' : 'badge-warning'))
-        }));
     } catch (error) {
-        console.error("Error fetching compliance data:", error);
-        return [];
+        console.error("Finance Data Action Error:", error);
+        throw error;
     }
 }
-

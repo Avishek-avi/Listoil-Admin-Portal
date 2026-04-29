@@ -172,13 +172,13 @@ export default function SchemesClient() {
 
     if (isLoading) return (
         <div className="flex justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
         </div>
     );
     if (error) return <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">Failed to load schemes data</div>;
 
     const kpiCards = [
-        { label: 'Total Campaigns', value: '24', icon: 'fas fa-bullhorn', iconBg: 'bg-blue-100', iconColor: 'text-blue-600', sub: '3 new this month' },
+        { label: 'Total Campaigns', value: '24', icon: 'fas fa-bullhorn', iconBg: 'bg-red-100', iconColor: 'text-red-600', sub: '3 new this month' },
         { label: 'Active Campaigns', value: '8', icon: 'fas fa-play-circle', iconBg: 'bg-green-100', iconColor: 'text-green-600', sub: '2 started this week' },
         { label: 'Total Participants', value: '1,245', icon: 'fas fa-users', iconBg: 'bg-yellow-100', iconColor: 'text-yellow-600', sub: '12% from last month' },
         { label: 'Points Distributed', value: '45,670', icon: 'fas fa-coins', iconBg: 'bg-red-100', iconColor: 'text-red-600', sub: '8% from last month' },
@@ -250,7 +250,7 @@ export default function SchemesClient() {
                                     <td><span className="badge badge-success">{camp.status}</span></td>
                                     <td>
                                         <div className="flex gap-2">
-                                            <button className="btn btn-ghost text-blue-600 !p-1.5" title="Edit"><i className="fas fa-edit text-sm"></i></button>
+                                            <button className="btn btn-ghost text-red-600 !p-1.5" title="Edit"><i className="fas fa-edit text-sm"></i></button>
                                             <button className="btn btn-ghost text-red-500 !p-1.5" title="Delete"><i className="fas fa-trash text-sm"></i></button>
                                         </div>
                                     </td>
@@ -270,8 +270,8 @@ export default function SchemesClient() {
                         <label className="block text-sm font-medium text-gray-700 mb-3">Campaign Type</label>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             {campaignTypes.map((type) => (
-                                <button type="button" key={type.key} onClick={() => setCampaignType(type.key)} className={`p-4 rounded-xl border-2 text-center transition ${campaignType === type.key ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                                    <i className={`fas ${type.icon} text-2xl text-blue-600 mb-2`}></i>
+                                <button type="button" key={type.key} onClick={() => setCampaignType(type.key)} className={`p-4 rounded-xl border-2 text-center transition ${campaignType === type.key ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <i className={`fas ${type.icon} text-2xl text-red-600 mb-2`}></i>
                                     <h4 className="font-medium text-gray-900">{type.label}</h4>
                                     <p className="text-xs text-gray-500 mt-1">{type.desc}</p>
                                 </button>
@@ -283,24 +283,24 @@ export default function SchemesClient() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
-                            <input type="text" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="text" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea value={campaignDescription} onChange={(e) => setCampaignDescription(e.target.value)} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                            <textarea value={campaignDescription} onChange={(e) => setCampaignDescription(e.target.value)} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
                         </div>
                     </div>
 
                     <div className="flex justify-end">
-                        <button type="submit" className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                        <button type="submit" className="px-6 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
                             <i className="fas fa-save mr-2"></i>Create Campaign
                         </button>
                     </div>

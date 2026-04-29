@@ -1,11 +1,15 @@
-'use client';
+'use client'; 
+
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction } from '@/actions/member-actions';
+import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction, approveMemberAction, rejectMemberAction, getPincodeStatesAction, getPincodeCitiesAction } from '@/actions/member-actions';
+
 
 /* ── Reusable dropdown (click-outside auto-close) ── */
-function ActionDropdown({ label, icon, children }: { label: string; icon: string; children: React.ReactNode }) {
+function ActionDropdown({ label, icon, children, direction = 'down' }: { label: string; icon: string; children: React.ReactNode; direction?: 'up' | 'down' }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -22,7 +26,7 @@ function ActionDropdown({ label, icon, children }: { label: string; icon: string
                 <i className={`fas ${icon} text-xs`}></i> {label} <i className="fas fa-chevron-down text-[10px] ml-1"></i>
             </button>
             {open && (
-                <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]">
+                <div className={`absolute right-0 ${direction === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[200px]`}>
                     {children}
                 </div>
             )}
@@ -32,8 +36,14 @@ function ActionDropdown({ label, icon, children }: { label: string; icon: string
 
 export default function MembersClient() {
     const queryClient = useQueryClient();
+    const searchParams = useSearchParams();
+    
     const [levelTab, setLevelTab] = useState(0);
     const [entityTab, setEntityTab] = useState(0);
+
+
+
+
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [kycStatusFilter, setKycStatusFilter] = useState('All Status');
@@ -70,9 +80,12 @@ export default function MembersClient() {
         bankAccountIfsc: '',
         upiId: ''
     });
+    
+    const [addModalOpen, setAddModalOpen] = useState(false);
 
-    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500";
-    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white";
+
+    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500";
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white";
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -109,6 +122,10 @@ export default function MembersClient() {
                 return {
                     ...level,
                     displayName: labelMap[normalizedName] || level.name,
+                    entities: (level.entities || []).filter((e: any) => 
+                        !e.name.toLowerCase().includes('counter staff') && 
+                        !e.name.toLowerCase().includes('counter sales')
+                    )
                 };
             })
             .sort((a: any, b: any) => {
@@ -117,14 +134,63 @@ export default function MembersClient() {
                 return aIndex - bIndex;
             });
     }, [hierarchyData]);
+    
+    // Sync tabs with URL params if they exist
+    useEffect(() => {
+        if (!filteredLevels || filteredLevels.length === 0) return;
+
+        const level = searchParams.get('level');
+        const entity = searchParams.get('entity');
+        const type = searchParams.get('type');
+        const kycStatus = searchParams.get('kycStatus');
+        
+        if (kycStatus) {
+            setKycStatusFilter(kycStatus);
+        }
+
+        if (type) {
+            const normalizedType = type.toLowerCase();
+            let found = false;
+            for (let l = 0; l < filteredLevels.length; l++) {
+                for (let e = 0; e < filteredLevels[l].entities.length; e++) {
+                    if (filteredLevels[l].entities[e].name.toLowerCase().includes(normalizedType)) {
+                        setLevelTab(l);
+                        setEntityTab(e);
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+        } else {
+            if (level !== null) {
+                const levelIdx = parseInt(level);
+                if (!isNaN(levelIdx) && levelIdx < filteredLevels.length) setLevelTab(levelIdx);
+            }
+            
+            if (entity !== null) {
+                const entityIdx = parseInt(entity);
+                if (level !== null) {
+                    const lIdx = parseInt(level);
+                    if (!isNaN(lIdx) && lIdx < filteredLevels.length && entityIdx < filteredLevels[lIdx].entities.length) {
+                        setEntityTab(entityIdx);
+                    }
+                } else if (entityIdx < filteredLevels[levelTab].entities.length) {
+                    setEntityTab(entityIdx);
+                }
+            }
+        }
+    }, [searchParams, filteredLevels]);
+
 
     useEffect(() => {
-        if (levelTab >= filteredLevels.length) {
+        if (filteredLevels.length > 0 && levelTab >= filteredLevels.length) {
             setLevelTab(0);
             setEntityTab(0);
             setPage(1);
         }
     }, [levelTab, filteredLevels.length]);
+
 
     const currentLevel = filteredLevels[levelTab];
     const activeEntityTab = currentLevel && entityTab >= currentLevel.entities.length ? 0 : entityTab;
@@ -162,6 +228,12 @@ export default function MembersClient() {
         queryKey: ['approval-statuses'],
         queryFn: getApprovalStatusesAction
     });
+
+    const { data: userScope } = useQuery({
+        queryKey: ['user-scope'],
+        queryFn: getCurrentUserScopeAction
+    });
+
 
     useEffect(() => {
         if (editModalOpen && memberDetails) {
@@ -239,19 +311,34 @@ export default function MembersClient() {
     };
 
     const handleUpdateDocStatus = async (docId: number, status: 'verified' | 'rejected') => {
+        let rejectionReason = undefined;
+        if (status === 'rejected') {
+            rejectionReason = window.prompt("Please enter the reason for rejection:");
+            if (rejectionReason === null) return; // User cancelled
+        }
+
         try {
-            await updateKycDocumentStatusAction(docId, status);
-            queryClient.invalidateQueries({ queryKey: ['member-kyc-docs'] });
-            queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            const res = await updateKycDocumentStatusAction(docId, status, rejectionReason);
+            if (res.success) {
+                setSnackbarMessage(`Document ${status === 'verified' ? 'verified' : 'rejected'} successfully`);
+                setSnackbarOpen(true);
+                queryClient.invalidateQueries({ queryKey: ['member-kyc-docs'] });
+                queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            } else {
+                setSnackbarMessage(res.error || `Failed to update document status`);
+                setSnackbarOpen(true);
+            }
         } catch (error) {
             console.error("Failed to update document status:", error);
+            setSnackbarMessage('Error updating document status');
+            setSnackbarOpen(true);
         }
     };
 
     const handleUpdateBlockStatus = async (userId: number, statusId: number) => {
         try {
             await updateMemberApprovalStatusAction(userId, statusId);
-            queryClient.invalidateQueries({ queryKey: ['members-data'] });
+            queryClient.invalidateQueries({ queryKey: ['members-list'] });
             setSnackbarMessage('Member status updated successfully');
             setSnackbarOpen(true);
         } catch (error) {
@@ -261,7 +348,49 @@ export default function MembersClient() {
         }
     };
 
-    const getKycBadge = (status: string) => {
+    const handleApproveMember = async (userId: number) => {
+        try {
+            const res = await approveMemberAction(userId);
+            if (res.success) {
+                setKycModalOpen(false);
+                setSnackbarMessage('Member approval processed');
+                setSnackbarOpen(true);
+                queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            } else {
+                setSnackbarMessage(res.error || 'Failed to approve member');
+                setSnackbarOpen(true);
+            }
+        } catch (error) {
+            console.error("Failed to approve member:", error);
+            setSnackbarMessage('Error approving member');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const handleRejectMember = async (userId: number) => {
+        const reason = window.prompt("Please enter the reason for rejection:", "Rejected during review");
+        if (reason === null) return; // User cancelled
+
+        try {
+            const res = await rejectMemberAction(userId, reason);
+            if (res.success) {
+                setKycModalOpen(false);
+                setSnackbarMessage('Member profile rejected');
+                setSnackbarOpen(true);
+                queryClient.invalidateQueries({ queryKey: ['members-list'] });
+            } else {
+                setSnackbarMessage(res.error || 'Failed to reject member');
+                setSnackbarOpen(true);
+            }
+        } catch (error) {
+            console.error("Failed to reject member:", error);
+            setSnackbarMessage('Error rejecting member');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const getKycBadge = (status: string, approvalStatus?: string) => {
+        if (approvalStatus === 'SR_APPROVED') return <span className="badge badge-info">SR Approved</span>;
         switch (status) {
             case 'Approved':
                 return <span className="badge badge-success">Approved</span>;
@@ -269,7 +398,7 @@ export default function MembersClient() {
                 return <span className="badge badge-danger">Rejected</span>;
             case 'Pending':
             default:
-                return <span className="badge badge-warning">Pending</span>;
+                return <span className="badge badge-warning">Pending Review</span>;
         }
     };
 
@@ -282,10 +411,16 @@ export default function MembersClient() {
     };
 
     const getApprovalBadge = (status: string) => {
-        const cls = status?.includes('APPROVED') ? 'badge badge-success' :
-            status?.includes('BLOCKED') ? 'badge badge-danger' :
-                status?.includes('REJECTED') ? 'badge badge-warning' : 'badge badge-primary';
-        return <span className={cls}>{status}</span>;
+        const s = status?.toUpperCase() || '';
+        const cls = s.includes('APPROVED') || s === 'ACTIVE' ? 'badge badge-success' :
+            s.includes('BLOCKED') ? 'badge badge-danger' :
+                s.includes('REJECTED') || s === 'SR_APPROVED' ? 'badge badge-warning' : 'badge badge-primary';
+        
+        let label = status;
+        if (s === 'SR_APPROVED') label = 'Pending TSM Review';
+        if (s === 'KYC_PENDING') label = 'Pending SR Review';
+
+        return <span className={cls}>{label}</span>;
     };
 
     const getDocIcon = (type: string) => {
@@ -331,8 +466,8 @@ export default function MembersClient() {
                         key={entity.id}
                         onClick={() => { setEntityTab(index); setPage(1); }}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${activeEntityTab === index
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300'
+                            ? 'bg-red-600 text-white shadow-md'
+                            : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300'
                             }`}
                     >
                         {entity.name}
@@ -351,7 +486,7 @@ export default function MembersClient() {
                         <div className="widget-card rounded-xl shadow p-6">
                             <div className="flex justify-between items-center mb-2">
                                 <p className="text-sm text-gray-500">Total {currentEntity.name}</p>
-                                  <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-users text-white text-xs"></i></div>
+                                  <div className="w-9 h-9 rounded-xl bg-red-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-users text-white text-xs"></i></div>
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 mb-1">{stats.total.toLocaleString()}</h3>
                             <div className="flex items-center text-xs">
@@ -390,7 +525,7 @@ export default function MembersClient() {
                             </div>
                             <h3 className="text-2xl font-bold mb-1">{stats.activeToday}</h3>
                             <div className="flex items-center text-sm">
-                                <span className="text-blue-600 font-medium">{stats.activeTodayTrend}</span>
+                                <span className="text-red-600 font-medium">{stats.activeTodayTrend}</span>
                                 <span className="text-gray-500 ml-2">from yesterday</span>
                             </div>
                         </div>
@@ -399,14 +534,13 @@ export default function MembersClient() {
                     {/* Filters */}
                     <div className="widget-card rounded-xl shadow p-4 mb-6">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            <div className="md:col-span-4 relative">
-                                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                            <div className="md:col-span-4">
                                 <input
                                     type="text"
                                     placeholder={`Search ${currentEntity.name.toLowerCase()}...`}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 shadow-sm"
                                 />
                             </div>
                             <div className="md:col-span-2">
@@ -439,12 +573,17 @@ export default function MembersClient() {
                     <div className="widget-card rounded-xl shadow p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold">{currentEntity.name} List</h3>
-                            <button className="btn btn-secondary">
-                                <i className="fas fa-download"></i> Export
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium shadow-sm">
+                                    <i className="fas fa-plus"></i> Add Member
+                                </button>
+                                <button className="btn btn-secondary">
+                                    <i className="fas fa-download"></i> Export
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto" style={{ minHeight: '300px' }}>
                             <table className="data-table">
                                 <thead>
                                     <tr>
@@ -457,7 +596,7 @@ export default function MembersClient() {
                                         </th>
                                         <th>KYC Status</th>
                                         <th>Approval Status</th>
-                                        {currentEntity.name.toLowerCase().includes('electrician') && <th>Joined</th>}
+                                        {currentEntity.name.toLowerCase().includes('mechanic') && <th>Joined</th>}
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -499,54 +638,70 @@ export default function MembersClient() {
                                                     <p className="text-sm">{member.regions || 'N/A'}</p>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4">{getKycBadge(member.kycStatus)}</td>
+                                            <td className="py-3 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    {getKycBadge(member.kycStatus, member.approvalStatus)}
+                                                    <button 
+                                                        onClick={() => handleViewKyc(member)}
+                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                        title="View Documents"
+                                                    >
+                                                        <i className="fas fa-file-invoice text-sm"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
                                             <td className="py-3 px-4">{getApprovalBadge(member.approvalStatus)}</td>
-                                            {currentEntity.name.toLowerCase().includes('electrician') && (
+                                            {currentEntity.name.toLowerCase().includes('mechanic') && (
                                                 <td className="py-3 px-4 text-sm">{member.joinedDate}</td>
                                             )}
                                             <td className="py-3 px-4">
-                                                <div className="flex gap-1">
-                                                    {/* KYC Dropdown */}
-                                                    <ActionDropdown label="KYC" icon="fa-check-circle">
-                                                        <button
-                                                            onClick={() => handleViewKyc(member)}
-                                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left"
-                                                        >
-                                                            <i className="fas fa-eye text-gray-400 text-xs w-4"></i> View Documents
-                                                        </button>
-                                                    </ActionDropdown>
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => handleViewDetails(member)} 
+                                                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                        title="View Profile"
+                                                    >
+                                                        <i className="fas fa-user-circle text-lg"></i>
+                                                    </button>
+                                                    
+                                                    <ActionDropdown label="Account" icon="fa-cog" direction="down">
+                                                        <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Change Status</div>
+                                                        {['ACTIVE', 'BLOCKED', 'SCAN_BLOCKED', 'REDEMPTION_BLOCKED'].map(statusName => {
+                                                            const status = blockStatuses?.find((s: any) => s.name.toUpperCase() === statusName);
+                                                            if (!status) return null;
+                                                            const isCurrent = member.approvalStatusId === status.id;
+                                                            
+                                                            // Role-specific labeling
+                                                            let label = statusName.replace('_', ' ');
+                                                            const isRetailer = currentEntity?.name.toLowerCase().includes('retailer');
+                                                            
+                                                            if (statusName === 'BLOCKED') {
+                                                                label = isRetailer ? 'Full Block (Invoices + Redemption)' : 'Full Block (Scans + Redemption)';
+                                                            } else if (statusName === 'SCAN_BLOCKED') {
+                                                                label = isRetailer ? 'Invoice Sync Block' : 'Scan Block';
+                                                            } else if (statusName === 'REDEMPTION_BLOCKED') {
+                                                                label = 'Redemption Block';
+                                                            } else if (statusName === 'ACTIVE') {
+                                                                label = 'Active (Unblocked)';
+                                                            }
 
-                                                    {/* Block Dropdown */}
-                                                    <ActionDropdown label="Block" icon="fa-ban">
-                                                        {blockStatuses?.map((status: any) => {
-                                                            const ACTIONABLE_STATUSES = ['DELETE', 'BLOCKED', 'REDEMPTION_BLOCKED', 'SCAN_BLOCKED', 'INACTIVE'];
-                                                            const isActionable = ACTIONABLE_STATUSES.includes(status.name?.toUpperCase());
                                                             return (
                                                                 <button
                                                                     key={status.id}
-                                                                    onClick={() => isActionable && handleUpdateBlockStatus(member.dbId, status.id)}
-                                                                    disabled={!isActionable}
-                                                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isActionable ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-300 cursor-not-allowed'}`}
+                                                                    onClick={() => !isCurrent && handleUpdateBlockStatus(member.dbId, status.id)}
+                                                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isCurrent ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                                                                 >
-                                                                    <i className="fas fa-lock text-xs w-4"></i> {status.name}
+                                                                    <i className={`fas ${isCurrent ? 'fa-check-circle' : 'fa-circle text-[8px] opacity-30'} w-4 text-center`}></i>
+                                                                    {label}
                                                                 </button>
                                                             );
                                                         })}
-                                                        {(!blockStatuses || blockStatuses.length === 0) && (
-                                                            <p className="px-3 py-2 text-sm text-gray-400">No actions available</p>
-                                                        )}
-                                                    </ActionDropdown>
-
-                                                    {/* More Actions Dropdown */}
-                                                    <ActionDropdown label="More" icon="fa-ellipsis-v">
-                                                        <button onClick={() => handleViewDetails(member)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left">
-                                                            <i className="fas fa-eye text-gray-400 text-xs w-4"></i> View Details
-                                                        </button>
+                                                        <div className="border-t border-gray-100 my-1"></div>
                                                         <button onClick={() => handleEditMember(member)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left">
-                                                            <i className="fas fa-edit text-gray-400 text-xs w-4"></i> Edit Member
+                                                            <i className="fas fa-edit text-gray-400 text-xs w-4"></i> Edit Details
                                                         </button>
-                                                        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left">
-                                                            <i className="fas fa-envelope text-gray-400 text-xs w-4"></i> Send Message
+                                                        <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 text-left">
+                                                            <i className="fas fa-trash-alt text-xs w-4"></i> Delete Member
                                                         </button>
                                                     </ActionDropdown>
                                                 </div>
@@ -598,7 +753,7 @@ export default function MembersClient() {
                                         </span>
                                         <span className={`text-white text-xs font-bold px-2 py-0.5 rounded-full ${selectedMember?.member?.approvalStatus?.includes('APPROVED') ? 'bg-green-500' :
                                             selectedMember?.member?.approvalStatus?.includes('BLOCKED') ? 'bg-red-500' :
-                                                selectedMember?.member?.approvalStatus?.includes('REJECTED') ? 'bg-yellow-500' : 'bg-blue-500'}`}>
+                                                selectedMember?.member?.approvalStatus?.includes('REJECTED') ? 'bg-yellow-500' : 'bg-red-500'}`}>
                                             {selectedMember?.member?.approvalStatus}
                                         </span>
                                         <span className="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">{currentEntity?.name}</span>
@@ -609,12 +764,12 @@ export default function MembersClient() {
 
                         <div className="p-6 overflow-y-auto flex-1 bg-gray-50">
                             {isLoadingDetails ? (
-                                <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>
+                                <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600"></div></div>
                             ) : memberDetails ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Personal Info */}
                                     <div>
-                                        <h4 className="text-base font-bold text-blue-700 mb-3">Personal Information</h4>
+                                        <h4 className="text-base font-bold text-red-700 mb-3">Personal Information</h4>
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-3">
                                                 <i className="fas fa-phone text-gray-400 w-5 text-center"></i>
@@ -642,7 +797,7 @@ export default function MembersClient() {
 
                                     {/* Professional Details */}
                                     <div>
-                                        <h4 className="text-base font-bold text-blue-700 mb-3">Professional Details</h4>
+                                        <h4 className="text-base font-bold text-red-700 mb-3">Professional Details</h4>
                                         <div className="space-y-3">
                                             {currentEntity.name.toLowerCase().includes('retailer') && (
                                                 <div className="flex items-center gap-3">
@@ -678,11 +833,11 @@ export default function MembersClient() {
                                     {/* Financial & KYC */}
                                     <div className="md:col-span-2">
                                         <hr className="border-gray-200 my-2" />
-                                        <h4 className="text-base font-bold text-blue-700 mb-3">Financial & KYC</h4>
+                                        <h4 className="text-base font-bold text-red-700 mb-3">Financial & KYC</h4>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                 <p className="text-xs text-gray-500">Points Balance</p>
-                                                <p className="text-xl font-bold text-blue-600">{(memberDetails as any).pointsBalance || 0}</p>
+                                                <p className="text-xl font-bold text-red-600">{(memberDetails as any).pointsBalance || 0}</p>
                                             </div>
                                             <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                 <p className="text-xs text-gray-500">Total Earnings</p>
@@ -700,9 +855,9 @@ export default function MembersClient() {
                                     {/* Bank Details */}
                                     {(memberDetails as any).bankAccountNo && (
                                         <div className="md:col-span-2">
-                                            <div className="p-4 rounded-xl border border-dashed border-blue-400 bg-blue-50/50">
+                                            <div className="p-4 rounded-xl border border-dashed border-red-400 bg-red-50/50">
                                                 <p className="text-sm font-bold mb-3 flex items-center gap-2">
-                                                    <i className="fas fa-university text-blue-600"></i> Bank Account Details
+                                                    <i className="fas fa-university text-red-600"></i> Bank Account Details
                                                 </p>
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                     <div>
@@ -731,7 +886,7 @@ export default function MembersClient() {
 
                         <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t">
                             <button onClick={() => setDetailsModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition">Close</button>
-                            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-2">
+                            <button className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition flex items-center gap-2">
                                 <i className="fas fa-edit text-xs"></i> Edit Profile
                             </button>
                         </div>
@@ -748,8 +903,19 @@ export default function MembersClient() {
                             <button onClick={() => setKycModalOpen(false)} className="text-gray-400 hover:text-gray-600"><i className="fas fa-times"></i></button>
                         </div>
                         <div className="p-6 overflow-y-auto flex-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="space-y-1">
+                                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Aadhaar Number</p>
+                                    <p className="text-lg font-mono font-bold text-gray-800">{selectedKycMember?.aadhaar || 'N/A'}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">PAN Number</p>
+                                    <p className="text-lg font-mono font-bold text-gray-800 uppercase">{selectedKycMember?.pan || 'N/A'}</p>
+                                </div>
+                            </div>
+
                             {isLoadingKycDocs ? (
-                                <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+                                <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div></div>
                             ) : !kycDocuments || kycDocuments.length === 0 ? (
                                 <div className="py-8 text-center"><p className="text-gray-500">No KYC documents found for this member.</p></div>
                             ) : (
@@ -759,7 +925,7 @@ export default function MembersClient() {
                                             <p className="text-sm font-medium mb-1">{doc.documentType}</p>
                                             <div
                                                 onClick={() => handleViewDocument(doc.signedUrl, doc.documentType)}
-                                                className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center cursor-pointer transition hover:bg-blue-50/50 hover:border-blue-400"
+                                                className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center cursor-pointer transition hover:bg-red-50/50 hover:border-red-400"
                                             >
                                                 <div className="h-28 w-full rounded-lg bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center mb-2">
                                                     {!doc.signedUrl ? (
@@ -804,8 +970,28 @@ export default function MembersClient() {
                                 </div>
                             )}
                         </div>
-                        <div className="flex justify-end p-4 border-t">
-                            <button onClick={() => setKycModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition">Close</button>
+                        <div className="flex justify-between p-4 border-t bg-gray-50">
+                            <div className="flex gap-2">
+                                {((selectedKycMember?.approvalStatus === 'KYC_PENDING' && userScope?.role.toUpperCase() === 'SR') ||
+                                  (selectedKycMember?.approvalStatus === 'SR_APPROVED' && userScope?.role.toUpperCase() === 'TSM') ||
+                                  (['ADMIN', 'SUPER ADMIN'].includes(userScope?.role.toUpperCase() || ''))) && (
+                                    <>
+                                        <button 
+                                            onClick={() => handleApproveMember(selectedKycMember.dbId)} 
+                                            className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-md flex items-center gap-2"
+                                        >
+                                            <i className="fas fa-check-double"></i> Approve Profile
+                                        </button>
+                                        <button 
+                                            onClick={() => handleRejectMember(selectedKycMember.dbId)} 
+                                            className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-medium border border-red-200 hover:bg-red-100 transition"
+                                        >
+                                            Reject
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                            <button onClick={() => setKycModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition font-medium">Close</button>
                         </div>
                     </div>
                 </div>
@@ -896,7 +1082,7 @@ export default function MembersClient() {
                         </div>
                         <div className="flex justify-end gap-3 p-4 border-t">
                             <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition">Cancel</button>
-                            <button onClick={handleSaveMember} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition">Save Changes</button>
+                            <button onClick={handleSaveMember} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition">Save Changes</button>
                         </div>
                     </div>
                 </div>
@@ -926,7 +1112,22 @@ export default function MembersClient() {
                 </div>
             )}
 
-            {/* ══════ Snackbar Toast ══════ */}
+            {/* Add Member Modal */}
+            {addModalOpen && (
+                <AddMemberModal 
+                    open={addModalOpen} 
+                    onClose={() => setAddModalOpen(false)} 
+                    onSuccess={() => {
+                        setAddModalOpen(false);
+                        setSnackbarMessage('Member created successfully');
+                        setSnackbarOpen(true);
+                        queryClient.invalidateQueries({ queryKey: ['members-list'] });
+                    }}
+                    userScope={userScope}
+                />
+            )}
+
+            {/* Snackbar Toast */}
             {snackbarOpen && (
                 <div className="fixed bottom-6 right-6 z-50 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
                     <i className="fas fa-check-circle text-green-600"></i>
@@ -939,3 +1140,520 @@ export default function MembersClient() {
         </div>
     );
 }
+
+function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean; onClose: () => void; onSuccess: () => void; userScope: any }) {
+    const [formData, setFormData] = useState<any>({
+        roleId: '',
+        name: '',
+        phone: '',
+        email: '',
+        password: '',
+        state: '',
+        city: '',
+        district: '',
+        pincode: '',
+        addressLine1: '',
+        addressLine2: '',
+        dob: '',
+        gender: '',
+        shopName: '',
+        aadhaar: '',
+        pan: '',
+        gst: '',
+        bankAccountNo: '',
+        bankAccountIfsc: '',
+        bankAccountName: '',
+        upiId: '',
+        scopeEntityId: '',
+        attachedRetailerId: '',
+        zone: '',
+        kycDocuments: {}
+    });
+
+    const [allowedRoles, setAllowedRoles] = useState<{ id: number, name: string }[]>([]);
+    const [locations, setLocations] = useState<any[]>([]);
+    const [allStates, setAllStates] = useState<any[]>([]);
+    const [selectedState, setSelectedState] = useState<string>('');
+    const [pincodes, setPincodes] = useState<any[]>([]);
+
+    const [cityRetailers, setCityRetailers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [uploading, setUploading] = useState<string | null>(null);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(type);
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+        uploadData.append('type', type);
+
+        try {
+            const res = await uploadMemberFileAction(uploadData);
+            if (res.success) {
+                setFormData((prev: any) => ({
+                    ...prev,
+                    kycDocuments: {
+                        ...prev.kycDocuments,
+                        [type.toUpperCase()]: res.fileName
+                    }
+                }));
+            } else {
+                alert(res.error || 'Failed to upload file');
+            }
+        } catch (err) {
+            console.error("Upload error:", err);
+            alert('An error occurred during upload');
+        } finally {
+            setUploading(null);
+        }
+    };
+
+    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500";
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white";
+
+    useEffect(() => {
+        setSelectedState('');
+        setAllStates([]);
+        setLocations([]);
+        setFormData((prev: any) => ({ ...prev, scopeEntityId: '' }));
+    }, [formData.roleId]);
+
+    useEffect(() => {
+        if (userScope) {
+
+
+            const role = userScope.role.toUpperCase();
+            let roles = [];
+            if (role === 'ADMIN' || userScope.permissions.includes('all')) {
+                roles = [
+                    { id: 17, name: 'Sales Head' },
+                    { id: 15, name: 'TSM' },
+                    { id: 16, name: 'SR' },
+                    { id: 3, name: 'Mechanic' },
+                    { id: 2, name: 'Retailer' }
+                ];
+            } else if (role === 'SALES HEAD') {
+                roles = [{ id: 15, name: 'TSM' }];
+            } else if (role === 'TSM') {
+                roles = [{ id: 16, name: 'SR' }];
+            } else if (role === 'SR') {
+                roles = [
+                    { id: 3, name: 'Mechanic' },
+                    { id: 2, name: 'Retailer' }
+                ];
+            }
+            setAllowedRoles(roles);
+            if (roles.length === 1) setFormData((prev: any) => ({ ...prev, roleId: roles[0].id.toString() }));
+        }
+    }, [userScope]);
+
+    useEffect(() => {
+        const fetchLocations = async () => {
+            if (!userScope) return;
+            const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+            const creatorRole = userScope.role.toUpperCase();
+            const isAdmin = creatorRole.includes('ADMIN') || userScope.permissions.includes('all');
+
+            if (creatorRole === 'TSM' && targetRole === 'SR') {
+                // Fetch cities in TSM's state
+                const cities = await getLocationEntitiesAction(5, userScope.entityIds[0]);
+                setLocations(cities);
+            } else if (targetRole === 'TSM' && isAdmin) {
+                // Admin creating TSM, fetch states from pincode master
+                const states = await getPincodeStatesAction();
+                setLocations(states.map(s => ({ id: s, name: s })));
+            } else if (targetRole === 'SR' && isAdmin) {
+                // Admin creating SR, fetch states first from pincode master
+                const states = await getPincodeStatesAction();
+                setAllStates(states.map(s => ({ id: s, name: s })));
+                setLocations([]); // Clear cities until state is selected
+            }
+
+
+        };
+        if (formData.roleId) fetchLocations();
+    }, [formData.roleId, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const fetchCitiesForState = async () => {
+            if (selectedState) {
+                const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+                const isAdmin = userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all');
+                
+                if (targetRole === 'SR' && isAdmin) {
+                    const cities = await getPincodeCitiesAction(selectedState);
+                    setLocations(cities.map(c => ({ id: c, name: c })));
+                } else {
+                    const cities = await getLocationEntitiesAction(5, parseInt(selectedState));
+                    setLocations(cities);
+                }
+            }
+        };
+        fetchCitiesForState();
+    }, [selectedState, formData.roleId, userScope, allowedRoles]);
+
+
+
+    useEffect(() => {
+        const fetchPincodes = async () => {
+            const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+            if (['MECHANIC', 'RETAILER'].includes(targetRole as string)) {
+                let city = formData.city;
+                if (!city && userScope?.role.toUpperCase() === 'SR' && userScope.entityNames.length === 1) {
+                    city = userScope.entityNames[0];
+                    setFormData((prev: any) => ({ ...prev, city }));
+                }
+                
+                // Fetch pincodes (getPincodesAction is already scoped in member-actions.ts)
+                const pins = await getPincodesAction(city || undefined);
+                setPincodes(pins);
+            }
+        };
+        fetchPincodes();
+    }, [formData.roleId, formData.city, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const fetchCityRetailers = async () => {
+            const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+            if (targetRole === 'MECHANIC' && (formData.city || (userScope?.role.toUpperCase() === 'SR' && userScope.entityNames[0]))) {
+                const city = formData.city || userScope.entityNames[0];
+                const results = await getRetailersByCityAction(city);
+                setCityRetailers(results);
+            }
+        };
+        fetchCityRetailers();
+    }, [formData.roleId, formData.city, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const lookupPincode = async () => {
+            if (formData.pincode.length === 6) {
+                const location = await getLocationByPincodeAction(formData.pincode);
+                if (location) {
+                    setFormData((prev: any) => ({
+                        ...prev,
+                        city: location.city,
+                        state: location.state,
+                        district: location.district,
+                        zone: location.zone
+                    }));
+                }
+            }
+        };
+        lookupPincode();
+    }, [formData.pincode]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        // Basic format checks
+        if (formData.phone.length !== 10) {
+            setError('Phone number must be 10 digits.');
+            setLoading(false);
+            return;
+        }
+
+        const res = await createMemberAction({ 
+            ...formData, 
+            state: (formData.roleId === '16' && selectedState) ? selectedState : formData.state 
+        });
+
+        if (res.success) {
+            onSuccess();
+        } else {
+            setError(res.error || 'Failed to create member');
+            setLoading(false);
+        }
+    };
+
+    const isMember = ['3', '2'].includes(formData.roleId);
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h2 className="text-xl font-bold text-gray-900">Add New Member</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition"><i className="fas fa-times text-lg"></i></button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+                    {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">{error}</div>}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Role Selection */}
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</label>
+                            <select 
+                                value={formData.roleId} 
+                                onChange={e => setFormData({ ...formData, roleId: e.target.value })} 
+                                className={selectClass}
+                                required
+                            >
+                                <option value="">Select Role</option>
+                                {allowedRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Full Name</label>
+                            <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputClass} required />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone Number</label>
+                            <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className={inputClass} required maxLength={10} />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Email Address</label>
+                            <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className={inputClass} />
+                        </div>
+
+                        {!isMember && (
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Password</label>
+                                <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className={inputClass} required />
+                            </div>
+                        )}
+
+                        {/* Hierarchy Mapping */}
+                        {(formData.roleId === '15' || formData.roleId === '16') && (
+                            <>
+                                {/* Show State dropdown if creating TSM or if Admin is creating SR */}
+                                {(formData.roleId === '15' || (formData.roleId === '16' && (userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all')))) && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            {formData.roleId === '15' ? 'Map to State' : 'Select State'}
+                                        </label>
+                                        <select 
+                                            value={formData.roleId === '15' ? formData.scopeEntityId : selectedState} 
+                                            onChange={e => {
+                                                if (formData.roleId === '15') {
+                                                    setFormData({ ...formData, scopeEntityId: e.target.value });
+                                                } else {
+                                                    setSelectedState(e.target.value);
+                                                    setFormData({ ...formData, scopeEntityId: '' }); // Reset city
+                                                }
+                                            }} 
+                                            className={selectClass}
+                                            required
+                                        >
+                                            <option value="">Select State</option>
+                                            {(formData.roleId === '15' ? locations : allStates).map(l => (
+                                                <option key={l.id} value={l.id}>{l.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Show City dropdown if creating SR */}
+                                {formData.roleId === '16' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            Map to City
+                                        </label>
+                                        <select 
+                                            value={formData.scopeEntityId} 
+                                            onChange={e => setFormData({ ...formData, scopeEntityId: e.target.value })} 
+                                            className={selectClass}
+                                            required
+                                            disabled={(userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all')) && !selectedState}
+                                        >
+                                            <option value="">{(userScope?.role.toUpperCase().includes('ADMIN') || userScope?.permissions.includes('all')) && !selectedState ? 'Select State First' : 'Select City'}</option>
+                                            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+
+                            </>
+                        )}
+
+
+                        {/* Member Specific Fields */}
+                        {isMember && (
+                            <>
+                                {formData.roleId === '2' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Shop Name</label>
+                                        <input type="text" value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value })} className={inputClass} required />
+                                    </div>
+                                )}
+
+                                
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Aadhaar Number</label>
+                                    <input type="text" value={formData.aadhaar} onChange={e => setFormData({ ...formData, aadhaar: e.target.value })} className={inputClass} maxLength={12} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GSTIN</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.gst} 
+                                        onChange={e => {
+                                            const val = e.target.value.toUpperCase();
+                                            setFormData(prev => ({ ...prev, gst: val }));
+                                        }} 
+                                        className={inputClass} 
+                                        maxLength={15} 
+                                    />
+                                </div>
+
+                                {formData.roleId !== '2' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">PAN Number</label>
+                                        <input type="text" value={formData.pan} onChange={e => setFormData({ ...formData, pan: e.target.value.toUpperCase() })} className={inputClass} maxLength={10} />
+                                    </div>
+                                )}
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</label>
+                                    <input type="text" value={formData.addressLine1} onChange={e => setFormData({ ...formData, addressLine1: e.target.value })} className={inputClass} required />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-end">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pincode</label>
+                                        {userScope?.role.toUpperCase() === 'SR' && (
+                                            <span className="text-[10px] font-bold text-red-600 uppercase">Your Territory Only</span>
+                                        )}
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        list="pincodes-list"
+                                        value={formData.pincode} 
+                                        onChange={e => setFormData({ ...formData, pincode: e.target.value })} 
+                                        className={inputClass} 
+                                        maxLength={6}
+                                        required 
+                                    />
+                                    <datalist id="pincodes-list">
+                                        {pincodes.map(p => (
+                                            <option key={p.id} value={p.pincode}>{p.city}</option>
+                                        ))}
+                                    </datalist>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">City</label>
+                                    <input type="text" value={formData.city} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">State</label>
+                                    <input type="text" value={formData.state} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">District</label>
+                                    <input type="text" value={formData.district} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Zone</label>
+                                    <input type="text" value={formData.zone} readOnly className={`${inputClass} bg-gray-50`} />
+                                </div>
+
+                                {formData.roleId === '3' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Retailer</label>
+                                        <select 
+                                            value={formData.attachedRetailerId} 
+                                            onChange={e => setFormData({ ...formData, attachedRetailerId: e.target.value })} 
+                                            className={selectClass}
+                                            required
+                                        >
+                                            <option value="">Select Retailer</option>
+                                            {cityRetailers.map(r => (
+                                                <option key={r.id} value={r.id}>
+                                                    {r.name} {r.shopName ? `(${r.shopName})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* KYC Document Uploads */}
+                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                                    <h3 className="md:col-span-3 text-sm font-bold text-gray-800 flex items-center gap-2 mb-2 uppercase tracking-widest">
+                                        <i className="fas fa-id-card text-red-600"></i> KYC Documents
+                                    </h3>
+                                    
+                                    {[
+                                        { label: 'Aadhaar Front', type: 'aadhaar_front' },
+                                        { label: 'Aadhaar Back', type: 'aadhaar_back' },
+                                        { label: 'PAN Image', type: 'pan' }
+                                    ].map(doc => (
+                                        <div key={doc.type} className="space-y-2">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">{doc.label}</label>
+                                            <div className="relative group">
+                                                <input 
+                                                    type="file" 
+                                                    onChange={e => handleFileUpload(e, doc.type)} 
+                                                    className="hidden" 
+                                                    id={`upload-${doc.type}`}
+                                                    accept="image/*"
+                                                />
+                                                <label 
+                                                    htmlFor={`upload-${doc.type}`}
+                                                    className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-red-500 hover:bg-red-50 transition cursor-pointer"
+                                                >
+                                                    {uploading === doc.type ? (
+                                                        <i className="fas fa-spinner fa-spin text-red-500 text-xl"></i>
+                                                    ) : formData.kycDocuments[doc.type.toUpperCase()] ? (
+                                                        <div className="flex flex-col items-center text-green-600">
+                                                            <i className="fas fa-check-circle text-xl"></i>
+                                                            <span className="text-[10px] mt-1">Uploaded</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col items-center text-gray-400">
+                                                            <i className="fas fa-cloud-upload-alt text-xl"></i>
+                                                            <span className="text-[10px] mt-1">Click to Upload</span>
+                                                        </div>
+                                                    )}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {formData.roleId !== '3' && (
+                                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-red-50/50 rounded-xl border border-red-100 mt-4">
+                                        <h3 className="md:col-span-3 text-sm font-bold text-red-800 flex items-center gap-2 mb-2">
+                                            <i className="fas fa-university"></i> Bank Details
+                                        </h3>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-red-600 uppercase">Account Name</label>
+                                            <input type="text" value={formData.bankAccountName} onChange={e => setFormData({ ...formData, bankAccountName: e.target.value })} className={inputClass} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-red-600 uppercase">Account Number</label>
+                                            <input type="text" value={formData.bankAccountNo} onChange={e => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputClass} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-red-600 uppercase">IFSC Code</label>
+                                            <input type="text" value={formData.bankAccountIfsc} onChange={e => setFormData({ ...formData, bankAccountIfsc: e.target.value })} className={inputClass} />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition text-sm font-medium">Cancel</button>
+                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition text-sm font-bold shadow-lg shadow-red-200 flex items-center gap-2 disabled:opacity-50">
+                            {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-user-plus"></i>}
+                            Create Member
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+

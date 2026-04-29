@@ -81,7 +81,7 @@ export default function FinanceClient() {
 
     if (isLoading) return (
         <div className="flex justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
         </div>
     )
     if (error) return <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">Failed to load finance data</div>
@@ -93,7 +93,7 @@ export default function FinanceClient() {
     ]
 
     const kpiCards = [
-        { label: 'Total Revenue', value: `₹${financeData?.overview?.totalRevenue?.toLocaleString()}`, icon: 'fas fa-wallet', iconBg: 'bg-blue-100', iconColor: 'text-blue-600', change: '+12.5%', changeColor: 'text-green-600', period: 'This Month', sub: 'vs last month' },
+        { label: 'Total Revenue', value: `₹${financeData?.overview?.totalRevenue?.toLocaleString()}`, icon: 'fas fa-wallet', iconBg: 'bg-red-100', iconColor: 'text-red-600', change: '+12.5%', changeColor: 'text-green-600', period: 'This Month', sub: 'vs last month' },
         { label: 'Points Issued', value: financeData?.overview?.pointsIssued?.toLocaleString(), icon: 'fas fa-coins', iconBg: 'bg-green-100', iconColor: 'text-green-600', change: '+8.3%', changeColor: 'text-green-600', period: 'This Month', sub: 'vs last month' },
         { label: 'Points Redeemed', value: financeData?.overview?.pointsRedeemed?.toLocaleString(), icon: 'fas fa-exchange-alt', iconBg: 'bg-purple-100', iconColor: 'text-purple-600', change: '-3.2%', changeColor: 'text-red-600', period: 'This Month', sub: 'vs last month' },
         { label: 'Active Points Value', value: financeData?.overview?.activePointsValue?.toLocaleString(), icon: 'fas fa-chart-line', iconBg: 'bg-orange-100', iconColor: 'text-orange-600', change: '+15.7%', changeColor: 'text-green-600', period: 'Current', sub: 'growth' },
@@ -153,7 +153,7 @@ export default function FinanceClient() {
                     <div className="widget-card rounded-xl shadow p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
-                            <button onClick={() => setActiveTab(1)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">View All</button>
+                            <button onClick={() => setActiveTab(1)} className="text-sm text-red-600 hover:text-red-800 font-medium">View All</button>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="data-table">
@@ -192,15 +192,15 @@ export default function FinanceClient() {
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium text-gray-700">Start Date</label>
-                            <input type="date" value={tempFilters.startDate} onChange={(e) => setTempFilters({ ...tempFilters, startDate: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="date" value={tempFilters.startDate} onChange={(e) => setTempFilters({ ...tempFilters, startDate: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
                         </div>
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium text-gray-700">End Date</label>
-                            <input type="date" value={tempFilters.endDate} onChange={(e) => setTempFilters({ ...tempFilters, endDate: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <input type="date" value={tempFilters.endDate} onChange={(e) => setTempFilters({ ...tempFilters, endDate: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
                         </div>
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium text-gray-700">Type</label>
-                            <select value={tempFilters.type} onChange={(e) => setTempFilters({ ...tempFilters, type: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <select value={tempFilters.type} onChange={(e) => setTempFilters({ ...tempFilters, type: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
                                 <option value="">All Types</option>
                                 <option value="credit">Credit</option>
                                 <option value="debit">Debit</option>
@@ -208,7 +208,7 @@ export default function FinanceClient() {
                         </div>
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium text-gray-700">Status</label>
-                            <select value={tempFilters.status} onChange={(e) => setTempFilters({ ...tempFilters, status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <select value={tempFilters.status} onChange={(e) => setTempFilters({ ...tempFilters, status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
                                 <option value="">All Status</option>
                                 <option value="completed">Completed</option>
                                 <option value="pending">Pending</option>
@@ -223,7 +223,7 @@ export default function FinanceClient() {
 
                     {/* Summary */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                        <div className="text-center p-4 bg-red-50 rounded-lg">
                             <p className="text-sm text-gray-500 mb-1">Total Transactions</p>
                             <p className="text-2xl font-bold text-gray-900">1,234</p>
                         </div>
@@ -272,7 +272,7 @@ export default function FinanceClient() {
                                         <td><span className={`badge ${row.badgeColor}`}>{row.status}</span></td>
                                         <td className="py-3 text-sm">
                                             <div className="flex gap-2">
-                                                <button className="btn btn-ghost text-blue-600 !p-1.5" title="View"><i className="fas fa-eye text-xs"></i></button>
+                                                <button className="btn btn-ghost text-red-600 !p-1.5" title="View"><i className="fas fa-eye text-xs"></i></button>
                                                 <button className="btn btn-ghost text-emerald-600 !p-1.5" title="Edit"><i className="fas fa-edit text-xs"></i></button>
                                                 <button className="btn btn-ghost text-red-500 !p-1.5" title="Cancel"><i className="fas fa-times text-xs"></i></button>
                                             </div>
@@ -303,15 +303,15 @@ export default function FinanceClient() {
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">KYC Compliance List</h3>
                         <div className="flex gap-3">
-                            <select value={compFilters.status} onChange={(e) => setCompFilters({ ...compFilters, status: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <select value={compFilters.status} onChange={(e) => setCompFilters({ ...compFilters, status: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
                                 <option>All Status</option>
                                 <option value="pending">Pending</option>
                                 <option value="verified">Verified</option>
                                 <option value="rejected">Rejected</option>
                             </select>
-                            <select value={compFilters.type} onChange={(e) => setCompFilters({ ...compFilters, type: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <select value={compFilters.type} onChange={(e) => setCompFilters({ ...compFilters, type: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
                                 <option>All Stakeholders</option>
-                                <option>Electrician</option>
+                                <option>Mechanic</option>
                                 <option>Retailer</option>
                                 <option>Counter Sales</option>
                             </select>
@@ -332,7 +332,7 @@ export default function FinanceClient() {
                             <tbody>
                                 {isLoadingComp ? (
                                     <tr><td colSpan={6} className="py-8 text-center">
-                                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
                                     </td></tr>
                                 ) : complianceData?.length === 0 ? (
                                     <tr><td colSpan={6} className="py-8 text-center text-gray-500">No records found</td></tr>
@@ -345,7 +345,7 @@ export default function FinanceClient() {
                                             <td className="py-3 px-4 text-sm"><span className={`badge ${item.badgeColor}`}>{item.status}</span></td>
                                             <td className="py-3 px-4 text-sm text-gray-500">{item.date}</td>
                                             <td className="py-3 px-4 text-sm">
-                                                <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">Verify</button>
+                                                <button className="text-red-600 hover:text-red-800 text-sm font-medium">Verify</button>
                                             </td>
                                         </tr>
                                     ))

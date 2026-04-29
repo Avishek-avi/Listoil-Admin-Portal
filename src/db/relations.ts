@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { users, auditLogs, counterSales, schemeTypes, campaigns, counterSalesLedger, earningTypes, counterSalesTransactionLogs, schemes, counterSalesTransactions, appConfigs, electricianLedger, electricianTransactionLogs, client, locationEntity, locationLevelMaster, locationEntityPincode, pincodeMaster, electricians, kycDocuments, electricianTransactions, notificationTemplates, eventMaster, otpMaster, skuEntity, participantSkuAccess, skuLevelMaster, notifications, qrCodes, qrTypes, retailerLedger, redemptions, redemptionChannels, redemptionStatuses, referrals, skuPointConfig, skuVariant, userTypeEntity, retailerTransactionLogs, retailers, retailerTransactions, tdsRecords, thirdPartyVerificationLogs, userAssociations, systemLogs, userScopeMapping, userTypeLevelMaster, approvalStatuses, languages, onboardingTypes, creativesTypes, creatives, eventLogs, ticketStatuses, tickets, ticketTypes, amazonMarketplaceProducts, userAmazonOrders, amazonOrderItems, amazonTickets, approvalAuditLogs, redemptionApprovals, physicalRewardsRedemptions, physicalRewardsCatalogue, redemptionThresholds, userAmazonCart, userAmazonWishlist, userApprovalRoles, approvalRoles, inappNotifications, notificationLogs, redemptionUpi, redemptionVouchers, thirdPartyApiLogs, redemptionBankTransfers } from "./schema";
+import { users, auditLogs, counterSales, schemeTypes, campaigns, counterSalesLedger, earningTypes, counterSalesTransactionLogs, schemes, counterSalesTransactions, appConfigs, mechanicLedger, mechanicTransactionLogs, client, locationEntity, locationLevelMaster, locationEntityPincode, pincodeMaster, mechanics, kycDocuments, mechanicTransactions, notificationTemplates, eventMaster, otpMaster, skuEntity, participantSkuAccess, skuLevelMaster, notifications, qrCodes, qrTypes, retailerLedger, redemptions, redemptionChannels, redemptionStatuses, referrals, skuPointConfig, skuVariant, userTypeEntity, retailerTransactionLogs, retailers, retailerTransactions, tdsRecords, thirdPartyVerificationLogs, userAssociations, systemLogs, userScopeMapping, userTypeLevelMaster, approvalStatuses, languages, onboardingTypes, creativesTypes, creatives, eventLogs, ticketStatuses, tickets, ticketTypes, amazonMarketplaceProducts, userAmazonOrders, amazonOrderItems, amazonTickets, approvalAuditLogs, redemptionApprovals, physicalRewardsRedemptions, physicalRewardsCatalogue, redemptionThresholds, userAmazonCart, userAmazonWishlist, userApprovalRoles, approvalRoles, inappNotifications, notificationLogs, redemptionUpi, redemptionVouchers, thirdPartyApiLogs, redemptionBankTransfers } from "./schema";
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 	user: one(users, {
@@ -20,11 +20,11 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 	counterSalesTransactionLogs: many(counterSalesTransactionLogs),
 	counterSalesTransactions: many(counterSalesTransactions),
 	appConfigs: many(appConfigs),
-	electricianLedgers: many(electricianLedger),
-	electricianTransactionLogs: many(electricianTransactionLogs),
-	electricians: many(electricians),
+	mechanicLedgers: many(mechanicLedger),
+	mechanicTransactionLogs: many(mechanicTransactionLogs),
+	mechanics: many(mechanics),
 	kycDocuments: many(kycDocuments),
-	electricianTransactions: many(electricianTransactions),
+	mechanicTransactions: many(mechanicTransactions),
 	otpMasters: many(otpMaster),
 	participantSkuAccesses: many(participantSkuAccess),
 	notifications: many(notifications),
@@ -159,8 +159,8 @@ export const counterSalesTransactionLogsRelations = relations(counterSalesTransa
 export const earningTypesRelations = relations(earningTypes, ({ many }) => ({
 	counterSalesTransactionLogs: many(counterSalesTransactionLogs),
 	counterSalesTransactions: many(counterSalesTransactions),
-	electricianTransactionLogs: many(electricianTransactionLogs),
-	electricianTransactions: many(electricianTransactions),
+	mechanicTransactionLogs: many(mechanicTransactionLogs),
+	mechanicTransactions: many(mechanicTransactions),
 	retailerTransactionLogs: many(retailerTransactionLogs),
 	retailerTransactions: many(retailerTransactions),
 }));
@@ -168,8 +168,8 @@ export const earningTypesRelations = relations(earningTypes, ({ many }) => ({
 export const schemesRelations = relations(schemes, ({ one, many }) => ({
 	counterSalesTransactionLogs: many(counterSalesTransactionLogs),
 	counterSalesTransactions: many(counterSalesTransactions),
-	electricianTransactionLogs: many(electricianTransactionLogs),
-	electricianTransactions: many(electricianTransactions),
+	mechanicTransactionLogs: many(mechanicTransactionLogs),
+	mechanicTransactions: many(mechanicTransactions),
 	redemptions: many(redemptions),
 	schemeType: one(schemeTypes, {
 		fields: [schemes.schemeType],
@@ -201,24 +201,24 @@ export const appConfigsRelations = relations(appConfigs, ({ one }) => ({
 	}),
 }));
 
-export const electricianLedgerRelations = relations(electricianLedger, ({ one }) => ({
+export const mechanicLedgerRelations = relations(mechanicLedger, ({ one }) => ({
 	user: one(users, {
-		fields: [electricianLedger.userId],
+		fields: [mechanicLedger.userId],
 		references: [users.id]
 	}),
 }));
 
-export const electricianTransactionLogsRelations = relations(electricianTransactionLogs, ({ one }) => ({
+export const mechanicTransactionLogsRelations = relations(mechanicTransactionLogs, ({ one }) => ({
 	earningType: one(earningTypes, {
-		fields: [electricianTransactionLogs.earningType],
+		fields: [mechanicTransactionLogs.earningType],
 		references: [earningTypes.id]
 	}),
 	scheme: one(schemes, {
-		fields: [electricianTransactionLogs.schemeId],
+		fields: [mechanicTransactionLogs.schemeId],
 		references: [schemes.id]
 	}),
 	user: one(users, {
-		fields: [electricianTransactionLogs.userId],
+		fields: [mechanicTransactionLogs.userId],
 		references: [users.id]
 	}),
 }));
@@ -274,9 +274,9 @@ export const pincodeMasterRelations = relations(pincodeMaster, ({ many }) => ({
 	locationEntityPincodes: many(locationEntityPincode),
 }));
 
-export const electriciansRelations = relations(electricians, ({ one }) => ({
+export const mechanicsRelations = relations(mechanics, ({ one }) => ({
 	user: one(users, {
-		fields: [electricians.userId],
+		fields: [mechanics.userId],
 		references: [users.id]
 	}),
 }));
@@ -288,17 +288,17 @@ export const kycDocumentsRelations = relations(kycDocuments, ({ one }) => ({
 	}),
 }));
 
-export const electricianTransactionsRelations = relations(electricianTransactions, ({ one }) => ({
+export const mechanicTransactionsRelations = relations(mechanicTransactions, ({ one }) => ({
 	earningType: one(earningTypes, {
-		fields: [electricianTransactions.earningType],
+		fields: [mechanicTransactions.earningType],
 		references: [earningTypes.id]
 	}),
 	scheme: one(schemes, {
-		fields: [electricianTransactions.schemeId],
+		fields: [mechanicTransactions.schemeId],
 		references: [schemes.id]
 	}),
 	user: one(users, {
-		fields: [electricianTransactions.userId],
+		fields: [mechanicTransactions.userId],
 		references: [users.id]
 	}),
 }));

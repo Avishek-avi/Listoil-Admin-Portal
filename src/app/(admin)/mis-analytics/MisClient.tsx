@@ -435,7 +435,7 @@ const REPORT_CONFIGS: RefReportConfig[] = [
             { key: 'l6Colour', label: 'L6_COLOUR', type: 'text' },
             { key: 'dateOfScan', label: 'Date of Scan', type: 'date' },
             { key: 'frequencyOfAnomaly', label: 'Frequency of Anomaly', type: 'number' },
-            { key: 'expectedRewardElect', label: 'Expected Reward (Elect)', type: 'number' },
+            { key: 'expectedRewardMech', label: 'Expected Reward (Mech)', type: 'number' },
             { key: 'expectedRewardDealerRet', label: 'Expected Reward (Dealer/Ret)', type: 'number' },
             { key: 'expectedRewardCsb', label: 'Expected Reward (CSB)', type: 'number' },
             { key: 'totalPointsEarned', label: 'Total Points Earned', type: 'number' },
@@ -872,7 +872,7 @@ function mapRowsForReport(reportId: string, rows: any[]): any[] {
                 l6Colour: fallback,
                 dateOfScan: r.createdAt,
                 frequencyOfAnomaly: 1,
-                expectedRewardElect: r.points || 0,
+                expectedRewardMech: r.points || 0,
                 expectedRewardDealerRet: r.points || 0,
                 expectedRewardCsb: r.points || 0,
                 totalPointsEarned: r.points || 0,
@@ -910,7 +910,7 @@ function mapRowsForReport(reportId: string, rows: any[]): any[] {
 
 export default function MisClient() {
     const searchParams = useSearchParams();
-    const [activeTab, setActiveTab] = useState(0)
+    const [activeTab, setActiveTab] = useState(4)
     const [activeReportCategory, setActiveReportCategory] = useState<string | null>(REPORT_CONFIGS[0]?.id || null);
     const [isReportMenuCollapsed, setIsReportMenuCollapsed] = useState(false);
     const [isReportFiltersOpen, setIsReportFiltersOpen] = useState(false);
@@ -935,7 +935,7 @@ export default function MisClient() {
         }
     }, [searchParams]);
 
-    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white"
 
     useEffect(() => {
         if (activeReportCategory) {
@@ -1140,7 +1140,7 @@ export default function MisClient() {
     }
 
     const memberSegData = {
-        labels: analyticsData?.memberAnalytics?.segmentation?.labels || ['Electricians', 'Retailers', 'Contractors', 'Builders'],
+        labels: analyticsData?.memberAnalytics?.segmentation?.labels || ['Mechanics', 'Retailers', 'Contractors', 'Builders'],
         datasets: [{
             data: analyticsData?.memberAnalytics?.segmentation?.data || [45, 25, 20, 10],
             backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
@@ -1167,7 +1167,7 @@ export default function MisClient() {
     }
 
     if (isLoading) {
-        return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+        return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div></div>
     }
 
     if (error) {
@@ -1179,8 +1179,8 @@ export default function MisClient() {
             {/* ── Tabs ── */}
             <div className="border-b border-gray-200 mb-6">
                 <div className="tabs">
-                    {['Executive Dashboard', 'Performance Metrics', 'Member Analytics', 'Campaign Analytics', 'Reports'].map((label, i) => (
-                        <button key={`${label}-${i}`} className={`tab ${activeTab === i ? 'active' : ''}`} onClick={() => setActiveTab(i)}>{label}</button>
+                    {['Reports'].map((label) => (
+                        <button key={label} className="tab active">{label}</button>
                     ))}
                 </div>
             </div>
@@ -1247,7 +1247,7 @@ export default function MisClient() {
                                 { 
                                     title: 'Top Members by Points', 
                                     items: analyticsData?.lists?.topMembers || [],
-                                    bg: 'bg-blue-100', txt: 'text-blue-600'
+                                    bg: 'bg-red-100', txt: 'text-red-600'
                                 },
                                 { 
                                     title: 'Top Performing Products', 
@@ -1311,12 +1311,12 @@ export default function MisClient() {
                                     <p className="text-sm font-medium mb-1">Member Type</p>
                                     <select defaultValue="" className={selectClass}>
                                         <option value="">All Types</option>
-                                        <option value="electrician">Electrician</option>
+                                        <option value="mechanic">Mechanic</option>
                                         <option value="retailer">Retailer</option>
                                     </select>
                                 </div>
                                 <div className="flex items-end">
-                                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                                    <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition text-sm font-medium">
                                         <i className="fas fa-filter mr-2"></i> Apply Filters
                                     </button>
                                 </div>
@@ -1326,7 +1326,7 @@ export default function MisClient() {
                         {/* KPIs */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                             {[
-                                { title: 'Avg. Txn Value', val: `₹${analyticsData?.performance?.kpis?.avgTxnValue || 0}`, chg: '+8.5%', icon: 'fa-chart-bar', color: 'text-blue-500' },
+                                { title: 'Avg. Txn Value', val: `₹${analyticsData?.performance?.kpis?.avgTxnValue || 0}`, chg: '+8.5%', icon: 'fa-chart-bar', color: 'text-red-500' },
                                 { title: 'Scan Frequency', val: `${analyticsData?.performance?.kpis?.scanFrequency || 0}/day`, chg: '+12.3%', icon: 'fa-qrcode', color: 'text-green-500' },
                                 { title: 'Retention Rate', val: `${analyticsData?.performance?.kpis?.retentionRate || 0}%`, chg: '+3.2%', icon: 'fa-user-check', color: 'text-purple-500' },
                                 { title: 'Conversion Rate', val: `${analyticsData?.performance?.kpis?.conversionRate || 0}%`, chg: '-1.5%', icon: 'fa-percentage', color: 'text-orange-500', isNeg: true },
@@ -1376,7 +1376,7 @@ export default function MisClient() {
                                 <h3 className="text-lg font-semibold mb-4">Member Lifecycle</h3>
                                 <div className="flex flex-col gap-4">
                                     {[
-                                        { label: 'New Members', val: analyticsData?.memberAnalytics?.lifecycle?.new, color: 'bg-blue-500' },
+                                        { label: 'New Members', val: analyticsData?.memberAnalytics?.lifecycle?.new, color: 'bg-red-500' },
                                         { label: 'Active Members', val: analyticsData?.memberAnalytics?.lifecycle?.active, color: 'bg-green-500' },
                                         { label: 'At Risk Members', val: analyticsData?.memberAnalytics?.lifecycle?.atRisk, color: 'bg-yellow-500' },
                                         { label: 'Churned Members', val: analyticsData?.memberAnalytics?.lifecycle?.churned, color: 'bg-red-500' },
@@ -1424,7 +1424,7 @@ export default function MisClient() {
                         <div className="widget-card p-6 w-full">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-semibold">Recent Member Activity</h3>
-                                <button className="text-blue-600 text-sm hover:underline">View All</button>
+                                <button className="text-red-600 text-sm hover:underline">View All</button>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="min-w-full">
@@ -1468,7 +1468,7 @@ export default function MisClient() {
                         {/* Campaign KPIs */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                             {[
-                                { title: 'Active Campaigns', val: analyticsData?.campaignAnalytics?.kpis?.activeCampaigns, chg: '+3', icon: 'fa-bullhorn', color: 'text-blue-500' },
+                                { title: 'Active Campaigns', val: analyticsData?.campaignAnalytics?.kpis?.activeCampaigns, chg: '+3', icon: 'fa-bullhorn', color: 'text-red-500' },
                                 { title: 'Total Reach', val: analyticsData?.campaignAnalytics?.kpis?.totalReach, chg: '+25%', icon: 'fa-users', color: 'text-green-500' },
                                 { title: 'Conversion Rate', val: `${analyticsData?.campaignAnalytics?.kpis?.conversionRate}%`, chg: '+4.2%', icon: 'fa-chart-line', color: 'text-purple-500' },
                                 { title: 'ROI', val: `${analyticsData?.campaignAnalytics?.kpis?.roi}%`, chg: '+32%', icon: 'fa-dollar-sign', color: 'text-orange-500' },
@@ -1503,7 +1503,7 @@ export default function MisClient() {
                         <div className="widget-card p-6 w-full">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-semibold">Top Performing Campaigns</h3>
-                                <button className="text-blue-600 text-sm hover:underline">View All</button>
+                                <button className="text-red-600 text-sm hover:underline">View All</button>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="data-table">
@@ -1564,9 +1564,9 @@ export default function MisClient() {
                                             key={cat.id}
                                             onClick={() => setActiveReportCategory(cat.id)}
                                             title={cat.title}
-                                            className={`w-full flex items-center py-3 text-sm font-medium rounded-lg transition-colors ${isReportMenuCollapsed ? 'justify-center px-2' : 'px-3'} ${activeReportCategory === cat.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                                            className={`w-full flex items-center py-3 text-sm font-medium rounded-lg transition-colors ${isReportMenuCollapsed ? 'justify-center px-2' : 'px-3'} ${activeReportCategory === cat.id ? 'bg-red-50 text-red-700' : 'text-gray-700 hover:bg-gray-100'}`}
                                         >
-                                            <i className={`fas ${cat.icon} ${isReportMenuCollapsed ? '' : 'mr-3'} ${activeReportCategory === cat.id ? 'text-blue-500' : 'text-gray-400'}`}></i>
+                                            <i className={`fas ${cat.icon} ${isReportMenuCollapsed ? '' : 'mr-3'} ${activeReportCategory === cat.id ? 'text-red-500' : 'text-gray-400'}`}></i>
                                             {!isReportMenuCollapsed && <span className="truncate text-left">{cat.title}</span>}
                                         </button>
                                     ))}
@@ -1694,7 +1694,7 @@ export default function MisClient() {
                                     {activeReportCategory ? (
                                         isReportLoading ? (
                                             <div className="flex justify-center items-center h-full">
-                                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600"></div>
                                             </div>
                                         ) : reportData.columns.length > 0 ? (
                                             <div className="h-full flex flex-col">

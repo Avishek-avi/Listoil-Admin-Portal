@@ -1,9 +1,10 @@
 'use server';
 
 import { db } from '@/db';
-import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, electricianTransactions, counterSalesTransactions, users, approvalStatuses } from '@/db/schema';
+import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, mechanicTransactions, counterSalesTransactions, users, approvalStatuses, pincodeMaster } from '@/db/schema';
 import { emitEvent, BUS_EVENTS } from '@/server/rabbitMq/broker';
-import { eq, desc, sql as sqlTag, and, inArray } from 'drizzle-orm';
+import { eq, desc, sql, sql as sqlTag, and, inArray, or, ilike } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 export interface StakeholderType {
     id: string;
@@ -14,7 +15,10 @@ export interface StakeholderType {
     maxDailyScans: number;
     requiredKycLevel: string;
     allowedRedemptionChannels: number[];
+    maxRedemptionLimit: number;
+    minRedemptionLimit: number;
 }
+
 
 export interface PointsRule {
     id: string;
@@ -54,7 +58,10 @@ export async function getMastersDataAction() {
             isActive: userTypeEntity.isActive,
             maxDailyScans: userTypeEntity.maxDailyScans,
             requiredKycLevel: userTypeEntity.requiredKycLevel,
-            allowedRedemptionChannels: userTypeEntity.allowedRedemptionChannels
+            allowedRedemptionChannels: userTypeEntity.allowedRedemptionChannels,
+            maxRedemptionLimit: userTypeEntity.maxRedemptionLimit,
+            minRedemptionLimit: userTypeEntity.minRedemptionLimit
+
         }).from(userTypeEntity).orderBy(desc(userTypeEntity.id));
 
         const stakeholderTypes: StakeholderType[] = stakeholders.map(s => ({
@@ -64,7 +71,10 @@ export async function getMastersDataAction() {
             status: s.isActive ? 'Active' : 'Inactive',
             maxDailyScans: s.maxDailyScans || 50,
             requiredKycLevel: s.requiredKycLevel || 'Basic',
-            allowedRedemptionChannels: (s.allowedRedemptionChannels as number[]) || []
+            allowedRedemptionChannels: (s.allowedRedemptionChannels as number[]) || [],
+            maxRedemptionLimit: s.maxRedemptionLimit || 5000,
+            minRedemptionLimit: s.minRedemptionLimit || 100
+
         }));
 
         // 2. Fetch Points Config (Base Points)
@@ -179,7 +189,7 @@ export async function getMastersDataAction() {
 
         // 5. SKU Performance
         const q1 = db.select({ sku: retailerTransactions.sku }).from(retailerTransactions);
-        const q2 = db.select({ sku: electricianTransactions.sku }).from(electricianTransactions);
+        const q2 = db.select({ sku: mechanicTransactions.sku }).from(mechanicTransactions);
         const q3 = db.select({ sku: counterSalesTransactions.sku }).from(counterSalesTransactions);
         const unionSq = q1.unionAll(q2).unionAll(q3).as('t');
 
@@ -270,14 +280,19 @@ export async function updateStakeholderConfigAction(data: {
     maxDailyScans: number;
     requiredKycLevel: string;
     allowedRedemptionChannels: number[];
+    maxRedemptionLimit: number;
+    minRedemptionLimit: number;
 }) {
     try {
         await db.update(userTypeEntity)
             .set({
                 maxDailyScans: data.maxDailyScans,
                 requiredKycLevel: data.requiredKycLevel,
-                allowedRedemptionChannels: data.allowedRedemptionChannels
+                allowedRedemptionChannels: data.allowedRedemptionChannels,
+                maxRedemptionLimit: data.maxRedemptionLimit,
+                minRedemptionLimit: data.minRedemptionLimit
             })
+
             .where(eq(userTypeEntity.id, data.id));
 
         await emitEvent(BUS_EVENTS.MEMBER_MASTER_CONFIG_UPDATE, {
@@ -503,5 +518,258 @@ export async function deletePointsMatrixRuleAction(id: number) {
     } catch (error) {
         console.error("Error deleting points matrix rule:", error);
         return { success: false, error: "Failed to delete rule" };
+    }
+}
+export async function getPincodeMasterAction(page: number = 1, limit: number = 50, search: string = '') {
+    try {
+        const conditions = [];
+        if (search) {
+            conditions.push(or(
+                ilike(pincodeMaster.pincode, `%${search}%`),
+                ilike(pincodeMaster.city, `%${search}%`),
+                ilike(pincodeMaster.state, `%${search}%`),
+                ilike(pincodeMaster.zone, `%${search}%`)
+            ));
+        }
+
+        const query = db.select().from(pincodeMaster);
+        if (conditions.length > 0) {
+            // @ts-ignore
+            query.where(and(...conditions));
+        }
+
+        const list = await query
+            .limit(limit)
+            .offset((page - 1) * limit)
+            .orderBy(desc(pincodeMaster.id));
+
+        const [totalResult] = await db.select({ count: sqlTag`count(*)` }).from(pincodeMaster);
+        
+        return {
+            list,
+            total: Number(totalResult.count)
+        };
+    } catch (error) {
+        console.error("Error fetching pincode master:", error);
+        return { list: [], total: 0 };
+    }
+}
+
+export async function getProductMasterAction(page: number = 1, limit: number = 50, search: string = '') {
+    try {
+        const e6 = alias(skuEntity, 'e6');
+        const e5 = alias(skuEntity, 'e5');
+        const e4 = alias(skuEntity, 'e4');
+        const e3 = alias(skuEntity, 'e3');
+
+        const conditions = [];
+        if (search) {
+            conditions.push(or(
+                ilike(skuVariant.variantName, `%${search}%`),
+                ilike(e6.name, `%${search}%`),
+                ilike(e4.name, `%${search}%`),
+                ilike(e3.name, `%${search}%`)
+            ));
+        }
+
+        const query = db.select({
+            id: skuVariant.id,
+            skuEntityId: e6.id,
+            productCode: e6.name,
+            productName: skuVariant.variantName,
+            packSize: skuVariant.packSize,
+            isActive: skuVariant.isActive,
+            category: e3.name,
+            subCategory: e4.name,
+            ratingType: e5.name
+        })
+        .from(skuVariant)
+        .leftJoin(e6, eq(skuVariant.skuEntityId, e6.id))
+        .leftJoin(e5, eq(e6.parentEntityId, e5.id))
+        .leftJoin(e4, eq(e5.parentEntityId, e4.id))
+        .leftJoin(e3, eq(e4.parentEntityId, e3.id));
+
+        if (conditions.length > 0) {
+            // @ts-ignore
+            query.where(and(...conditions));
+        }
+
+        const list = await query
+            .limit(limit)
+            .offset((page - 1) * limit)
+            .orderBy(desc(skuVariant.id));
+
+        const variantIds = list.map(v => v.id);
+        const points = variantIds.length > 0 ? await db.select().from(skuPointConfig).where(inArray(skuPointConfig.skuVariantId, variantIds)) : [];
+
+        const enrichedList = list.map(v => ({
+            ...v,
+            points: points.filter(p => p.skuVariantId === v.id).map(p => ({
+                userTypeId: p.userTypeId,
+                value: p.pointsPerUnit
+            }))
+        }));
+
+        const [totalResult] = await db.select({ count: sql`count(*)` }).from(skuVariant);
+        
+        return {
+            list: enrichedList,
+            total: Number(totalResult.count)
+        };
+    } catch (error) {
+        console.error("Error fetching product master:", error);
+        return { list: [], total: 0 };
+    }
+}
+export async function updateProductMasterAction(data: {
+    variantId: number;
+    skuEntityId: number;
+    productCode: string;
+    productName: string;
+    packSize: string;
+    points: number;
+    isActive: boolean;
+}) {
+    try {
+        await db.transaction(async (tx) => {
+            // 1. Update SKU Entity (Product Code)
+            await tx.update(skuEntity)
+                .set({ name: data.productCode })
+                .where(eq(skuEntity.id, data.skuEntityId));
+
+            // 2. Update Variant
+            await tx.update(skuVariant)
+                .set({
+                    variantName: data.productName,
+                    packSize: data.packSize,
+                    isActive: data.isActive
+                })
+                .where(eq(skuVariant.id, data.variantId));
+
+            // 3. Update Points for Mechanic (userTypeId 3)
+            const [existingConfig] = await tx.select()
+                .from(skuPointConfig)
+                .where(and(
+                    eq(skuPointConfig.skuVariantId, data.variantId),
+                    eq(skuPointConfig.userTypeId, 3)
+                ));
+
+            if (existingConfig) {
+                await tx.update(skuPointConfig)
+                    .set({ pointsPerUnit: data.points.toString() })
+                    .where(eq(skuPointConfig.id, existingConfig.id));
+            } else {
+                await tx.insert(skuPointConfig)
+                    .values({
+                        clientId: 1,
+                        skuVariantId: data.variantId,
+                        userTypeId: 3,
+                        pointsPerUnit: data.points.toString(),
+                        isActive: true
+                    });
+            }
+        });
+        return { success: true, message: "Product updated successfully" };
+    } catch (error: any) {
+        console.error("Error updating product:", error);
+        return { success: false, message: error.message || "Failed to update product" };
+    }
+}
+export async function getHierarchyOptionsAction() {
+    try {
+        const categories = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 3), sql`name IS NOT NULL`));
+        const subCategories = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 4), sql`name IS NOT NULL`));
+        const ratingTypes = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 5), sql`name IS NOT NULL`));
+
+        return {
+            categories: Array.from(new Set(categories.map(c => c.name.trim()))).filter(Boolean).sort(),
+            subCategories: Array.from(new Set(subCategories.map(c => c.name.trim()))).filter(Boolean).sort(),
+            ratingTypes: Array.from(new Set(ratingTypes.map(c => c.name.trim()))).filter(Boolean).sort(),
+        };
+    } catch (error) {
+        console.error("Error fetching hierarchy options:", error);
+        return { categories: [], subCategories: [], ratingTypes: [] };
+    }
+}
+
+export async function createProductAction(data: {
+    category: string;
+    subCategory: string;
+    ratingType: string;
+    productCode: string;
+    productName: string;
+    packSize: string;
+    points: number;
+}) {
+    try {
+        const result = await db.transaction(async (tx) => {
+            // 1. Get/Create L1 (Vertical: Lubricants)
+            let [l1] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 1), eq(skuEntity.name, 'Lubricants')));
+            if (!l1) {
+                [l1] = await tx.insert(skuEntity).values({ levelId: 1, name: 'Lubricants', isActive: true }).returning();
+            }
+
+            // 2. Get/Create L2 (Range: Engine Oil)
+            let [l2] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 2), eq(skuEntity.name, 'Engine Oil'), eq(skuEntity.parentEntityId, l1.id)));
+            if (!l2) {
+                [l2] = await tx.insert(skuEntity).values({ levelId: 2, name: 'Engine Oil', parentEntityId: l1.id, isActive: true }).returning();
+            }
+
+            // 3. Get/Create L3 (Category)
+            let [l3] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 3), ilike(skuEntity.name, data.category), eq(skuEntity.parentEntityId, l2.id)));
+            if (!l3) {
+                [l3] = await tx.insert(skuEntity).values({ levelId: 3, name: data.category, parentEntityId: l2.id, isActive: true }).returning();
+            }
+
+            // 4. Get/Create L4 (Sub-Category)
+            let [l4] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 4), ilike(skuEntity.name, data.subCategory), eq(skuEntity.parentEntityId, l3.id)));
+            if (!l4) {
+                [l4] = await tx.insert(skuEntity).values({ levelId: 4, name: data.subCategory, parentEntityId: l3.id, isActive: true }).returning();
+            }
+
+            // 5. Get/Create L5 (Rating Type)
+            let [l5] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 5), ilike(skuEntity.name, data.ratingType), eq(skuEntity.parentEntityId, l4.id)));
+            if (!l5) {
+                [l5] = await tx.insert(skuEntity).values({ levelId: 5, name: data.ratingType, parentEntityId: l4.id, isActive: true }).returning();
+            }
+
+            // 6. CHECK FOR GLOBAL SKU CODE UNIQUENESS
+            const [existingSku] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 6), ilike(skuEntity.name, data.productCode)));
+            if (existingSku) {
+                throw new Error(`Product Code "${data.productCode}" already exists in the system. Codes must be unique.`);
+            }
+
+            // 7. Create L6 (Product Code)
+            const [l6] = await tx.insert(skuEntity).values({ 
+                levelId: 6, 
+                name: data.productCode, 
+                parentEntityId: l5.id, 
+                isActive: true 
+            }).returning();
+
+            // 7. Create Variant
+            const [variant] = await tx.insert(skuVariant).values({
+                skuEntityId: l6.id,
+                variantName: data.productName,
+                packSize: data.packSize,
+                isActive: true
+            }).returning();
+
+            // 8. Create Points Config for Mechanic (3)
+            await tx.insert(skuPointConfig).values({
+                clientId: 1,
+                skuVariantId: variant.id,
+                userTypeId: 3,
+                pointsPerUnit: data.points.toString(),
+                isActive: true
+            });
+
+            return { success: true, message: "Product created successfully", variantId: variant.id };
+        });
+
+        return result;
+    } catch (error: any) {
+        console.error("Error creating product:", error);
+        return { success: false, message: error.message || "Failed to create product" };
     }
 }

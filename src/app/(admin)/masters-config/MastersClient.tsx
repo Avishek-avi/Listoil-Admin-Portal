@@ -5,7 +5,7 @@ import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, T
 import { Bar, Pie } from 'react-chartjs-2';
 import { ChevronDown, ChevronRight, Edit, Delete } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getMastersDataAction, updateStakeholderConfigAction, upsertPointsMatrixRuleAction, upsertSkuPointConfigAction, updateSkuPointConfigForEntityAction, type SkuNode, deletePointsMatrixRuleAction } from '@/actions/masters-actions';
+import { getMastersDataAction, updateStakeholderConfigAction, upsertPointsMatrixRuleAction, upsertSkuPointConfigAction, updateSkuPointConfigForEntityAction, type SkuNode, deletePointsMatrixRuleAction, getPincodeMasterAction, getProductMasterAction, updateProductMasterAction, getHierarchyOptionsAction, createProductAction } from '@/actions/masters-actions';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -22,7 +22,7 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
     const RenderNode = ({ node, path }: { node: SkuNode; path: string }) => {
         const hasChildren = node.children && node.children.length > 0;
         const icon = hasChildren ? (
-            <i className="fas fa-folder text-blue-500 mr-2" />
+            <i className="fas fa-folder text-red-500 mr-2" />
         ) : (
             <i className="fas fa-file text-gray-500 mr-2" />
         );
@@ -32,7 +32,7 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
         return (
             <li>
                 <div
-                    className={`flex items-center py-1 px-2 cursor-pointer rounded ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-100'}`}
+                    className={`flex items-center py-1 px-2 cursor-pointer rounded ${isSelected ? 'bg-red-50' : 'hover:bg-gray-100'}`}
                     onClick={() => {
                         if (hasChildren) toggle(path);
                         onSelect && onSelect(node.id);
@@ -48,7 +48,7 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
                     {icon}
                     <span className="ml-2 text-sm">{node.label}</span>
                     <span className="ml-auto mr-2">
-                        <span className="text-xs px-2 py-0.5 rounded-full border border-blue-400 text-blue-600">{node.levelName}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-red-400 text-red-600">{node.levelName}</span>
                     </span>
                 </div>
                 {hasChildren && open[path] && (
@@ -71,8 +71,8 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
     );
 }
 
-const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white";
-const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white";
+const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500";
 
 export default function MastersClient() {
     const { data, isLoading, error } = useQuery({
@@ -82,14 +82,18 @@ export default function MastersClient() {
 
     const [tab, setTab] = useState(0);
     const queryClient = useQueryClient();
-    const tabLabels = ['Stakeholder Master', 'SKU Master', 'Points Matrix', 'Target Master'];
+    const tabLabels = ['Stakeholder Master', 'SKU Master', 'Product Master', 'Target Master', 'Pincode Master'];
+    // Note: SKU Master (Index 1) is being hidden as per request
 
     // Stakeholder config form state
     const [selectedStakeholderId, setSelectedStakeholderId] = useState<string | null>(null);
     const [stakeholderMaxDailyScans, setStakeholderMaxDailyScans] = useState<number>(50);
     const [stakeholderKycLevel, setStakeholderKycLevel] = useState<string>('Basic');
     const [stakeholderChannelIds, setStakeholderChannelIds] = useState<number[]>([]);
+    const [stakeholderMaxRedemptionLimit, setStakeholderMaxRedemptionLimit] = useState<number>(5000);
+    const [stakeholderMinRedemptionLimit, setStakeholderMinRedemptionLimit] = useState<number>(100);
     const [stakeholderSaveStatus, setStakeholderSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
     const [confirmOpen, setConfirmOpen] = useState(false);
 
     const stakeholderMutation = useMutation({
@@ -133,6 +137,93 @@ export default function MastersClient() {
     const [pmIsActive, setPmIsActive] = useState<boolean>(true);
     const [pmDescription, setPmDescription] = useState<string>('');
     const [pmSaveStatus, setPmSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    
+    // Pincode Master state
+    const [pincodePage, setPincodePage] = useState(1);
+    const [pincodeSearch, setPincodeSearch] = useState('');
+    const [debouncedPincodeSearch, setDebouncedPincodeSearch] = useState('');
+
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedPincodeSearch(pincodeSearch), 500);
+        return () => clearTimeout(t);
+    }, [pincodeSearch]);
+
+    const { data: pincodeData, isLoading: isPincodeLoading } = useQuery({
+        queryKey: ['pincode-master', pincodePage, debouncedPincodeSearch],
+        queryFn: () => getPincodeMasterAction(pincodePage, 50, debouncedPincodeSearch),
+        enabled: tab === 4
+    });
+
+    // Product Master state
+    const [productPage, setProductPage] = useState(1);
+    const [productSearch, setProductSearch] = useState('');
+    const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
+
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedProductSearch(productSearch), 500);
+        return () => clearTimeout(t);
+    }, [productSearch]);
+
+    const { data: productData, isLoading: isProductLoading } = useQuery({
+        queryKey: ['product-master', productPage, debouncedProductSearch],
+        queryFn: () => getProductMasterAction(productPage, 50, debouncedProductSearch),
+        enabled: tab === 2
+    });
+
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingProduct, setEditingProduct] = useState<any>(null);
+
+    const updateProductMutation = useMutation({
+        mutationFn: updateProductMasterAction,
+        onSuccess: (res) => {
+            if (res.success) {
+                queryClient.invalidateQueries({ queryKey: ['product-master'] });
+                setIsEditModalOpen(false);
+                setEditingProduct(null);
+            } else {
+                alert(res.message);
+            }
+        }
+    });
+
+    // Add Product state
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [newProduct, setNewProduct] = useState({
+        category: '',
+        subCategory: '',
+        ratingType: '',
+        productCode: '',
+        productName: '',
+        packSize: '',
+        points: 0
+    });
+
+    const { data: hierarchyOptions } = useQuery({
+        queryKey: ['hierarchy-options'],
+        queryFn: getHierarchyOptionsAction,
+        enabled: isAddModalOpen
+    });
+
+    const createProductMutation = useMutation({
+        mutationFn: createProductAction,
+        onSuccess: (res) => {
+            if (res.success) {
+                queryClient.invalidateQueries({ queryKey: ['product-master'] });
+                setIsAddModalOpen(false);
+                setNewProduct({
+                    category: '',
+                    subCategory: '',
+                    ratingType: '',
+                    productCode: '',
+                    productName: '',
+                    packSize: '',
+                    points: 0
+                });
+            } else {
+                alert(res.message);
+            }
+        }
+    });
 
     const pointsRuleMutation = useMutation({
         mutationFn: (payload: Parameters<typeof upsertPointsMatrixRuleAction>[0]) => upsertPointsMatrixRuleAction(payload),
@@ -185,7 +276,7 @@ export default function MastersClient() {
     // Level color styles for L1–L6 SKU hierarchy
     const SKU_LEVEL_STYLES = [
         { badge: 'bg-indigo-100 text-indigo-700 border border-indigo-300', bar: 'bg-indigo-500', rowHover: 'hover:bg-indigo-50', rowSelected: 'bg-indigo-50' },
-        { badge: 'bg-blue-100 text-blue-700 border border-blue-300', bar: 'bg-blue-500', rowHover: 'hover:bg-blue-50', rowSelected: 'bg-blue-50' },
+        { badge: 'bg-red-100 text-red-700 border border-red-300', bar: 'bg-red-500', rowHover: 'hover:bg-red-50', rowSelected: 'bg-red-50' },
         { badge: 'bg-cyan-100 text-cyan-700 border border-cyan-300', bar: 'bg-cyan-400', rowHover: 'hover:bg-cyan-50', rowSelected: 'bg-cyan-50' },
         { badge: 'bg-teal-100 text-teal-700 border border-teal-300', bar: 'bg-teal-400', rowHover: 'hover:bg-teal-50', rowSelected: 'bg-teal-50' },
         { badge: 'bg-green-100 text-green-700 border border-green-300', bar: 'bg-green-500', rowHover: 'hover:bg-green-50', rowSelected: 'bg-green-50' },
@@ -203,7 +294,7 @@ export default function MastersClient() {
     const flattenedEntities = flatten(data?.skuHierarchy || []);
     const [selectedEntityId, setSelectedEntityId] = useState<string | null>(flattenedEntities[0]?.id || null);
 
-    const allowedStakeholderNames = ['Electrician', 'Retailer', 'Counter Staffs'];
+    const allowedStakeholderNames = ['Mechanic', 'Retailer', 'Counter Staffs'];
     const stakeholderTypes = useMemo(() => {
         return (data?.stakeholderTypes || []).filter((s: any) => 
             allowedStakeholderNames.some(name => 
@@ -227,13 +318,16 @@ export default function MastersClient() {
                 setStakeholderKycLevel(s.requiredKycLevel || 'Basic');
                 const channels = s.allowedRedemptionChannels || [];
                 setStakeholderChannelIds(channels.map((c: any) => Number(c)));
+                setStakeholderMaxRedemptionLimit(s.maxRedemptionLimit || 5000);
+                setStakeholderMinRedemptionLimit(s.minRedemptionLimit || 100);
             }
         }
     }, [selectedStakeholderId, stakeholderTypes]);
 
+
     if (isLoading) return (
         <div className="flex justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
         </div>
     );
     if (error) return <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">Failed to load configuration data</div>;
@@ -243,9 +337,13 @@ export default function MastersClient() {
     return (
         <main className="flex-1 overflow-y-auto p-6">
             <div className="tabs mb-6">
-                {tabLabels.map((label, i) => (
-                    <button key={label} className={`tab ${tab === i ? 'active' : ''}`} onClick={() => setTab(i)}>{label}</button>
-                ))}
+                {tabLabels.map((label, i) => {
+                    // Hide SKU Master (Index 1)
+                    if (i === 1) return null;
+                    return (
+                        <button key={label} className={`tab ${tab === i ? 'active' : ''}`} onClick={() => setTab(i)}>{label}</button>
+                    );
+                })}
             </div>
 
             <TabPanel value={tab} index={0}>
@@ -263,6 +361,8 @@ export default function MastersClient() {
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Description</th>
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Max Daily Scans</th>
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">KYC Level</th>
+                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Min Redemption</th>
+                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Max Redemption</th>
                                         <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Status</th>
                                     </tr>
                                 </thead>
@@ -272,9 +372,13 @@ export default function MastersClient() {
                                             <td className="py-3 text-sm text-gray-600">{row.id}</td>
                                             <td className="py-3 text-sm text-gray-600">{row.code || row.name}</td>
                                             <td className="py-3 text-sm text-gray-600">{row.desc}</td>
-                                            <td className="py-3 text-sm text-gray-600">{row.maxDailyScans}</td>
+                                            <td className="py-3 text-sm text-gray-600">{row.name?.toLowerCase().includes('retailer') ? 'N/A' : row.maxDailyScans}</td>
                                             <td className="py-3 text-sm text-gray-600">{row.requiredKycLevel}</td>
+
+                                            <td className="py-3 text-sm text-gray-600">{row.minRedemptionLimit}</td>
+                                            <td className="py-3 text-sm text-gray-600">{row.maxRedemptionLimit}</td>
                                             <td className="py-3 text-sm">
+
                                                 <span className={`badge ${row.status === 'Active' ? 'badge-success' : 'badge-warning'}`}>{row.status}</span>
                                             </td>
                                         </tr>
@@ -296,10 +400,13 @@ export default function MastersClient() {
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Daily Scans</label>
-                                    <input type="number" value={stakeholderMaxDailyScans} onChange={(e) => setStakeholderMaxDailyScans(Number(e.target.value))} className={inputClass} />
-                                </div>
+                                {stakeholderTypes.find(s => s.id === selectedStakeholderId)?.name?.toLowerCase().includes('retailer') ? null : (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Max Daily Scans</label>
+                                        <input type="number" value={stakeholderMaxDailyScans} onChange={(e) => setStakeholderMaxDailyScans(Number(e.target.value))} className={inputClass} />
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Required KYC Level</label>
                                     <select value={stakeholderKycLevel} onChange={(e) => setStakeholderKycLevel(e.target.value)} className={selectClass}>
@@ -308,7 +415,18 @@ export default function MastersClient() {
                                         <option value="Advanced">Advanced</option>
                                     </select>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Min Redemption Limit</label>
+                                        <input type="number" value={stakeholderMinRedemptionLimit} onChange={(e) => setStakeholderMinRedemptionLimit(Number(e.target.value))} className={inputClass} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Max Redemption Limit</label>
+                                        <input type="number" value={stakeholderMaxRedemptionLimit} onChange={(e) => setStakeholderMaxRedemptionLimit(Number(e.target.value))} className={inputClass} />
+                                    </div>
+                                </div>
+
+                                {/* <div className="space-y-2">
                                     <p className="text-sm text-gray-500">Allowed Redemption Channels</p>
                                     {(data?.redemptionChannels || []).map((ch: any) => (
                                         <label key={ch.id} className="flex items-center gap-2 text-sm">
@@ -318,11 +436,12 @@ export default function MastersClient() {
                                                     if (e.target.checked) return Array.from(new Set([...prev, id]));
                                                     return prev.filter((x) => x !== id);
                                                 });
-                                            }} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                            }} className="rounded border-gray-300 text-red-600 focus:ring-red-500" />
                                             {ch.name}
                                         </label>
                                     ))}
-                                </div>
+                                </div> */}
+
                                 <div className="flex justify-end gap-2 items-center">
                                     <button type="button" className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50" onClick={() => {
                                         if (selectedStakeholderId) {
@@ -332,10 +451,13 @@ export default function MastersClient() {
                                                 setStakeholderKycLevel(s.requiredKycLevel || 'Basic');
                                                 const channels = s.allowedRedemptionChannels || [];
                                                 setStakeholderChannelIds(channels.map((c: any) => Number(c)));
+                                                setStakeholderMaxRedemptionLimit(s.maxRedemptionLimit || 5000);
+                                                setStakeholderMinRedemptionLimit(s.minRedemptionLimit || 100);
                                             }
                                         }
                                     }}>Cancel</button>
-                                    <button type="button" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50" onClick={() => {
+
+                                    <button type="button" className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50" onClick={() => {
                                         if (!selectedStakeholderId) return;
                                         setConfirmOpen(true);
                                     }} disabled={stakeholderMutation.isPending}>
@@ -349,15 +471,18 @@ export default function MastersClient() {
                                             <p className="text-sm text-gray-600 mb-4">Are you sure you want to save changes to this stakeholder configuration?</p>
                                             <div className="flex justify-end gap-2">
                                                 <button type="button" className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50" onClick={() => setConfirmOpen(false)}>Cancel</button>
-                                                <button type="button" className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50" onClick={() => {
+                                                <button type="button" className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50" onClick={() => {
                                                     if (!selectedStakeholderId) return;
                                                     stakeholderMutation.mutate({
                                                         id: Number(selectedStakeholderId),
                                                         maxDailyScans: stakeholderMaxDailyScans,
                                                         requiredKycLevel: stakeholderKycLevel,
-                                                        allowedRedemptionChannels: stakeholderChannelIds
+                                                        allowedRedemptionChannels: stakeholderChannelIds,
+                                                        maxRedemptionLimit: stakeholderMaxRedemptionLimit,
+                                                        minRedemptionLimit: stakeholderMinRedemptionLimit
                                                     });
                                                     setConfirmOpen(false);
+
                                                 }}>Confirm</button>
                                             </div>
                                         </div>
@@ -376,7 +501,7 @@ export default function MastersClient() {
                                             <span className="font-medium">{s.value}</span>
                                         </div>
                                         <div className="w-full bg-gray-200 rounded-full h-2">
-                                            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${s.percent}%` }} />
+                                            <div className="bg-red-600 h-2 rounded-full" style={{ width: `${s.percent}%` }} />
                                         </div>
                                     </div>
                                 ))}
@@ -394,114 +519,114 @@ export default function MastersClient() {
                 </div>
             </TabPanel>
 
+            {/* SKU Master - Hidden 
             <TabPanel value={tab} index={1}>
-                <div className="space-y-6">
-                    <div className="widget-card rounded-xl shadow p-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900">SKU Hierarchy</h3>
-                        </div>
-                        <TreeView data={data?.skuHierarchy || []} />
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="widget-card rounded-xl shadow p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">SKU Points Configuration</h3>
-                            <form className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Stakeholder Type</label>
-                                    <select value={skuStakeholder} onChange={(e) => setSkuStakeholder(e.target.value)} className={selectClass}>
-                                        <option value="All">All Stakeholders</option>
-                                        {stakeholderTypes.map((t) => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Apply To Entity</label>
-                                    <div className="max-h-[260px] overflow-auto border border-gray-200 rounded-lg p-2">
-                                        <TreeView data={data?.skuHierarchy || []} selectedId={selectedEntityId} onSelect={(id) => setSelectedEntityId(id)} />
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Selected: {selectedEntityId ? (flattenedEntities.find(f => f.id === selectedEntityId)?.label || selectedEntityId) : 'None'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Points per Scan</label>
-                                    <input type="number" value={pointsPerScan} onChange={(e) => setPointsPerScan(Number(e.target.value))} className={inputClass} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Scans per Day</label>
-                                    <input type="number" value={maxScansPerDay} onChange={(e) => setMaxScansPerDay(Number(e.target.value))} className={inputClass} />
-                                </div>
-                                <div className="flex justify-end gap-2 items-center">
-                                    <button type="button" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50" onClick={() => {
-                                        skuConfigMutation.mutate({
-                                            clientId: 1,
-                                            userTypeId: skuStakeholder === 'All' ? undefined : Number(skuStakeholder),
-                                            entityId: Number(selectedEntityId),
-                                            pointsPerUnit: pointsPerScan,
-                                            maxScansPerDay: maxScansPerDay,
-                                            isActive: isActive
-                                        });
-                                    }}>Save Configuration</button>
-                                </div>
-                            </form>
-                        </div>
-                        <div className="widget-card rounded-xl shadow p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">SKU Performance</h3>
-                            <div className="h-64">
-                                <Bar
-                                    data={{
-                                        labels: (data?.topSkus || []).map(s => s.name),
-                                        datasets: [{
-                                            label: 'Scans',
-                                            data: (data?.topSkus || []).map(s => s.scans),
-                                            backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444'],
-                                            borderRadius: 5,
-                                        }],
-                                    }}
-                                    options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                ...
             </TabPanel>
+            */}
 
             <TabPanel value={tab} index={2}>
                 <div className="space-y-6">
                     <div className="widget-card rounded-xl shadow p-6">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900">Points Matrix Rules</h3>
+                            <h3 className="text-lg font-semibold text-gray-900">Product Master</h3>
+                            <div className="flex items-center gap-4">
+                                <div className="relative w-64">
+                                    <input
+                                        type="text"
+                                        placeholder="Search products..."
+                                        value={productSearch}
+                                        onChange={(e) => { setProductSearch(e.target.value); setProductPage(1); }}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 shadow-sm"
+                                    />
+                                </div>
+                                <button 
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition flex items-center gap-2 shadow-md shadow-red-100"
+                                >
+                                    <i className="fas fa-plus text-xs"></i> Add Product
+                                </button>
+                            </div>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto min-h-[400px]">
                             <table className="min-w-full">
                                 <thead>
-                                    <tr className="border-b">
-                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Rule ID</th>
-                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Type</th>
-                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Stakeholder</th>
-                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">SKU/Category</th>
-                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Points</th>
-                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    <tr className="border-b bg-gray-50">
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Category</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Sub-Category</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Product Code</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Product Name</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Pack Size</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Mechanic Points</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {pointsMatrix.map((r) => (
-                                        <tr key={r.id} className="border-b hover:bg-gray-50">
-                                            <td className="py-3 text-sm text-gray-600">{r.id}</td>
-                                            <td className="py-3 text-sm">{r.ruleType}</td>
-                                            <td className="py-3 text-sm text-gray-600">{r.stakeholder}</td>
-                                            <td className="py-3 text-sm text-gray-600">{r.categoryItem}</td>
-                                            <td className="py-3 text-sm text-gray-600">{r.base}</td>
-                                            <td className="py-3 text-sm">{r.status}</td>
-                                            <td className="py-3 text-sm">
-                                                <button onClick={() => deleteRuleMutation.mutate(Number(r.id.replace('RULE-', '')))} className="p-1 text-red-500"><Delete size={16} /></button>
+                                    {isProductLoading ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-8 text-center text-gray-500">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+                                                    Loading products...
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (productData?.list || []).map((p) => (
+                                        <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
+                                            <td className="py-3 px-4 text-sm font-semibold text-gray-700">{p.category}</td>
+                                            <td className="py-3 px-4 text-sm text-gray-600">{p.subCategory}</td>
+                                            <td className="py-3 px-4 text-sm font-mono text-red-600">{p.productCode}</td>
+                                            <td className="py-3 px-4 text-sm font-medium text-gray-900">{p.productName}</td>
+                                            <td className="py-3 px-4 text-sm text-gray-600">{p.packSize}L</td>
+                                            <td className="py-3 px-4 text-sm font-bold text-emerald-600">
+                                                {p.points.find(pts => pts.userTypeId === 3)?.value || '0.00'}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${p.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                    {p.isActive ? 'ACTIVE' : 'INACTIVE'}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                <button 
+                                                    onClick={() => {
+                                                        setEditingProduct({
+                                                            ...p,
+                                                            points: parseFloat(p.points.find((pts: any) => pts.userTypeId === 3)?.value || '0')
+                                                        });
+                                                        setIsEditModalOpen(true);
+                                                    }}
+                                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                                >
+                                                    <Edit size={16} />
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                        
+                        <div className="flex justify-between items-center mt-4">
+                            <p className="text-xs text-gray-500">
+                                Showing {(productPage - 1) * 50 + 1} to {Math.min(productPage * 50, productData?.total || 0)} of {productData?.total?.toLocaleString()} entries
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setProductPage(p => Math.max(1, p - 1))}
+                                    disabled={productPage === 1}
+                                    className="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => setProductPage(p => p + 1)}
+                                    disabled={(productData?.list || []).length < 50}
+                                    className="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -515,6 +640,300 @@ export default function MastersClient() {
                     </div>
                 </div>
             </TabPanel>
+
+            <TabPanel value={tab} index={4}>
+                <div className="space-y-6">
+                    <div className="widget-card rounded-xl shadow p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">Pincode Master</h3>
+                            <div className="relative w-64">
+                                <input
+                                    type="text"
+                                    placeholder="Search pincode, city..."
+                                    value={pincodeSearch}
+                                    onChange={(e) => { setPincodeSearch(e.target.value); setPincodePage(1); }}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 shadow-sm"
+                                />
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto min-h-[400px]">
+                            <table className="min-w-full">
+                                <thead>
+                                    <tr className="border-b bg-gray-50">
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Zone</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">State</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">City</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Pincode</th>
+                                        <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {isPincodeLoading ? (
+                                        <tr>
+                                            <td colSpan={5} className="py-8 text-center text-gray-500">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+                                                    Loading data...
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (pincodeData?.list || []).map((p) => (
+                                        <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
+                                            <td className="py-3 px-4 text-sm font-medium text-gray-900">{p.zone || '---'}</td>
+                                            <td className="py-3 px-4 text-sm text-gray-600">{p.state}</td>
+                                            <td className="py-3 px-4 text-sm text-gray-600">{p.city}</td>
+                                            <td className="py-3 px-4 text-sm font-mono text-red-600">{p.pincode}</td>
+                                            <td className="py-3 px-4">
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${p.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                    {p.isActive ? 'ACTIVE' : 'INACTIVE'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div className="flex justify-between items-center mt-4">
+                            <p className="text-xs text-gray-500">
+                                Showing {(pincodePage - 1) * 50 + 1} to {Math.min(pincodePage * 50, pincodeData?.total || 0)} of {pincodeData?.total?.toLocaleString()} entries
+                            </p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setPincodePage(p => Math.max(1, p - 1))}
+                                    disabled={pincodePage === 1}
+                                    className="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => setPincodePage(p => p + 1)}
+                                    disabled={(pincodeData?.list || []).length < 50}
+                                    className="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </TabPanel>
+
+            {/* Product Edit Modal */}
+            {isEditModalOpen && editingProduct && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+                        <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-gray-900">Edit Product: {editingProduct.productName}</h3>
+                            <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Product Code</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingProduct.productCode} 
+                                        onChange={(e) => setEditingProduct({...editingProduct, productCode: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Pack Size (L)</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingProduct.packSize} 
+                                        onChange={(e) => setEditingProduct({...editingProduct, packSize: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Product Name</label>
+                                <input 
+                                    type="text" 
+                                    value={editingProduct.productName} 
+                                    onChange={(e) => setEditingProduct({...editingProduct, productName: e.target.value})}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Mechanic Points</label>
+                                <input 
+                                    type="number" 
+                                    value={editingProduct.points} 
+                                    onChange={(e) => setEditingProduct({...editingProduct, points: parseFloat(e.target.value) || 0})}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-600 focus:border-red-500 outline-none"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="checkbox" 
+                                    id="is_active_check"
+                                    checked={editingProduct.isActive} 
+                                    onChange={(e) => setEditingProduct({...editingProduct, isActive: e.target.checked})}
+                                    className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                />
+                                <label htmlFor="is_active_check" className="text-sm font-medium text-gray-700">Mark as Active</label>
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
+                            <button 
+                                onClick={() => setIsEditModalOpen(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    updateProductMutation.mutate({
+                                        variantId: editingProduct.id,
+                                        skuEntityId: editingProduct.skuEntityId,
+                                        productCode: editingProduct.productCode,
+                                        productName: editingProduct.productName,
+                                        packSize: editingProduct.packSize,
+                                        points: editingProduct.points,
+                                        isActive: editingProduct.isActive
+                                    });
+                                }}
+                                disabled={updateProductMutation.isPending}
+                                className="px-6 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all shadow-md shadow-red-100"
+                            >
+                                {updateProductMutation.isPending ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Product Modal */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden">
+                        <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Add New Product</h3>
+                                <p className="text-xs text-gray-500">Create a new SKU with existing or new hierarchy levels</p>
+                            </div>
+                            <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category (L3)</label>
+                                    <input 
+                                        list="category-options"
+                                        autoComplete="off"
+                                        placeholder="Select or Type New"
+                                        value={newProduct.category} 
+                                        onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                    <datalist id="category-options">
+                                        {(hierarchyOptions?.categories || []).map(c => <option key={`cat-${c}`} value={c} />)}
+                                    </datalist>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sub-Category (L4)</label>
+                                    <input 
+                                        list="subcat-options"
+                                        autoComplete="off"
+                                        placeholder="Select or Type New"
+                                        value={newProduct.subCategory} 
+                                        onChange={(e) => setNewProduct({...newProduct, subCategory: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                    <datalist id="subcat-options">
+                                        {(hierarchyOptions?.subCategories || []).map(c => <option key={`sub-${c}`} value={c} />)}
+                                    </datalist>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rating Type (L5)</label>
+                                    <input 
+                                        list="rating-options"
+                                        autoComplete="off"
+                                        placeholder="Select or Type New"
+                                        value={newProduct.ratingType} 
+                                        onChange={(e) => setNewProduct({...newProduct, ratingType: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                    <datalist id="rating-options">
+                                        {(hierarchyOptions?.ratingTypes || []).map(c => <option key={`rat-${c}`} value={c} />)}
+                                    </datalist>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Product Code (L6)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. SKU-12345"
+                                        value={newProduct.productCode} 
+                                        onChange={(e) => setNewProduct({...newProduct, productCode: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Product Name</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Full Variant Name"
+                                        value={newProduct.productName} 
+                                        onChange={(e) => setNewProduct({...newProduct, productName: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Pack Size (L)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. 3.5"
+                                        value={newProduct.packSize} 
+                                        onChange={(e) => setNewProduct({...newProduct, packSize: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Initial Mechanic Points</label>
+                                <input 
+                                    type="number" 
+                                    value={newProduct.points} 
+                                    onChange={(e) => setNewProduct({...newProduct, points: parseFloat(e.target.value) || 0})}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-600 focus:border-red-500 outline-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
+                            <button 
+                                onClick={() => setIsAddModalOpen(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (!newProduct.category || !newProduct.subCategory || !newProduct.productCode) {
+                                        alert("Please fill mandatory fields: Category, Sub-Category, and Product Code");
+                                        return;
+                                    }
+                                    createProductMutation.mutate(newProduct);
+                                }}
+                                disabled={createProductMutation.isPending}
+                                className="px-8 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-100"
+                            >
+                                {createProductMutation.isPending ? 'Creating...' : 'Create Product'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </main>
     );
 }

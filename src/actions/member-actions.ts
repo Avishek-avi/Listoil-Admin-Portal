@@ -3,7 +3,7 @@
 import { db } from "@/db"
 import { fileMiddleware } from "@/server/middlewares/file-middleware"
 import {
-    electricians,
+    mechanics,
     retailers,
     counterSales,
     users,
@@ -12,8 +12,13 @@ import {
     userTypeLevelMaster,
     kycDocuments
 } from "@/db/schema"
-import { desc, eq, and, sql, ilike, count, or, aliasedTable } from "drizzle-orm"
+import { desc, eq, and, sql, ilike, count, or, inArray, aliasedTable } from "drizzle-orm"
 import { BUS_EVENTS, emitEvent } from "@/server/rabbitMq/broker"
+import { auth } from "@/lib/auth"
+import { getUserScope } from "@/lib/scope-utils"
+import { userScopeMapping, locationEntity, pincodeMaster } from "@/db/schema"
+import { getFileUrl } from "@/lib/utils/random";
+import bcrypt from "bcryptjs"
 
 export interface MemberBase {
     id: string;
@@ -111,17 +116,21 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
             isSuspended: users.isSuspended,
             createdAt: users.createdAt,
             retailerKyc: retailers.isKycVerified,
-            electricianKyc: electricians.isKycVerified,
+            mechanicKyc: mechanics.isKycVerified,
             counterSalesKyc: counterSales.isKycVerified,
             approvalStatus: approvalStatuses.name,
             retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`
         })
             .from(users)
             .leftJoin(retailers, eq(users.id, retailers.userId))
-            .leftJoin(electricians, eq(users.id, electricians.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
             .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
             .$dynamic();
+
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
 
         const conditions = [];
         if (searchQuery) {
@@ -129,6 +138,14 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
                 ilike(users.name, `%${searchQuery}%`),
                 ilike(users.phone, `%${searchQuery}%`),
                 ilike(users.email, `%${searchQuery}%`)
+            ));
+        }
+
+        if (scope.type !== 'Global') {
+            conditions.push(or(
+                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
+                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
+                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
             ));
         }
 
@@ -144,7 +161,7 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
                 const entityUsers = allUsers.filter(u => u.roleId === entity.id);
 
                 entity.members.list = entityUsers.map(u => {
-                    const isKycVerified = u.retailerKyc ?? u.electricianKyc ?? u.counterSalesKyc ?? false;
+                    const isKycVerified = u.retailerKyc ?? u.mechanicKyc ?? u.counterSalesKyc ?? false;
 
                     return {
                         id: `USR${u.id.toString().padStart(3, '0')}`,
@@ -198,8 +215,8 @@ export async function getMemberDetailsAction(type: string, id: number) {
         if (normalizedType.includes('retailer')) {
             const records = await db.select().from(retailers).where(eq(retailers.userId, id));
             if (records.length > 0) specificRecord = records[0];
-        } else if (normalizedType.includes('electrician')) {
-            const records = await db.select().from(electricians).where(eq(electricians.userId, id));
+        } else if (normalizedType.includes('mechanic')) {
+            const records = await db.select().from(mechanics).where(eq(mechanics.userId, id));
             if (records.length > 0) specificRecord = records[0];
         } else if (normalizedType.includes('counter staff')) {
             const records = await db.select({
@@ -235,8 +252,15 @@ export async function getMemberKycDocumentsAction(userId: number) {
         const signedDocs = await Promise.all(result.map(async (doc) => {
             // Extract key from s3:// URI if present
             const fileKey = doc.documentValue.replace(/^s3:\/\/[^\/]+\//, '');
-            // Use 'direct' type to avoid getFileUrl adding prefixes
-            const signedUrl = await fileMiddleware.getFileSignedUrl(fileKey, 'direct') || '';
+            let typeToUse = doc.documentType.toLowerCase();
+
+            // If the file key already contains the storage prefix (e.g., starts with 'img/'), 
+            // use 'direct' to avoid prepending the prefix twice.
+            if (fileKey.startsWith('img/')) {
+                typeToUse = 'direct';
+            }
+
+            const signedUrl = await fileMiddleware.getFileSignedUrl(fileKey, typeToUse) || '';
             return {
                 ...doc,
                 signedUrl
@@ -287,35 +311,15 @@ export async function updateKycDocumentStatusAction(documentId: number, status: 
                 let requiredDocs: string[] = [];
                 if (roleName.includes('retailer')) {
                     requiredDocs = ['AADHAAR_FRONT', 'AADHAAR_BACK', 'PAN', 'GST_CERTIFICATE', 'SHOP_IMAGE'];
-                } else if (roleName.includes('electrician') || roleName.includes('counter staff')) {
+                } else if (roleName.includes('mechanic') || roleName.includes('counter staff')) {
                     requiredDocs = ['AADHAAR_FRONT', 'AADHAAR_BACK'];
                 }
 
                 // Check fulfillment
                 const isKycComplete = requiredDocs.length > 0 && requiredDocs.every(doc => verifiedDocs.includes(doc));
-
-                if (isKycComplete) {
-                    // Update Role Table
-                    if (roleName.includes('retailer')) {
-                        await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
-                    } else if (roleName.includes('electrician')) {
-                        await db.update(electricians).set({ isKycVerified: true }).where(eq(electricians.userId, userId));
-                    } else if (roleName.includes('counter staff')) {
-                        await db.update(counterSales).set({ isKycVerified: true }).where(eq(counterSales.userId, userId));
-                    }
-
-                    // Update User Status to TDS_CONSENT_PENDING
-                    const tdsPendingStatus = await db.select().from(approvalStatuses).where(ilike(approvalStatuses.name, 'TDS_CONSENT_PENDING')).limit(1);
-                    if (tdsPendingStatus.length > 0) {
-                        await db.update(users)
-                            .set({ approvalStatusId: tdsPendingStatus[0].id })
-                            .where(eq(users.id, userId));
-
-                        // Emit event if needed for activation? 
-                        // The original functional requirement didn't explicitly ask for an event emission here beyond the doc update, 
-                        // but updating status usually might warrant one. Sticking to requested changes.
-                    }
-                }
+                
+                // We no longer auto-transition status here to respect the SR -> TSM approval hierarchy.
+                // Status transitions are now handled exclusively in approveMemberAction.
             }
         }
 
@@ -372,9 +376,9 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
     try {
         const { searchQuery, kycStatus, region, page = 1, limit = 10, roleId } = filters;
 
-        if (!roleId) {
-            return { list: [], stats: { total: 0, totalTrend: '', kycPending: 0, kycPendingTrend: '', kycApproved: 0, kycApprovedRate: '', activeToday: 0, activeTodayTrend: '' } };
-        }
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
 
         let baseConditions = [eq(users.roleId, roleId)];
 
@@ -386,6 +390,45 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             ));
         }
 
+        if (scope.type !== 'Global') {
+            const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+            if (scope.type === 'State') {
+                baseConditions.push(or(
+                    inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.state})`, lowerNames)
+                ));
+            } else {
+                baseConditions.push(or(
+                    inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                ));
+            }
+        }
+
+        // Functional Hierarchy Approval filtering
+        const normalizedKycStatus = (kycStatus || '').toLowerCase();
+
+        if (normalizedKycStatus.includes('approved')) {
+            baseConditions.push(eq(users.approvalStatusId, 18)); // KYC_APPROVED
+        } else if (normalizedKycStatus.includes('pending')) {
+            if (scope.role.toUpperCase() === 'SR') {
+                baseConditions.push(eq(users.approvalStatusId, 15)); // KYC_PENDING
+            } else if (scope.role.toUpperCase() === 'TSM') {
+                baseConditions.push(eq(users.approvalStatusId, 32)); // SR_APPROVED (Pending for TSM)
+            } else {
+                baseConditions.push(or(eq(users.approvalStatusId, 15), eq(users.approvalStatusId, 32)));
+            }
+        } else if (!kycStatus && !searchQuery) {
+            // Default actionable view ONLY when no filter is provided at all (initial load)
+            if (scope.role.toUpperCase() === 'SR') {
+                baseConditions.push(eq(users.approvalStatusId, 15));
+            } else if (scope.role.toUpperCase() === 'TSM') {
+                baseConditions.push(eq(users.approvalStatusId, 32));
+            }
+        }
+
         const listQuery = db.select({
             id: users.id,
             name: users.name,
@@ -395,14 +438,17 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             isSuspended: users.isSuspended,
             createdAt: users.createdAt,
             retailerKyc: retailers.isKycVerified,
-            electricianKyc: electricians.isKycVerified,
+            mechanicKyc: mechanics.isKycVerified,
             counterSalesKyc: counterSales.isKycVerified,
             approvalStatus: approvalStatuses.name,
-            retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`
+            approvalStatusId: users.approvalStatusId,
+            retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`,
+            aadhaar: sql<string>`COALESCE(${retailers.aadhaar}, ${mechanics.aadhaar}, ${counterSales.aadhaar})`,
+            pan: sql<string>`COALESCE(${retailers.pan}, ${mechanics.pan}, ${counterSales.pan})`
         })
             .from(users)
             .leftJoin(retailers, eq(users.id, retailers.userId))
-            .leftJoin(electricians, eq(users.id, electricians.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
             .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
             .where(and(...baseConditions))
@@ -413,7 +459,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
         const fetchedUsers = await listQuery;
 
         const list = fetchedUsers.map(u => {
-            const isKycVerified = u.retailerKyc ?? u.electricianKyc ?? u.counterSalesKyc ?? false;
+            const isKycVerified = u.retailerKyc ?? u.mechanicKyc ?? u.counterSalesKyc ?? false;
 
             return {
                 id: `USR${u.id.toString().padStart(3, '0')}`,
@@ -426,25 +472,66 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
                 kycStatus: isKycVerified ? 'Approved' as const : 'Pending' as const,
                 status: u.isSuspended ? 'Inactive' as const : 'Active' as const,
                 approvalStatus: u.approvalStatus || 'PENDING',
+                approvalStatusId: u.approvalStatusId,
                 regions: '---',
                 joinedDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '---',
-                mappedRetailer: u.retailerName || '---'
+                mappedRetailer: u.retailerName || '---',
+                aadhaar: u.aadhaar,
+                pan: u.pan
             };
         });
 
         const totalResult = await db.select({ count: count() })
             .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
             .where(and(...baseConditions));
 
         const total = totalResult[0]?.count || 0;
 
+        const kycApprovedResult = await db.select({ count: count() })
+            .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .where(and(
+                ...baseConditions,
+                or(
+                    eq(retailers.isKycVerified, true),
+                    eq(mechanics.isKycVerified, true),
+                    eq(counterSales.isKycVerified, true)
+                )
+            ));
+
+        const kycApproved = kycApprovedResult[0]?.count || 0;
+        
+        // Count Pending based on role context
+        const pendingConditions = [...baseConditions];
+        if (scope.role.toUpperCase() === 'SR') {
+            pendingConditions.push(eq(users.approvalStatusId, 15));
+        } else if (scope.role.toUpperCase() === 'TSM') {
+            pendingConditions.push(eq(users.approvalStatusId, 32));
+        } else {
+            pendingConditions.push(or(eq(users.approvalStatusId, 15), eq(users.approvalStatusId, 32)));
+        }
+
+        const kycPendingResult = await db.select({ count: count() })
+            .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .where(and(...pendingConditions));
+
+        const kycPending = kycPendingResult[0]?.count || 0;
+
         const stats: MemberStats = {
             total: total,
             totalTrend: '+0',
-            kycPending: 0,
+            kycPending: kycPending,
             kycPendingTrend: '0',
-            kycApproved: total,
-            kycApprovedRate: '100%',
+            kycApproved: kycApproved,
+            kycApprovedRate: total > 0 ? `${Math.round((kycApproved / total) * 100)}%` : '0%',
             activeToday: Math.floor(total * 0.3),
             activeTodayTrend: '+0'
         };
@@ -536,12 +623,12 @@ export async function updateMemberDetailsAction(userId: number, type: string, da
                     shopName: data.shopName,
                 })
                 .where(eq(retailers.userId, userId));
-        } else if (normalizedType.includes('electrician')) {
-            await db.update(electricians)
+        } else if (normalizedType.includes('mechanic')) {
+            await db.update(mechanics)
                 .set({
                     ...locationUpdates,
                 })
-                .where(eq(electricians.userId, userId));
+                .where(eq(mechanics.userId, userId));
         } else if (normalizedType.includes('counter staff')) {
             await db.update(counterSales)
                 .set({
@@ -561,5 +648,608 @@ export async function updateMemberDetailsAction(userId: number, type: string, da
     } catch (error) {
         console.error("Error in updateMemberDetailsAction:", error);
         throw error;
+    }
+}
+export async function createMemberAction(formData: any) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        const creatorId = Number(session.user.id);
+        const creatorScope = await getUserScope(creatorId);
+        const creatorRole = creatorScope.role.toUpperCase();
+
+        const {
+            roleId,
+            name,
+            phone,
+            email,
+            password,
+            // Generic fields
+            state,
+            city,
+            district,
+            pincode,
+            addressLine1,
+            addressLine2,
+            dob,
+            gender,
+            // Retailer specific
+            shopName,
+            // Identity
+            aadhaar,
+            pan,
+            gst,
+            // Bank
+            bankAccountNo,
+            bankAccountIfsc,
+            bankAccountName,
+            upiId,
+            attachedRetailerId,
+            // KYC
+            kycDocuments: docs
+        } = formData;
+
+        // 1. Hierarchy Validation
+        const targetRoleId = Number(roleId);
+        const roleNames: Record<number, string> = {
+            11: 'ADMIN',
+            17: 'SALES HEAD',
+            15: 'TSM',
+            16: 'SR',
+            3: 'MECHANIC',
+            2: 'RETAILER'
+        };
+        const targetRoleName = roleNames[targetRoleId];
+
+        if (creatorRole === 'ADMIN' || creatorScope.permissions.includes('all')) {
+            // Admin can create anything
+        } else if (creatorRole === 'SALES HEAD') {
+            if (targetRoleName !== 'TSM') {
+                throw new Error("Sales Heads can only create TSMs.");
+            }
+        } else if (creatorRole === 'TSM' && targetRoleName !== 'SR') {
+            throw new Error("TSMs can only create Sales Representatives.");
+        }
+        if (creatorRole === 'SR') {
+            if (!['MECHANIC', 'RETAILER'].includes(targetRoleName)) {
+                throw new Error("SRs can only create Mechanics or Retailers.");
+            }
+            // Validate city is within SR territory
+            if (city) {
+                const isAssigned = creatorScope.entityNames.some(c => c.toUpperCase() === city.toUpperCase());
+                if (!isAssigned) {
+                    throw new Error(`The city "${city}" is outside your assigned territory.`);
+                }
+            }
+        }
+
+        // Extract PAN from GST if Retailer
+        let finalPan = pan;
+        if (targetRoleName === 'RETAILER' && gst) {
+            if (gst.length >= 12) {
+                finalPan = gst.substring(2, 12).toUpperCase();
+            }
+        }
+
+        // Validate attached retailer for Mechanics
+        if (targetRoleName === 'MECHANIC' && !attachedRetailerId) {
+            throw new Error("A Mechanic must be mapped to an existing Retailer.");
+        }
+
+        // Check if attached retailer exists if provided
+        if (attachedRetailerId) {
+            const retailerExists = await db.select().from(users).where(and(eq(users.id, Number(attachedRetailerId)), eq(users.roleId, 2))).limit(1);
+            if (retailerExists.length === 0) {
+                throw new Error("The selected retailer for mapping is invalid or does not exist.");
+            }
+        }
+
+        // 2. Database Transaction
+        return await db.transaction(async (tx) => {
+            // Check if phone already exists
+            // Check if phone or email already exists
+            const userConditions = [eq(users.phone, phone)];
+            if (email) userConditions.push(eq(users.email, email));
+            
+            const existingUser = await tx.select().from(users).where(or(...userConditions)).limit(1);
+            if (existingUser.length > 0) {
+                const isPhoneMatch = existingUser[0].phone === phone;
+                throw new Error(isPhoneMatch ? "A user with this phone number already exists." : "A user with this email address already exists.");
+            }
+
+            // Create User record
+            const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+            
+            // Set initial status
+            let approvalStatusId = 20; // ACTIVE for internal roles
+            if (['MECHANIC', 'RETAILER'].includes(targetRoleName)) {
+                approvalStatusId = 15; // KYC_PENDING for members
+            }
+
+            const [newUser] = await tx.insert(users).values({
+                name,
+                phone,
+                email,
+                password: hashedPassword,
+                roleId: targetRoleId,
+                approvalStatusId,
+                onboardingTypeId: 1, // Admin panel onboarding
+                createdAt: sql`CURRENT_TIMESTAMP`,
+                updatedAt: sql`CURRENT_TIMESTAMP`
+            }).returning();
+
+            // Handle role-specific tables
+            if (targetRoleName === 'MECHANIC') {
+                await tx.insert(mechanics).values({
+                    userId: newUser.id,
+                    uniqueId: `MECH${newUser.id}${Date.now().toString().slice(-4)}`,
+                    name,
+                    phone,
+                    email,
+                    aadhaar: aadhaar || 'NA',
+                    pan: finalPan,
+                    gst,
+                    city,
+                    district,
+                    state,
+                    pincode,
+                    dob: dob ? new Date(dob).toISOString() : null,
+                    gender,
+                    addressLine1,
+                    addressLine2,
+                    bankAccountNo,
+                    bankAccountIfsc,
+                    bankAccountName,
+                    upiId,
+                    attachedRetailerId: attachedRetailerId ? Number(attachedRetailerId) : null,
+                    kycDocuments: docs || {},
+                    onboardingTypeId: 1
+                });
+            } else if (targetRoleName === 'RETAILER') {
+                await tx.insert(retailers).values({
+                    userId: newUser.id,
+                    uniqueId: `RET${newUser.id}${Date.now().toString().slice(-4)}`,
+                    name,
+                    phone,
+                    email,
+                    shopName,
+                    aadhaar: aadhaar || 'NA',
+                    pan: finalPan,
+                    gst,
+                    city,
+                    district,
+                    state,
+                    pincode,
+                    dob: dob ? new Date(dob).toISOString() : null,
+                    gender,
+                    addressLine1,
+                    addressLine2,
+                    bankAccountNo,
+                    bankAccountIfsc,
+                    bankAccountName,
+                    upiId,
+                    kycDocuments: docs || {},
+                    onboardingTypeId: 1
+                });
+            }
+
+            // Handle Scope Mapping
+            let scopeType = 'National';
+            let scopeEntityIdValue: number | null = null;
+
+            if (targetRoleName === 'SALES HEAD') {
+                scopeType = 'Global'; // Sales Head has national scope
+            } else if (targetRoleName === 'TSM' || targetRoleName === 'SR') {
+                const locationValue = formData.scopeEntityId;
+                if (locationValue) {
+                    if (isNaN(Number(locationValue))) {
+                        // It's a name (likely from pincode master)
+                        if (targetRoleName === 'TSM') {
+                            scopeType = 'State';
+                            const [existing] = await tx.select().from(locationEntity).where(and(eq(locationEntity.levelId, 4), eq(locationEntity.name, locationValue)));
+                            if (existing) {
+                                scopeEntityIdValue = existing.id;
+                            } else {
+                                const [inserted] = await tx.insert(locationEntity).values({
+                                    clientId: 1,
+                                    levelId: 4,
+                                    name: locationValue,
+                                    code: locationValue.toUpperCase().slice(0, 10)
+                                }).returning();
+                                scopeEntityIdValue = inserted.id;
+                            }
+                        } else if (targetRoleName === 'SR') {
+                            scopeType = 'City';
+                            const stateName = formData.state;
+                            
+                            // Find or create parent state first to ensure hierarchy
+                            let parentStateId = null;
+                            if (stateName) {
+                                const [stateEnt] = await tx.select().from(locationEntity).where(and(eq(locationEntity.levelId, 4), eq(locationEntity.name, stateName)));
+                                if (stateEnt) {
+                                    parentStateId = stateEnt.id;
+                                } else {
+                                    const [newState] = await tx.insert(locationEntity).values({
+                                        clientId: 1,
+                                        levelId: 4,
+                                        name: stateName,
+                                        code: stateName.toUpperCase().slice(0, 10)
+                                    }).returning();
+                                    parentStateId = newState.id;
+                                }
+                            }
+
+                            const [existing] = await tx.select().from(locationEntity).where(and(
+                                eq(locationEntity.levelId, 5), 
+                                eq(locationEntity.name, locationValue),
+                                parentStateId ? eq(locationEntity.parentEntityId, parentStateId) : sql`true`
+                            ));
+                            
+                            if (existing) {
+                                scopeEntityIdValue = existing.id;
+                            } else {
+                                const [inserted] = await tx.insert(locationEntity).values({
+                                    clientId: 1,
+                                    levelId: 5,
+                                    name: locationValue,
+                                    parentEntityId: parentStateId,
+                                    code: locationValue.toUpperCase().slice(0, 10)
+                                }).returning();
+                                scopeEntityIdValue = inserted.id;
+                            }
+                        }
+                    } else {
+                        scopeEntityIdValue = Number(locationValue);
+                        scopeType = targetRoleName === 'TSM' ? 'State' : 'City';
+                    }
+                }
+            }
+
+            // Validation: Only one SR allowed per city
+            if (targetRoleName === 'SR' && scopeEntityIdValue) {
+                const [existingSRMapping] = await tx.select({
+                    userName: users.name
+                })
+                .from(userScopeMapping)
+                .innerJoin(users, eq(userScopeMapping.userId, users.id))
+                .where(and(
+                    eq(userScopeMapping.scopeEntityId, scopeEntityIdValue),
+                    eq(userScopeMapping.scopeType, 'City'),
+                    eq(userScopeMapping.isActive, true),
+                    eq(users.roleId, 16)
+                ))
+                .limit(1);
+
+                if (existingSRMapping) {
+                    throw new Error(`The city is already assigned to SR: ${existingSRMapping.userName}. Only one SR is allowed per city.`);
+                }
+            }
+
+            if (scopeEntityIdValue) {
+                await tx.insert(userScopeMapping).values({
+                    userId: newUser.id,
+                    scopeType,
+                    scopeEntityId: scopeEntityIdValue,
+                    scopeLevelId: scopeType === 'State' ? 4 : (scopeType === 'City' ? 5 : 0),
+                    isActive: true
+                });
+            }
+
+
+            // Also save docs to kyc_documents table
+            if (docs && typeof docs === 'object') {
+                for (const [docType, docValue] of Object.entries(docs)) {
+                    if (docValue) {
+                        await tx.insert(kycDocuments).values({
+                            userId: newUser.id,
+                            documentType: docType,
+                            documentValue: docValue as string,
+                            verificationStatus: 'pending',
+                            createdAt: sql`CURRENT_TIMESTAMP`,
+                            updatedAt: sql`CURRENT_TIMESTAMP`
+                        }).onConflictDoUpdate({
+                            target: [kycDocuments.userId, kycDocuments.documentType],
+                            set: {
+                                documentValue: docValue as string,
+                                updatedAt: sql`CURRENT_TIMESTAMP`
+                            }
+                        });
+                    }
+                }
+            }
+
+            await emitEvent(BUS_EVENTS.MEMBER_REGISTERED, {
+                userId: newUser.id,
+                role: targetRoleName,
+                name: newUser.name
+            });
+
+            return { success: true, userId: newUser.id };
+        });
+    } catch (error: any) {
+        console.error("Error creating member:", error);
+        
+        let userMessage = error.message;
+        
+        // Handle common database errors with friendly messages
+        if (error.message.includes('unique constraint') || error.message.includes('duplicate key')) {
+            if (error.message.includes('users_phone_key') || error.message.includes('phone')) {
+                userMessage = "This phone number is already registered.";
+            } else if (error.message.includes('users_email_key') || error.message.includes('email')) {
+                userMessage = "This email address is already registered.";
+            } else if (error.message.includes('unique_id_key')) {
+                userMessage = "A member with this generated ID already exists. Please try again.";
+            } else {
+                userMessage = "A record with these details already exists in the system.";
+            }
+        } else if (error.message.includes('foreign key constraint')) {
+            if (error.message.includes('attached_retailer_id')) {
+                userMessage = "The selected retailer for mapping was not found or is invalid.";
+            } else {
+                userMessage = "One of the selected references is invalid.";
+            }
+        } else if (error.message.includes('not-null constraint')) {
+            userMessage = "One or more required fields are missing.";
+        } else if (error.message.includes('invalid input syntax for type numeric')) {
+            userMessage = "One of the numeric fields contains invalid characters.";
+        }
+
+        return { 
+            success: false, 
+            error: userMessage,
+            technicalDetails: process.env.NODE_ENV === 'development' ? error.message : undefined 
+        };
+    }
+}
+
+export async function getCurrentUserScopeAction() {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        return await getUserScope(Number(session.user.id));
+    } catch (error) {
+        console.error("Error getting user scope:", error);
+        return null;
+    }
+}
+
+export async function getLocationEntitiesAction(levelId: number, parentId?: number) {
+    try {
+        const query = db.select().from(locationEntity).where(eq(locationEntity.levelId, levelId));
+        if (parentId) {
+            // @ts-ignore
+            return await query.where(eq(locationEntity.parentEntityId, parentId));
+        }
+        return await query;
+    } catch (error) {
+        console.error("Error getting location entities:", error);
+        return [];
+    }
+}
+
+export async function getPincodesAction(city?: string) {
+    try {
+        const session = await auth();
+        const userId = Number(session?.user?.id);
+        const userScope = await getUserScope(userId);
+        
+        const query = db.select().from(pincodeMaster);
+        
+        if (userScope.role.toUpperCase() === 'SR') {
+            const cities = userScope.entityNames;
+            if (city) {
+                const isAssigned = cities.some(c => c.toUpperCase() === city.toUpperCase());
+                if (!isAssigned) return [];
+                return await query.where(eq(sql`UPPER(${pincodeMaster.city})`, city.toUpperCase()));
+            }
+            return await query.where(inArray(sql`UPPER(${pincodeMaster.city})`, cities.map(c => c.toUpperCase())));
+        }
+
+        if (city) {
+            return await query.where(eq(sql`UPPER(${pincodeMaster.city})`, city.toUpperCase()));
+        }
+        return await query.limit(100);
+    } catch (error) {
+        console.error("Error getting pincodes:", error);
+        return [];
+    }
+}
+
+export async function getRetailersByCityAction(city: string) {
+    try {
+        const session = await auth();
+        const userId = Number(session?.user?.id);
+        const userScope = await getUserScope(userId);
+        
+        if (userScope.role.toUpperCase() === 'SR') {
+            const isAssigned = userScope.entityNames.some(c => c.toUpperCase() === city.toUpperCase());
+            if (!isAssigned) return [];
+        }
+
+        const result = await db.select({
+            id: users.id,
+            name: users.name,
+            shopName: retailers.shopName
+        })
+        .from(users)
+        .innerJoin(retailers, eq(users.id, retailers.userId))
+        .where(and(
+            eq(sql`UPPER(${retailers.city})`, city.toUpperCase()),
+            eq(users.roleId, 2) // Retailer Role ID
+        ));
+        return result;
+    } catch (error) {
+        console.error("Error getting retailers by city:", error);
+        return [];
+    }
+}
+
+export async function getLocationByPincodeAction(pincode: string) {
+    try {
+        const session = await auth();
+        const userId = Number(session?.user?.id);
+        const userScope = await getUserScope(userId);
+
+        const result = await db.select()
+            .from(pincodeMaster)
+            .where(and(
+                eq(pincodeMaster.pincode, pincode),
+                eq(pincodeMaster.isActive, true)
+            ))
+            .limit(1);
+
+        const location = result[0];
+        if (!location) return null;
+
+        if (userScope.role.toUpperCase() === 'SR') {
+            const isAssigned = userScope.entityNames.some(c => c.toUpperCase() === location.city?.toUpperCase());
+            if (!isAssigned) return null;
+        }
+
+        return location;
+    } catch (error) {
+        console.error("Error getting location by pincode:", error);
+        return null;
+    }
+}
+
+export async function uploadMemberFileAction(formData: FormData) {
+    try {
+        const file = formData.get('file') as File;
+        const type = formData.get('type') as string || 'kyc';
+        
+        if (!file) throw new Error("No file provided");
+        
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const multerFile: Express.Multer.File = {
+            buffer,
+            originalname: file.name,
+            mimetype: file.type,
+            size: file.size,
+            fieldname: 'file',
+            encoding: '7bit',
+            destination: '',
+            filename: '',
+            path: '',
+            stream: null as any
+        };
+        
+        const fileName = await fileMiddleware.uploadFile(multerFile, type);
+        const fullKey = getFileUrl(type) + fileName;
+        return { success: true, fileName: fullKey };
+    } catch (error: any) {
+        console.error("Error uploading file:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function approveMemberAction(userId: number) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+        const userRole = (scope?.role || '').toUpperCase();
+
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
+        if (!user) throw new Error("User not found");
+
+        let nextStatusId = user.approvalStatusId;
+        const isSR = userRole === 'SR' || userRole.includes('REPRESENTATIVE');
+        const isTSM = userRole === 'TSM' || userRole.includes('MANAGER');
+        const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER ADMIN' || scope?.permissions.includes('all');
+
+        if (user.approvalStatusId === 15) { // KYC_PENDING
+            if (isSR || isAdmin) {
+                nextStatusId = 32; // SR_APPROVED
+            }
+        } else if (user.approvalStatusId === 32) { // SR_APPROVED
+            if (isTSM || isAdmin) {
+                nextStatusId = 26; // TDS_CONSENT_PENDING
+                
+                // Sync with specific tables on final approval
+                if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
+                if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
+            }
+        } else if (user.approvalStatusId === 26) { // TDS_CONSENT_PENDING
+            if (isAdmin) {
+                nextStatusId = 18; // KYC_APPROVED
+            }
+        } else if (isAdmin && user.approvalStatusId !== 18) {
+            // Admin can force approve if in any other state (except already approved)
+            nextStatusId = 18;
+            if (user.roleId === 2) await db.update(retailers).set({ isKycVerified: true }).where(eq(retailers.userId, userId));
+            if (user.roleId === 3) await db.update(mechanics).set({ isKycVerified: true }).where(eq(mechanics.userId, userId));
+        }
+
+        if (nextStatusId !== user.approvalStatusId) {
+            await db.update(users).set({ approvalStatusId: nextStatusId, updatedAt: new Date().toISOString() }).where(eq(users.id, userId));
+        }
+        
+        return { success: true };
+    } catch (error) {
+        console.error("Error approving member:", error);
+        return { success: false, error: "Failed to approve member" };
+    }
+}
+
+export async function rejectMemberAction(userId: number, reason: string) {
+    try {
+        await db.update(users).set({ 
+            approvalStatusId: 24, // BLOCKED
+            updatedAt: new Date().toISOString()
+        }).where(eq(users.id, userId));
+        
+        return { success: true };
+    } catch (error) {
+        console.error("Error rejecting member:", error);
+        return { success: false, error: "Failed to reject member" };
+    }
+}
+
+export async function getPincodeStatesAction() {
+    try {
+        const VALID_STATES = [
+            "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", 
+            "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", 
+            "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jammu & Kashmir", "Jharkhand", 
+            "Karnataka", "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", 
+            "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", 
+            "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", 
+            "Uttarakhand", "West Bengal"
+        ];
+
+        const results = await db.selectDistinct({ state: pincodeMaster.state })
+            .from(pincodeMaster)
+            .where(eq(pincodeMaster.isActive, true))
+            .orderBy(pincodeMaster.state);
+        
+        const states = results.map(r => r.state).filter(Boolean) as string[];
+        
+        // Filter to only include valid states (handling "The " prefix and variations)
+        return states.filter(s => {
+            const normalized = s.toLowerCase().replace(/^the\s+/i, '').trim();
+            return VALID_STATES.some(vs => vs.toLowerCase().trim() === normalized || vs.toLowerCase().replace(/and/g, '&').trim() === normalized);
+        });
+    } catch (error) {
+        console.error("Error fetching pincode states:", error);
+        return [];
+    }
+}
+
+
+export async function getPincodeCitiesAction(state: string) {
+    try {
+        const results = await db.selectDistinct({ city: pincodeMaster.city })
+            .from(pincodeMaster)
+            .where(and(
+                eq(pincodeMaster.state, state),
+                eq(pincodeMaster.isActive, true)
+            ))
+            .orderBy(pincodeMaster.city);
+        return results.map(r => r.city).filter(Boolean) as string[];
+    } catch (error) {
+        console.error("Error fetching pincode cities:", error);
+        return [];
     }
 }

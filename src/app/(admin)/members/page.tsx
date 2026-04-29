@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query'
 import { getMembersDataAction } from '@/actions/member-actions'
 import MembersClient from './MembersClient'
@@ -14,7 +15,9 @@ export default async function MembersPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <MembersClient />
+      <Suspense fallback={<div>Loading members...</div>}>
+        <MembersClient />
+      </Suspense>
     </HydrationBoundary>
   )
 }
