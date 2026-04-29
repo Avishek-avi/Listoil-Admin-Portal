@@ -497,7 +497,7 @@ function StandardRedemptionsTab({ data }: { data: any }) {
                     { label: 'Pending Redemptions', value: data?.redemptionStats?.pendingRedemptions, color: 'text-orange-500', icon: 'fa-clock' },
                     { label: 'Approved Today', value: data?.redemptionStats?.approvedRedemptionsToday, color: 'text-green-500', icon: 'fa-check-circle' },
                     { label: 'Rejected Today', value: data?.redemptionStats?.rejectedRedemptionsToday, color: 'text-red-500', icon: 'fa-times-circle' },
-                    { label: 'Total Value Today', value: data?.redemptionStats?.totalValueToday, color: 'text-blue-500', icon: 'fa-rupee-sign' },
+                    { label: 'Total Value Today', value: data?.redemptionStats?.totalValueToday, color: 'text-red-500', icon: 'fa-rupee-sign' },
                 ].map((s, i) => (
                     <Grid key={i} size={{ xs: 12, md: 6, lg: 3 }}>
                         <div className="widget-card p-6">
@@ -650,11 +650,11 @@ function ScanTransactionTab({ data }: { data: any }) {
                 <div className="widget-card p-6">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-sm text-gray-500">Total Processed</p>
-                        <i className="fas fa-chart-line text-blue-500"></i>
+                        <i className="fas fa-chart-line text-red-500"></i>
                     </div>
                     <h3 className="text-2xl font-bold mb-1">{data.scanStats.totalProcessed}</h3>
                     <div className="flex items-center text-sm">
-                        <span className="text-blue-600 font-medium">{data.scanStats.totalProcessedTrend}</span>
+                        <span className="text-red-600 font-medium">{data.scanStats.totalProcessedTrend}</span>
                         <span className="text-gray-500 ml-2">this week</span>
                     </div>
                 </div>
@@ -779,11 +779,11 @@ function RedemptionTab({ data }: { data: any }) {
                 <div className="widget-card p-6">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-sm text-gray-500">Total Value Today</p>
-                        <i className="fas fa-rupee-sign text-blue-500"></i>
+                        <i className="fas fa-rupee-sign text-red-500"></i>
                     </div>
                     <h3 className="text-2xl font-bold mb-1">{data.redemptionStats.totalValueToday}</h3>
                     <div className="flex items-center text-sm">
-                        <span className="text-blue-600 font-medium">{data.redemptionStats.totalValueTodayTrend}</span>
+                        <span className="text-red-600 font-medium">{data.redemptionStats.totalValueTodayTrend}</span>
                         <span className="text-gray-500 ml-2">from yesterday</span>
                     </div>
                 </div>
@@ -981,7 +981,7 @@ export default function ProcessClient() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-500 mb-1">Select Member</label>
-                                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-sm">
                                     <option>Search for member...</option>
                                     <option>John Doe (RT-001)</option>
                                     <option>Alice Smith (EL-042)</option>
@@ -989,7 +989,7 @@ export default function ProcessClient() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-500 mb-1">Entry Type</label>
-                                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-sm">
                                     <option>Scan Adjustment</option>
                                     <option>Bonus Points</option>
                                     <option>Referral Reward</option>
@@ -998,11 +998,11 @@ export default function ProcessClient() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-500 mb-1">Points / Amount</label>
-                                <input type="number" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                                <input type="number" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-500 mb-1">Reason / Remarks</label>
-                                <textarea rows={4} placeholder="Enter reason for manual entry..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"></textarea>
+                                <textarea rows={4} placeholder="Enter reason for manual entry..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm resize-none"></textarea>
                             </div>
                             <div className="md:col-span-2 flex justify-end gap-2 mt-1">
                                 <button className="btn btn-secondary">Cancel</button>

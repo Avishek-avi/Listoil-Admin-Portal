@@ -24,9 +24,13 @@ import { getUserScope } from "@/lib/scope-utils"
 const STAKEHOLDER_ROLES = [2, 3]; // Retailer, Mechanic
 const ADMIN_ROLES = [1, 9, 10, 11]; // Evolve Admin, Support Admin, Client Admin, Admin
 
-export async function getDashboardDataAction(dateRange?: { from: string, to: string }) {
+export async function getDashboardDataAction(filters?: { growthRange?: string, transactionRange?: string }) {
     try {
+        const growthRange = filters?.growthRange || '7d';
+        const transactionRange = filters?.transactionRange || '7d';
+
         const session = await auth();
+
         if (!session?.user?.id) throw new Error("Unauthorized");
         const userId = Number(session.user.id);
         const scope = await getUserScope(userId);
@@ -434,19 +438,29 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                 change: '+0%',
                 rank: i + 1,
                 initial: (p.name || 'U').charAt(0),
-                bg: ['bg-yellow-100', 'bg-gray-100', 'bg-orange-100'][i] || 'bg-blue-100',
-                text: ['text-yellow-800', 'text-gray-800', 'text-orange-800'][i] || 'text-blue-800'
+                bg: ['bg-yellow-100', 'bg-gray-100', 'bg-orange-100'][i] || 'bg-red-100',
+                text: ['text-yellow-800', 'text-gray-800', 'text-orange-800'][i] || 'text-red-800'
             }));
         } catch (e) {
             console.error("Top performers query error:", e);
         }
 
-        // 11. Chart Data (Last 7 Days)
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - (6 - i));
-            return d.toISOString().split('T')[0];
-        });
+        // 11. Chart Data Generation Helper
+        const getRangeDays = (range: string) => {
+            let days = 7;
+            if (range === '30d') days = 30;
+            if (range === '90d') days = 90;
+            if (range === '365d') days = 365;
+
+            return Array.from({ length: days }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (days - 1 - i));
+                return d.toISOString().split('T')[0];
+            });
+        };
+
+        const growthDays = getRangeDays(growthRange);
+        const transactionDays = getRangeDays(transactionRange);
 
         const safeExecute = async (query: any) => {
             try {
@@ -458,16 +472,19 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
             }
         };
 
-        const memberGrowth = await safeExecute(sql`
+        const growthInterval = growthRange === '30d' ? '30 days' : growthRange === '90d' ? '90 days' : growthRange === '365d' ? '1 year' : '7 days';
+        const transInterval = transactionRange === '30d' ? '30 days' : transactionRange === '90d' ? '90 days' : transactionRange === '365d' ? '1 year' : '7 days';
+
+        const memberGrowth = await safeExecute(sql.raw(`
             SELECT day::text, count(*) as count FROM (
                 SELECT date_trunc('day', created_at)::date as day
                 FROM users
             ) t
-            WHERE day >= (now() - interval '7 days')::date
+            WHERE day >= (now() - interval '${growthInterval}')::date
             GROUP BY 1 ORDER BY 1
-        `);
+        `));
 
-        const pointsEarned = await safeExecute(sql`
+        const pointsEarned = await safeExecute(sql.raw(`
             SELECT day::text, sum(points) as points FROM (
                 SELECT date_trunc('day', created_at)::date as day, points FROM counter_sales_transaction_logs
                 UNION ALL
@@ -475,21 +492,21 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                 UNION ALL
                 SELECT date_trunc('day', created_at)::date as day, points FROM mechanic_transaction_logs
             ) as t
-            WHERE day >= (now() - interval '7 days')::date
+            WHERE day >= (now() - interval '${transInterval}')::date
             GROUP BY 1 ORDER BY 1
-        `);
+        `));
 
-        const pointsRedeemed = await safeExecute(sql`
+        const pointsRedeemed = await safeExecute(sql.raw(`
             SELECT day::text, sum(points) as points FROM (
                 SELECT date_trunc('day', created_at)::date as day, points_deducted as points FROM physical_rewards_redemptions
                 UNION ALL
                 SELECT date_trunc('day', created_at)::date as day, points_deducted as points FROM user_amazon_orders
             ) as t
-            WHERE day >= (now() - interval '7 days')::date
+            WHERE day >= (now() - interval '${transInterval}')::date
             GROUP BY 1 ORDER BY 1
-        `);
+        `));
 
-        const mapToDays = (rows: any[], key: string) => {
+        const mapToDays = (rows: any[], key: string, dayList: string[]) => {
             const map = new Map();
             rows.forEach(r => {
                 let dayStr = r.day;
@@ -497,7 +514,7 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                 if (dayStr && typeof dayStr === 'string' && dayStr.includes('T')) dayStr = dayStr.split('T')[0];
                 if (dayStr) map.set(dayStr, Number(r[key]) || 0);
             });
-            return last7Days.map(day => map.get(day) || 0);
+            return dayList.map(day => map.get(day) || 0);
         };
 
         return {
@@ -535,11 +552,18 @@ export async function getDashboardDataAction(dateRange?: { from: string, to: str
                 }
             },
             charts: {
-                memberGrowth: mapToDays(memberGrowth, 'count'),
-                pointsEarned: mapToDays(pointsEarned, 'points'),
-                pointsRedeemed: mapToDays(pointsRedeemed, 'points')
+                memberGrowth: {
+                    data: mapToDays(memberGrowth, 'count', growthDays),
+                    labels: growthDays.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+                },
+                pointsTransactions: {
+                    earned: mapToDays(pointsEarned, 'points', transactionDays),
+                    redeemed: mapToDays(pointsRedeemed, 'points', transactionDays),
+                    labels: transactionDays.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+                }
             }
         }
+
     } catch (error) {
         console.error("Dashboard error:", error);
         // Fallback data instead of throwing to keep the UI alive

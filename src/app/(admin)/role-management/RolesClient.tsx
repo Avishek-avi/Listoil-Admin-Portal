@@ -66,7 +66,7 @@ export default function RolesClient() {
 
     if (isLoading) return (
         <div className="flex justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
         </div>
     );
     if (error) return <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">Failed to load role data</div>;
@@ -81,9 +81,9 @@ export default function RolesClient() {
     ];
 
     const statCards = [
-        { label: 'Total Users', value: data?.stats?.totalUsers || 0, icon: 'fas fa-users', iconBg: 'bg-blue-100', iconColor: 'text-blue-600', sub: '+0', subLabel: 'this month', subColor: 'text-green-600' },
+        { label: 'Total Users', value: data?.stats?.totalUsers || 0, icon: 'fas fa-users', iconBg: 'bg-red-100', iconColor: 'text-red-600', sub: '+0', subLabel: 'this month', subColor: 'text-green-600' },
         { label: 'Active Users', value: data?.stats?.activeUsers || 0, icon: 'fas fa-check-circle', iconBg: 'bg-green-100', iconColor: 'text-green-600', sub: `${data?.stats?.totalUsers ? Math.round(((data.stats.activeUsers || 0) / data.stats.totalUsers) * 100) : 0}%`, subLabel: 'active rate', subColor: 'text-green-600' },
-        { label: 'Admin Users', value: data?.stats?.adminUsers || 0, icon: 'fas fa-shield-alt', iconBg: 'bg-purple-100', iconColor: 'text-purple-600', sub: `${data?.stats?.totalUsers ? Math.round(((data.stats.adminUsers || 0) / data.stats.totalUsers) * 100) : 0}%`, subLabel: 'of total', subColor: 'text-blue-600' },
+        { label: 'Admin Users', value: data?.stats?.adminUsers || 0, icon: 'fas fa-shield-alt', iconBg: 'bg-purple-100', iconColor: 'text-purple-600', sub: `${data?.stats?.totalUsers ? Math.round(((data.stats.adminUsers || 0) / data.stats.totalUsers) * 100) : 0}%`, subLabel: 'of total', subColor: 'text-red-600' },
         { label: 'Pending Invites', value: data?.stats?.pendingInvites || 0, icon: 'fas fa-bell', iconBg: 'bg-orange-100', iconColor: 'text-orange-600', sub: '0', subLabel: 'expiring', subColor: 'text-orange-600' },
     ];
 
@@ -149,16 +149,16 @@ export default function RolesClient() {
                     <div className="widget-card rounded-xl shadow p-4 mb-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                             <div className="relative md:col-span-1">
-                                <input type="text" placeholder="Search users..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" />
+                                <input type="text" placeholder="Search users..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm" />
                             </div>
-                            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
                                 <option value="">All Roles</option>
                                 <option value="Admin">Admin</option>
                                 <option value="Manager">Manager</option>
                                 <option value="Operator">Operator</option>
                                 <option value="Viewer">Viewer</option>
                             </select>
-                            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white">
                                 <option value="">All Status</option>
                                 <option value="active">Active</option>
                                 <option value="inactive">Inactive</option>
@@ -171,7 +171,7 @@ export default function RolesClient() {
                                 setSelectedScopeIds([]); 
                                 setNewUserData({ name: '', email: '', phone: '', roleId: '', password: '' });
                                 setIsAddModalOpen(true); 
-                            }} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center justify-center">
+                            }} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition text-sm font-medium flex items-center justify-center">
                                 <i className="fas fa-plus mr-2"></i>Add User
                             </button>
                         </div>
@@ -218,7 +218,7 @@ export default function RolesClient() {
                                             </td>
                                             <td className="py-3 text-sm">
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => setEditingUser(user)} className="text-blue-600 hover:text-blue-800 p-1" title="Edit User"><i className="fas fa-edit"></i></button>
+                                                    <button onClick={() => setEditingUser(user)} className="text-red-600 hover:text-red-800 p-1" title="Edit User"><i className="fas fa-edit"></i></button>
                                                     <button onClick={() => setResettingUser(user)} className="text-green-600 hover:text-green-800 p-1" title="Reset Password"><i className="fas fa-key"></i></button>
                                                     <button 
                                                         onClick={async () => {
@@ -330,19 +330,19 @@ export default function RolesClient() {
                             <div className="p-6 space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                                    <input required type="text" value={newUserData.name} onChange={e => setNewUserData({...newUserData, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="Enter full name" />
+                                    <input required type="text" value={newUserData.name} onChange={e => setNewUserData({...newUserData, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" placeholder="Enter full name" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                    <input required type="email" autoComplete="off" value={newUserData.email} onChange={e => setNewUserData({...newUserData, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="name@sturlite.com" />
+                                    <input required type="email" autoComplete="off" value={newUserData.email} onChange={e => setNewUserData({...newUserData, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" placeholder="name@sturlite.com" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                                    <input required type="tel" value={newUserData.phone} onChange={e => setNewUserData({...newUserData, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="10 digit mobile number" />
+                                    <input required type="tel" value={newUserData.phone} onChange={e => setNewUserData({...newUserData, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" placeholder="10 digit mobile number" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Portal Role</label>
-                                    <select required value={newUserData.roleId} onChange={e => setNewUserData({...newUserData, roleId: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <select required value={newUserData.roleId} onChange={e => setNewUserData({...newUserData, roleId: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 bg-white">
                                         <option value="">Select a role</option>
                                         {adminRoles?.map((r: any) => (
                                             <option key={r.id} value={r.id}>{r.name}</option>
@@ -364,7 +364,7 @@ export default function RolesClient() {
                                                             if (e.target.checked) setSelectedScopeIds([...selectedScopeIds, s.id]);
                                                             else setSelectedScopeIds(selectedScopeIds.filter(id => id !== s.id));
                                                         }}
-                                                        className="rounded text-blue-600 focus:ring-blue-500"
+                                                        className="rounded text-red-600 focus:ring-red-500"
                                                     />
                                                     {s.name}
                                                 </label>
@@ -380,7 +380,7 @@ export default function RolesClient() {
                                             required 
                                             value={selectedScopeIds[0] || ''} 
                                             onChange={e => setSelectedScopeIds([parseInt(e.target.value)])}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 bg-white"
                                         >
                                             <option value="">Select a city</option>
                                             {cities?.map((c: any) => (
@@ -391,7 +391,7 @@ export default function RolesClient() {
                                 )}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Set Password</label>
-                                    <input required type="password" autoComplete="new-password" value={newUserData.password} onChange={e => setNewUserData({...newUserData, password: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="Minimum 8 characters" minLength={8} />
+                                    <input required type="password" autoComplete="new-password" value={newUserData.password} onChange={e => setNewUserData({...newUserData, password: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" placeholder="Minimum 8 characters" minLength={8} />
                                 </div>
                             </div>
                             <div className="px-6 py-4 border-t flex justify-end gap-3 bg-gray-50">
@@ -409,8 +409,8 @@ export default function RolesClient() {
             {editingUser && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 border-b flex justify-between items-center bg-blue-50">
-                            <h3 className="text-lg font-semibold text-blue-900">Edit Portal User</h3>
+                        <div className="px-6 py-4 border-b flex justify-between items-center bg-red-50">
+                            <h3 className="text-lg font-semibold text-red-900">Edit Portal User</h3>
                             <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-gray-600">
                                 <i className="fas fa-times"></i>
                             </button>
@@ -441,19 +441,19 @@ export default function RolesClient() {
                             <div className="p-6 space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                                    <input required type="text" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                                    <input required type="text" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                    <input required type="email" autoComplete="off" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                                    <input required type="email" autoComplete="off" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                                    <input required type="tel" value={editingUser.phone} onChange={e => setEditingUser({...editingUser, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                                    <input required type="tel" value={editingUser.phone} onChange={e => setEditingUser({...editingUser, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Portal Role</label>
-                                    <select required value={editingUser.roleId} onChange={e => setEditingUser({...editingUser, roleId: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <select required value={editingUser.roleId} onChange={e => setEditingUser({...editingUser, roleId: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 bg-white">
                                         <option value="">Select a role</option>
                                         {adminRoles?.map((r: any) => (
                                             <option key={r.id} value={r.id}>{r.name}</option>
@@ -465,7 +465,7 @@ export default function RolesClient() {
                                 {adminRoles?.find((r: any) => r.id === parseInt(editingUser.roleId))?.name === 'TSM' && (
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-gray-700">Map States</label>
-                                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 border rounded-lg bg-blue-50/50">
+                                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 border rounded-lg bg-red-50/50">
                                             {states?.map((s: any) => (
                                                 <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white p-1 rounded">
                                                     <input 
@@ -475,7 +475,7 @@ export default function RolesClient() {
                                                             if (e.target.checked) setSelectedScopeIds([...selectedScopeIds, s.id]);
                                                             else setSelectedScopeIds(selectedScopeIds.filter(id => id !== s.id));
                                                         }}
-                                                        className="rounded text-blue-600 focus:ring-blue-500"
+                                                        className="rounded text-red-600 focus:ring-red-500"
                                                     />
                                                     {s.name}
                                                 </label>
@@ -491,7 +491,7 @@ export default function RolesClient() {
                                             required 
                                             value={selectedScopeIds[0] || ''} 
                                             onChange={e => setSelectedScopeIds([parseInt(e.target.value)])}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 bg-white"
                                         >
                                             <option value="">Select a city</option>
                                             {cities?.map((c: any) => (
@@ -503,7 +503,7 @@ export default function RolesClient() {
                             </div>
                             <div className="px-6 py-4 border-t flex justify-end gap-3 bg-gray-50">
                                 <button type="button" onClick={() => setEditingUser(null)} className="btn btn-secondary">Cancel</button>
-                                <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-medium transition shadow-sm disabled:opacity-50">
+                                <button type="submit" disabled={isSubmitting} className="bg-red-600 hover:bg-red-700 text-white px-8 py-2 rounded-lg font-medium transition shadow-sm disabled:opacity-50">
                                     {isSubmitting ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
@@ -543,7 +543,7 @@ export default function RolesClient() {
                                 <p className="text-sm text-gray-600">Resetting password for <strong>{resettingUser.name}</strong></p>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                                    <input required name="password" type="password" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="Minimum 8 characters" minLength={8} />
+                                    <input required name="password" type="password" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" placeholder="Minimum 8 characters" minLength={8} />
                                 </div>
                             </div>
                             <div className="px-6 py-4 border-t flex justify-end gap-3 bg-gray-50">

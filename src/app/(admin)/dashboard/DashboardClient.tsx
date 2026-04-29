@@ -42,21 +42,23 @@ export default function DashboardClient() {
     });
 
     // -- State for Charts & Filters --
-    const [dateFilter, setDateFilter] = useState({ from: "", to: "" });
+    const [growthRange, setGrowthRange] = useState('7d');
+    const [transactionRange, setTransactionRange] = useState('7d');
 
     // -- Fetch Dashboard Data --
     const { data: dashboardData, isLoading, error } = useQuery({
-        queryKey: ['dashboard-data', dateFilter],
-        queryFn: () => getDashboardDataAction(dateFilter.from && dateFilter.to ? dateFilter : undefined),
+        queryKey: ['dashboard-data', growthRange, transactionRange],
+        queryFn: () => getDashboardDataAction({ growthRange, transactionRange }),
         // Poll every 30 seconds for live-like updates
         refetchInterval: 30000
     });
 
 
+
     if (sessionStatus === "loading" || isLoading) {
         return (
             <div className="flex justify-center p-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
             </div>
         );
     }
@@ -75,29 +77,23 @@ export default function DashboardClient() {
             </div>
         );
 
-    // -- handlers --
-    const handleApplyFilter = () => {
-        console.log("Applying filter:", dateFilter);
-    };
+
 
     // -- Chart Configs --
-    const charts = dashboardData?.charts || { memberGrowth: [], pointsEarned: [], pointsRedeemed: [] };
-    const chartLabels = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    });
-
+    const charts = dashboardData?.charts;
+    
     const lineChartData = {
-        labels: chartLabels,
+        labels: charts?.memberGrowth?.labels || [],
         datasets: [
             {
                 label: "New Members",
-                data: charts.memberGrowth,
-                borderColor: "#3b82f6",
-                backgroundColor: "rgba(59, 130, 246, 0.1)",
+                data: charts?.memberGrowth?.data || [],
+                borderColor: "#D6001C",
+                backgroundColor: "rgba(214, 0, 28, 0.1)",
                 tension: 0.4,
                 fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: "#D6001C"
             },
         ],
     };
@@ -115,21 +111,19 @@ export default function DashboardClient() {
     };
 
     const barChartData = {
-        labels: chartLabels,
+        labels: charts?.pointsTransactions?.labels || [],
         datasets: [
             {
                 label: "Points Earned",
-                data: charts.pointsEarned,
-                backgroundColor: "#10b981",
-                borderRadius: 5,
-                barPercentage: 0.6,
+                data: charts?.pointsTransactions?.earned || [],
+                backgroundColor: "#0957C3",
+                borderRadius: 4,
             },
             {
                 label: "Points Redeemed",
-                data: charts.pointsRedeemed,
-                backgroundColor: "#f59e0b",
-                borderRadius: 5,
-                barPercentage: 0.6,
+                data: charts?.pointsTransactions?.redeemed || [],
+                backgroundColor: "#D6001C",
+                borderRadius: 4,
             },
         ],
     };
@@ -145,6 +139,7 @@ export default function DashboardClient() {
             x: { grid: { display: false } },
         },
     };
+
 
     const stats = dashboardData?.stats;
 
@@ -162,7 +157,7 @@ export default function DashboardClient() {
                 <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-gray-400">Total Enrolled</span>
-                        <i className="fas fa-users text-blue-500 text-sm"></i>
+                        <i className="fas fa-users text-red-500 text-sm"></i>
                     </div>
                     <p className="text-xl font-bold text-gray-900">{stats?.totalMembers?.toLocaleString() ?? 0}</p>
                     <p className="text-xs text-green-600 mt-1"><i className="fas fa-arrow-up mr-1"></i>+0 this week</p>
@@ -215,12 +210,12 @@ export default function DashboardClient() {
                 <div className="widget-card rounded-xl p-6 transition hover:shadow-lg">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-bold text-gray-900">Retailer Overview</h3>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">Invoice Based</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">Invoice Based</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="p-3 bg-red-50 rounded-lg">
                             <p className="text-xs text-gray-500">Total Points Issued</p>
-                            <p className="text-xl font-bold text-blue-600">{dashboardData?.segments?.retailer?.points?.toLocaleString() ?? 0}</p>
+                            <p className="text-xl font-bold text-red-600">{dashboardData?.segments?.retailer?.points?.toLocaleString() ?? 0}</p>
                         </div>
                         <div className="p-3 bg-green-50 rounded-lg">
                             <p className="text-xs text-gray-500">Total Retailers</p>
@@ -233,7 +228,7 @@ export default function DashboardClient() {
                             <span className="font-semibold">{dashboardData?.segments?.retailer?.active ?? 0}</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.retailer?.total ? (dashboardData.segments.retailer.active / dashboardData.segments.retailer.total) * 100 : 0}%` }}></div>
+                            <div className="bg-red-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.retailer?.total ? (dashboardData.segments.retailer.active / dashboardData.segments.retailer.total) * 100 : 0}%` }}></div>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-500">KYC Compliance</span>
@@ -302,11 +297,15 @@ export default function DashboardClient() {
                 <div className="widget-card rounded-xl shadow p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Member Growth</h3>
-                        <select className="text-sm border border-gray-300 rounded px-2 py-1 outline-none">
-                            <option>Last 7 days</option>
-                            <option>Last 30 days</option>
-                            <option>Last 3 months</option>
-                            <option>Last year</option>
+                        <select 
+                            value={growthRange}
+                            onChange={(e) => setGrowthRange(e.target.value)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1 outline-none"
+                        >
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                            <option value="90d">Last 3 months</option>
+                            <option value="365d">Last year</option>
                         </select>
                     </div>
                     <div className="h-64">
@@ -318,13 +317,18 @@ export default function DashboardClient() {
                 <div className="widget-card rounded-xl shadow p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Points Transactions</h3>
-                        <select className="text-sm border border-gray-300 rounded px-2 py-1 outline-none">
-                            <option>Last 7 days</option>
-                            <option>Last 30 days</option>
-                            <option>Last 3 months</option>
-                            <option>Last year</option>
+                        <select 
+                            value={transactionRange}
+                            onChange={(e) => setTransactionRange(e.target.value)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1 outline-none"
+                        >
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                            <option value="90d">Last 3 months</option>
+                            <option value="365d">Last year</option>
                         </select>
                     </div>
+
                     <div className="h-64">
                         <Bar data={barChartData} options={barChartOptions} />
                     </div>
@@ -363,13 +367,13 @@ export default function DashboardClient() {
                     <div className="space-y-3">
                         <button
                             onClick={() => router.push('/members')}
-                            className="w-full text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition flex items-center justify-between group"
+                            className="w-full text-left px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg transition flex items-center justify-between group"
                         >
                             <div className="flex items-center">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-user-plus text-white text-xs"></i></div>
+                                  <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-user-plus text-white text-xs"></i></div>
                                   <span className="text-sm font-medium text-gray-700">Add New Member</span>
                             </div>
-                               <i className="fas fa-chevron-right text-gray-300 group-hover:text-blue-500 transition text-xs"></i>
+                               <i className="fas fa-chevron-right text-gray-300 group-hover:text-red-500 transition text-xs"></i>
                         </button>
                             <button
                                 onClick={() => router.push('/qr-management')}
@@ -411,7 +415,7 @@ export default function DashboardClient() {
                 <div className="widget-card rounded-xl shadow p-6 lg:col-span-2">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
-                        <button className="text-sm text-blue-600 hover:text-blue-800">View All</button>
+                        <button className="text-sm text-red-600 hover:text-red-800">View All</button>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="data-table">
@@ -488,14 +492,14 @@ export default function DashboardClient() {
                         {dashboardData?.pendingApprovalsCount > 0 ? (
                             <>
                                 {dashboardData.pendingApprovals.map((item: any, idx: number) => (
-                                    <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${item.type === 'KYC' ? 'bg-orange-50' : 'bg-blue-50'}`}>
+                                    <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${item.type === 'KYC' ? 'bg-orange-50' : 'bg-red-50'}`}>
                                         <div>
                                             <p className="text-sm font-medium">{item.label}</p>
                                             <p className="text-xs text-gray-500">{item.subLabel}</p>
                                         </div>
                                         <button 
                                             onClick={() => router.push(item.type === 'KYC' ? `/members?type=${item.label.includes('Retailer') ? 'retailer' : 'mechanic'}&kycStatus=Pending` : '/process?tab=1')}
-                                            className={`text-xs font-medium hover:underline ${item.type === 'KYC' ? 'text-orange-600' : 'text-blue-600'}`}
+                                            className={`text-xs font-medium hover:underline ${item.type === 'KYC' ? 'text-orange-600' : 'text-red-600'}`}
                                         >
                                             Review
                                         </button>
@@ -507,7 +511,7 @@ export default function DashboardClient() {
                                     <p className="text-sm text-gray-600 mb-2">
                                         {dashboardData.pendingApprovalsCount} pending requests total
                                     </p>
-                                    <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                    <button className="text-sm text-red-600 hover:text-red-800 font-medium">
                                         View All Approvals
                                     </button>
                                 </div>

@@ -18,8 +18,8 @@ export default function ConfigurationClient() {
     const [selectedReferralUserType, setSelectedReferralUserType] = useState<number | ''>('');
     const [isSaving, setIsSaving] = useState(false);
 
-    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
+    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500"
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white"
 
     const { data: configData } = useQuery({
         queryKey: ['configuration'],
@@ -190,7 +190,7 @@ export default function ConfigurationClient() {
 
     const getCreativeIconClass = (typeName: string) => {
         const name = typeName.toLowerCase();
-        if (name.includes('banner')) return 'fas fa-image text-blue-600';
+        if (name.includes('banner')) return 'fas fa-image text-red-600';
         if (name.includes('video')) return 'fas fa-video text-purple-600';
         if (name.includes('content') || name.includes('doc') || name.includes('library')) return 'fas fa-file-alt text-red-600';
         if (name.includes('gift') || name.includes('reward')) return 'fas fa-gift text-yellow-600';
@@ -199,7 +199,7 @@ export default function ConfigurationClient() {
 
     const getIconBgColor = (typeName: string) => {
         const name = typeName.toLowerCase();
-        if (name.includes('banner')) return 'bg-blue-100';
+        if (name.includes('banner')) return 'bg-red-100';
         if (name.includes('video')) return 'bg-purple-100';
         if (name.includes('content') || name.includes('doc') || name.includes('library')) return 'bg-red-100';
         if (name.includes('gift') || name.includes('reward')) return 'bg-yellow-100';
@@ -311,7 +311,7 @@ export default function ConfigurationClient() {
                         <h3 className="text-lg font-semibold text-primary mb-4">Scheme Management</h3>
                         <div className="space-y-4">
                             {/* Scheme Item 1 */}
-                            <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-blue-500 hover:shadow-md transition-shadow">
+                            <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-red-500 hover:shadow-md transition-shadow">
                                 <div className="flex justify-between items-start">
                                     <div>
                                         <p className="font-semibold">Diwali Bonanza</p>
@@ -323,7 +323,7 @@ export default function ConfigurationClient() {
                                     <span className="badge badge-success">Active</span>
                                 </div>
                                 <div className="mt-2 flex gap-3">
-                                    <button className="text-blue-600 text-sm hover:underline">Edit</button>
+                                    <button className="text-red-600 text-sm hover:underline">Edit</button>
                                     <button className="text-red-600 text-sm hover:underline">Deactivate</button>
                                 </div>
                             </div>
@@ -341,7 +341,7 @@ export default function ConfigurationClient() {
                                     <span className="badge badge-success">Active</span>
                                 </div>
                                 <div className="mt-2 flex gap-3">
-                                    <button className="text-blue-600 text-sm hover:underline">Edit</button>
+                                    <button className="text-red-600 text-sm hover:underline">Edit</button>
                                     <button className="text-red-600 text-sm hover:underline">Deactivate</button>
                                 </div>
                             </div>
@@ -359,7 +359,7 @@ export default function ConfigurationClient() {
                                     <span className="badge badge-danger">Inactive</span>
                                 </div>
                                 <div className="mt-2 flex gap-3">
-                                    <button className="text-blue-600 text-sm hover:underline">Edit</button>
+                                    <button className="text-red-600 text-sm hover:underline">Edit</button>
                                     <button className="text-green-600 text-sm hover:underline">Activate</button>
                                 </div>
                             </div>
@@ -376,7 +376,7 @@ export default function ConfigurationClient() {
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-semibold text-primary">{type.name} Management</h3>
                                 <button
-                                    className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                                    className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition text-sm font-medium"
                                     onClick={() => handleOpenCreativeModal(type.id)}
                                 >
                                     <i className="fas fa-plus mr-1"></i> Add New
@@ -396,13 +396,13 @@ export default function ConfigurationClient() {
                                                 <p className="font-semibold text-sm">{creative.title}</p>
                                                 <p className="text-xs text-gray-500">{creative.carouselName}</p>
                                                 {creative.previewUrl && (
-                                                    <a href={creative.previewUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline inline-block mt-1">
+                                                    <a href={creative.previewUrl} target="_blank" rel="noreferrer" className="text-xs text-red-600 hover:underline inline-block mt-1">
                                                         Preview uploaded content
                                                     </a>
                                                 )}
                                             </div>
                                             <div className="flex gap-1">
-                                                <button className="p-1.5 hover:bg-blue-50 rounded text-blue-600" onClick={() => handleOpenCreativeModal(type.id, creative)}>
+                                                <button className="p-1.5 hover:bg-red-50 rounded text-red-600" onClick={() => handleOpenCreativeModal(type.id, creative)}>
                                                     <i className="fas fa-edit text-sm"></i>
                                                 </button>
                                                 <button className="p-1.5 hover:bg-red-50 rounded text-red-600" onClick={() => handleDeleteCreative(creative.id)}>
@@ -423,7 +423,7 @@ export default function ConfigurationClient() {
                         <div className="col-span-full widget-card rounded-xl shadow p-12 text-center">
                             <h3 className="text-lg font-semibold text-gray-500 mb-2">No Banner or Content Sections Configured</h3>
                             <p className="text-sm text-gray-500 mb-4">Creative types defined in the database will appear here automatically.</p>
-                            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                            <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition text-sm font-medium">
                                 <i className="fas fa-plus mr-1"></i> Add Creative Type
                             </button>
                         </div>
@@ -437,8 +437,8 @@ export default function ConfigurationClient() {
                     <h3 className="text-lg font-semibold text-primary mb-6 border-b pb-4">Referral Configuration</h3>
                     <div className="space-y-6">
                         {/* Global System Settings */}
-                        <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                            <p className="text-sm font-bold text-blue-700 mb-3">Global System Settings</p>
+                        <div className="bg-red-50 p-4 rounded-lg mb-6">
+                            <p className="text-sm font-bold text-red-700 mb-3">Global System Settings</p>
                             <label className="flex items-center gap-3 cursor-pointer mb-4">
                                 <div className="relative">
                                     <input
@@ -450,7 +450,7 @@ export default function ConfigurationClient() {
                                             enabled: e.target.checked
                                         })}
                                     />
-                                    <div className="w-10 h-5 bg-gray-300 rounded-full peer-checked:bg-blue-600 transition-colors"></div>
+                                    <div className="w-10 h-5 bg-gray-300 rounded-full peer-checked:bg-red-600 transition-colors"></div>
                                     <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
                                 </div>
                                 <span className="font-medium text-sm">Enable Referral Program System-wide</span>
@@ -499,7 +499,7 @@ export default function ConfigurationClient() {
 
                         {/* Per-UserType Settings */}
                         <div>
-                            <p className="text-sm font-bold text-blue-700 mb-3">Per-UserType Overrides</p>
+                            <p className="text-sm font-bold text-red-700 mb-3">Per-UserType Overrides</p>
                             <div className="space-y-1 mb-4">
                                 <label className="text-sm font-medium text-gray-700">Configure for User Type</label>
                                 <select
@@ -520,7 +520,7 @@ export default function ConfigurationClient() {
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                                                 checked={referralUserTypeFields.isReferralEnabled}
                                                 onChange={(e) => setReferralUserTypeFields({ ...referralUserTypeFields, isReferralEnabled: e.target.checked })}
                                             />
@@ -627,14 +627,14 @@ export default function ConfigurationClient() {
                     <div className="widget-card rounded-xl shadow p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold text-primary">Communication Triggers</h3>
-                            <button className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                            <button className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition text-sm font-medium">
                                 <i className="fas fa-plus mr-1"></i> Create
                             </button>
                         </div>
 
                         <div className="space-y-4">
                             {[
-                                { title: 'Welcome Message', desc: 'Sent to new members upon registration', icon: 'fa-bell', channels: 'SMS, Push Notification', border: 'border-blue-500' },
+                                { title: 'Welcome Message', desc: 'Sent to new members upon registration', icon: 'fa-bell', channels: 'SMS, Push Notification', border: 'border-red-500' },
                                 { title: 'Points Credited', desc: 'Sent when points are credited to member account', icon: 'fa-bell', channels: 'SMS, Push Notification', border: 'border-green-500' },
                                 { title: 'Inactivity Nudge', desc: 'Sent to members inactive for 30 days', icon: 'fa-brands fa-whatsapp', channels: 'WhatsApp, SMS', border: 'border-yellow-500' },
                             ].map((trigger) => (
@@ -650,7 +650,7 @@ export default function ConfigurationClient() {
                                         <span className="badge badge-success">Active</span>
                                     </div>
                                     <div className="mt-2 flex gap-3">
-                                        <button className="text-blue-600 text-sm hover:underline">Edit</button>
+                                        <button className="text-red-600 text-sm hover:underline">Edit</button>
                                         <button className="text-red-600 text-sm hover:underline">Deactivate</button>
                                     </div>
                                 </div>
@@ -661,14 +661,14 @@ export default function ConfigurationClient() {
                     <div className="widget-card rounded-xl shadow p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold text-primary">Message Templates</h3>
-                            <button className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                            <button className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition text-sm font-medium">
                                 <i className="fas fa-plus mr-1"></i> Create
                             </button>
                         </div>
 
                         <div className="space-y-4">
                             {[
-                                { title: 'Welcome SMS Template', desc: 'Used for new member registration', bg: 'bg-blue-100', color: 'text-blue-600' },
+                                { title: 'Welcome SMS Template', desc: 'Used for new member registration', bg: 'bg-red-100', color: 'text-red-600' },
                                 { title: 'Points Credited Template', desc: 'Used when points are credited', bg: 'bg-green-100', color: 'text-green-600' },
                                 { title: 'Referral Success Template', desc: 'Used when referral is successful', bg: 'bg-purple-100', color: 'text-purple-600' },
                             ].map((tpl) => (
@@ -681,7 +681,7 @@ export default function ConfigurationClient() {
                                         <p className="text-xs text-gray-500">{tpl.desc}</p>
                                     </div>
                                     <div className="flex gap-1">
-                                        <button className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><i className="fas fa-edit text-sm"></i></button>
+                                        <button className="p-1.5 hover:bg-red-50 rounded text-red-600"><i className="fas fa-edit text-sm"></i></button>
                                         <button className="p-1.5 hover:bg-red-50 rounded text-red-600"><i className="fas fa-trash text-sm"></i></button>
                                     </div>
                                 </div>
@@ -745,7 +745,7 @@ export default function ConfigurationClient() {
                                     </div>
                                     <label className={`inline-flex items-center gap-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium cursor-pointer hover:bg-gray-50 transition whitespace-nowrap ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                                         {isUploading ? (
-                                            <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div> Uploading...</>
+                                            <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div> Uploading...</>
                                         ) : (
                                             <><i className="fas fa-cloud-upload-alt"></i> Upload</>
                                         )}

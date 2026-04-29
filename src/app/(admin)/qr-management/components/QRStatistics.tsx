@@ -16,7 +16,7 @@ const QRStatistics: React.FC<QRStatisticsProps> = ({ totalGenerated, totalScanne
             <div className="widget-card rounded-xl shadow p-6">
                 <p className="text-sm text-gray-500 mb-1">Total Scanned</p>
                 <h3 className="text-3xl font-bold text-gray-900">{totalScanned}</h3>
-                <p className="text-sm text-blue-600 mt-2">0% conversion rate</p>
+                <p className="text-sm text-red-600 mt-2">0% conversion rate</p>
             </div>
         </div>
     );

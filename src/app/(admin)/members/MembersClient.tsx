@@ -1,4 +1,5 @@
-'use client';
+'use client'; 
+
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -83,8 +84,8 @@ export default function MembersClient() {
     const [addModalOpen, setAddModalOpen] = useState(false);
 
 
-    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500";
-    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white";
+    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500";
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white";
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -447,8 +448,8 @@ export default function MembersClient() {
                         key={entity.id}
                         onClick={() => { setEntityTab(index); setPage(1); }}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${activeEntityTab === index
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300'
+                            ? 'bg-red-600 text-white shadow-md'
+                            : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300'
                             }`}
                     >
                         {entity.name}
@@ -467,7 +468,7 @@ export default function MembersClient() {
                         <div className="widget-card rounded-xl shadow p-6">
                             <div className="flex justify-between items-center mb-2">
                                 <p className="text-sm text-gray-500">Total {currentEntity.name}</p>
-                                  <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-users text-white text-xs"></i></div>
+                                  <div className="w-9 h-9 rounded-xl bg-red-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-users text-white text-xs"></i></div>
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 mb-1">{stats.total.toLocaleString()}</h3>
                             <div className="flex items-center text-xs">
@@ -506,7 +507,7 @@ export default function MembersClient() {
                             </div>
                             <h3 className="text-2xl font-bold mb-1">{stats.activeToday}</h3>
                             <div className="flex items-center text-sm">
-                                <span className="text-blue-600 font-medium">{stats.activeTodayTrend}</span>
+                                <span className="text-red-600 font-medium">{stats.activeTodayTrend}</span>
                                 <span className="text-gray-500 ml-2">from yesterday</span>
                             </div>
                         </div>
@@ -521,7 +522,7 @@ export default function MembersClient() {
                                     placeholder={`Search ${currentEntity.name.toLowerCase()}...`}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 shadow-sm"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 shadow-sm"
                                 />
                             </div>
                             <div className="md:col-span-2">
@@ -555,7 +556,7 @@ export default function MembersClient() {
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold">{currentEntity.name} List</h3>
                             <div className="flex gap-2">
-                                <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm">
+                                <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium shadow-sm">
                                     <i className="fas fa-plus"></i> Add Member
                                 </button>
                                 <button className="btn btn-secondary">
@@ -624,7 +625,7 @@ export default function MembersClient() {
                                                     {getKycBadge(member.kycStatus, member.approvalStatus)}
                                                     <button 
                                                         onClick={() => handleViewKyc(member)}
-                                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                                         title="View Documents"
                                                     >
                                                         <i className="fas fa-file-invoice text-sm"></i>
@@ -639,7 +640,7 @@ export default function MembersClient() {
                                                 <div className="flex items-center gap-2">
                                                     <button 
                                                         onClick={() => handleViewDetails(member)} 
-                                                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                                         title="View Profile"
                                                     >
                                                         <i className="fas fa-user-circle text-lg"></i>
@@ -670,7 +671,7 @@ export default function MembersClient() {
                                                                 <button
                                                                     key={status.id}
                                                                     onClick={() => !isCurrent && handleUpdateBlockStatus(member.dbId, status.id)}
-                                                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isCurrent ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isCurrent ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                                                                 >
                                                                     <i className={`fas ${isCurrent ? 'fa-check-circle' : 'fa-circle text-[8px] opacity-30'} w-4 text-center`}></i>
                                                                     {label}
@@ -734,7 +735,7 @@ export default function MembersClient() {
                                         </span>
                                         <span className={`text-white text-xs font-bold px-2 py-0.5 rounded-full ${selectedMember?.member?.approvalStatus?.includes('APPROVED') ? 'bg-green-500' :
                                             selectedMember?.member?.approvalStatus?.includes('BLOCKED') ? 'bg-red-500' :
-                                                selectedMember?.member?.approvalStatus?.includes('REJECTED') ? 'bg-yellow-500' : 'bg-blue-500'}`}>
+                                                selectedMember?.member?.approvalStatus?.includes('REJECTED') ? 'bg-yellow-500' : 'bg-red-500'}`}>
                                             {selectedMember?.member?.approvalStatus}
                                         </span>
                                         <span className="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">{currentEntity?.name}</span>
@@ -745,12 +746,12 @@ export default function MembersClient() {
 
                         <div className="p-6 overflow-y-auto flex-1 bg-gray-50">
                             {isLoadingDetails ? (
-                                <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>
+                                <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600"></div></div>
                             ) : memberDetails ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Personal Info */}
                                     <div>
-                                        <h4 className="text-base font-bold text-blue-700 mb-3">Personal Information</h4>
+                                        <h4 className="text-base font-bold text-red-700 mb-3">Personal Information</h4>
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-3">
                                                 <i className="fas fa-phone text-gray-400 w-5 text-center"></i>
@@ -778,7 +779,7 @@ export default function MembersClient() {
 
                                     {/* Professional Details */}
                                     <div>
-                                        <h4 className="text-base font-bold text-blue-700 mb-3">Professional Details</h4>
+                                        <h4 className="text-base font-bold text-red-700 mb-3">Professional Details</h4>
                                         <div className="space-y-3">
                                             {currentEntity.name.toLowerCase().includes('retailer') && (
                                                 <div className="flex items-center gap-3">
@@ -814,11 +815,11 @@ export default function MembersClient() {
                                     {/* Financial & KYC */}
                                     <div className="md:col-span-2">
                                         <hr className="border-gray-200 my-2" />
-                                        <h4 className="text-base font-bold text-blue-700 mb-3">Financial & KYC</h4>
+                                        <h4 className="text-base font-bold text-red-700 mb-3">Financial & KYC</h4>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                 <p className="text-xs text-gray-500">Points Balance</p>
-                                                <p className="text-xl font-bold text-blue-600">{(memberDetails as any).pointsBalance || 0}</p>
+                                                <p className="text-xl font-bold text-red-600">{(memberDetails as any).pointsBalance || 0}</p>
                                             </div>
                                             <div className="bg-white p-3 rounded-lg border border-gray-200">
                                                 <p className="text-xs text-gray-500">Total Earnings</p>
@@ -836,9 +837,9 @@ export default function MembersClient() {
                                     {/* Bank Details */}
                                     {(memberDetails as any).bankAccountNo && (
                                         <div className="md:col-span-2">
-                                            <div className="p-4 rounded-xl border border-dashed border-blue-400 bg-blue-50/50">
+                                            <div className="p-4 rounded-xl border border-dashed border-red-400 bg-red-50/50">
                                                 <p className="text-sm font-bold mb-3 flex items-center gap-2">
-                                                    <i className="fas fa-university text-blue-600"></i> Bank Account Details
+                                                    <i className="fas fa-university text-red-600"></i> Bank Account Details
                                                 </p>
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                     <div>
@@ -867,7 +868,7 @@ export default function MembersClient() {
 
                         <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t">
                             <button onClick={() => setDetailsModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition">Close</button>
-                            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-2">
+                            <button className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition flex items-center gap-2">
                                 <i className="fas fa-edit text-xs"></i> Edit Profile
                             </button>
                         </div>
@@ -885,7 +886,7 @@ export default function MembersClient() {
                         </div>
                         <div className="p-6 overflow-y-auto flex-1">
                             {isLoadingKycDocs ? (
-                                <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+                                <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div></div>
                             ) : !kycDocuments || kycDocuments.length === 0 ? (
                                 <div className="py-8 text-center"><p className="text-gray-500">No KYC documents found for this member.</p></div>
                             ) : (
@@ -895,7 +896,7 @@ export default function MembersClient() {
                                             <p className="text-sm font-medium mb-1">{doc.documentType}</p>
                                             <div
                                                 onClick={() => handleViewDocument(doc.signedUrl, doc.documentType)}
-                                                className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center cursor-pointer transition hover:bg-blue-50/50 hover:border-blue-400"
+                                                className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-center cursor-pointer transition hover:bg-red-50/50 hover:border-red-400"
                                             >
                                                 <div className="h-28 w-full rounded-lg bg-gray-50 border border-gray-200 overflow-hidden flex items-center justify-center mb-2">
                                                     {!doc.signedUrl ? (
@@ -1052,7 +1053,7 @@ export default function MembersClient() {
                         </div>
                         <div className="flex justify-end gap-3 p-4 border-t">
                             <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition">Cancel</button>
-                            <button onClick={handleSaveMember} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition">Save Changes</button>
+                            <button onClick={handleSaveMember} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition">Save Changes</button>
                         </div>
                     </div>
                 </div>
@@ -1181,8 +1182,8 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
         }
     };
 
-    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500";
-    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white";
+    const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500";
+    const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white";
 
     useEffect(() => {
         setSelectedState('');
@@ -1486,7 +1487,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                     <div className="flex justify-between items-end">
                                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pincode</label>
                                         {userScope?.role.toUpperCase() === 'SR' && (
-                                            <span className="text-[10px] font-bold text-blue-600 uppercase">Your Territory Only</span>
+                                            <span className="text-[10px] font-bold text-red-600 uppercase">Your Territory Only</span>
                                         )}
                                     </div>
                                     <input 
@@ -1547,7 +1548,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                 {/* KYC Document Uploads */}
                                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
                                     <h3 className="md:col-span-3 text-sm font-bold text-gray-800 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                                        <i className="fas fa-id-card text-blue-600"></i> KYC Documents
+                                        <i className="fas fa-id-card text-red-600"></i> KYC Documents
                                     </h3>
                                     
                                     {[
@@ -1567,10 +1568,10 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                                 />
                                                 <label 
                                                     htmlFor={`upload-${doc.type}`}
-                                                    className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition cursor-pointer"
+                                                    className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-red-500 hover:bg-red-50 transition cursor-pointer"
                                                 >
                                                     {uploading === doc.type ? (
-                                                        <i className="fas fa-spinner fa-spin text-blue-500 text-xl"></i>
+                                                        <i className="fas fa-spinner fa-spin text-red-500 text-xl"></i>
                                                     ) : formData.kycDocuments[doc.type.toUpperCase()] ? (
                                                         <div className="flex flex-col items-center text-green-600">
                                                             <i className="fas fa-check-circle text-xl"></i>
@@ -1589,20 +1590,20 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                 </div>
 
                                 {formData.roleId !== '3' && (
-                                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 mt-4">
-                                        <h3 className="md:col-span-3 text-sm font-bold text-blue-800 flex items-center gap-2 mb-2">
+                                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-red-50/50 rounded-xl border border-red-100 mt-4">
+                                        <h3 className="md:col-span-3 text-sm font-bold text-red-800 flex items-center gap-2 mb-2">
                                             <i className="fas fa-university"></i> Bank Details
                                         </h3>
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-blue-600 uppercase">Account Name</label>
+                                            <label className="text-[10px] font-bold text-red-600 uppercase">Account Name</label>
                                             <input type="text" value={formData.bankAccountName} onChange={e => setFormData({ ...formData, bankAccountName: e.target.value })} className={inputClass} />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-blue-600 uppercase">Account Number</label>
+                                            <label className="text-[10px] font-bold text-red-600 uppercase">Account Number</label>
                                             <input type="text" value={formData.bankAccountNo} onChange={e => setFormData({ ...formData, bankAccountNo: e.target.value })} className={inputClass} />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-blue-600 uppercase">IFSC Code</label>
+                                            <label className="text-[10px] font-bold text-red-600 uppercase">IFSC Code</label>
                                             <input type="text" value={formData.bankAccountIfsc} onChange={e => setFormData({ ...formData, bankAccountIfsc: e.target.value })} className={inputClass} />
                                         </div>
                                     </div>
@@ -1613,7 +1614,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
 
                     <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end gap-3">
                         <button type="button" onClick={onClose} className="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition text-sm font-medium">Cancel</button>
-                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm font-bold shadow-lg shadow-blue-200 flex items-center gap-2 disabled:opacity-50">
+                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition text-sm font-bold shadow-lg shadow-red-200 flex items-center gap-2 disabled:opacity-50">
                             {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-user-plus"></i>}
                             Create Member
                         </button>

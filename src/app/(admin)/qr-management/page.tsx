@@ -49,7 +49,7 @@ function BatchDetails({ batchId }: { batchId: number }) {
                     <div key={item.inventoryId} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex justify-between items-center">
                         <div className="space-y-1">
                             <p className="text-xs font-mono text-gray-600">{item.serialNumber}</p>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${item.isQrScanned ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${item.isQrScanned ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
                                 {item.isQrScanned ? 'Scanned' : 'Not Scanned'}
                             </span>
                         </div>
@@ -205,7 +205,7 @@ export default function QRGeneration() {
   };
 
   if (status === 'loading') {
-    return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
+    return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div></div>;
   }
 
   return (
@@ -214,13 +214,13 @@ export default function QRGeneration() {
       <div className="flex gap-1 bg-gray-100/50 p-1 rounded-xl w-fit border border-gray-200">
           <button 
             onClick={() => setActiveTab('sync')}
-            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'sync' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'sync' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
               <i className="fas fa-sync-alt mr-2"></i>Generation & Sync
           </button>
           <button 
             onClick={() => setActiveTab('batches')}
-            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'batches' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'batches' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
               <i className="fas fa-list mr-2"></i>Sync Batches History
           </button>
@@ -232,7 +232,7 @@ export default function QRGeneration() {
               <h3 className="text-lg font-semibold text-gray-900 text-gradient">Sync QR Codes</h3>
               <button 
                 onClick={handleDownloadSample}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-all"
+                className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1.5 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 transition-all"
               >
                   <i className="fas fa-download"></i> Download Sample Format
               </button>
@@ -242,10 +242,10 @@ export default function QRGeneration() {
             
             <div className="max-w-xl">
                 <div className="flex flex-col gap-4">
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer group bg-gray-50/50" onClick={() => document.getElementById('fileInput')?.click()}>
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-red-400 transition-colors cursor-pointer group bg-gray-50/50" onClick={() => document.getElementById('fileInput')?.click()}>
                         <input type="file" id="fileInput" className="hidden" accept=".xlsx,.xls" onChange={handleFileChange} />
-                        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                            <i className="fas fa-file-excel text-blue-600 text-xl"></i>
+                        <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                            <i className="fas fa-file-excel text-red-600 text-xl"></i>
                         </div>
                         {selectedFile ? (
                             <div className="space-y-1">
@@ -285,8 +285,8 @@ export default function QRGeneration() {
                 <p className="text-sm text-gray-500">View and manage all synced QR batches.</p>
               </div>
               <div className="flex gap-3">
-                <input type="text" placeholder="Search SKU..." value={batchSearch} onChange={(e) => setBatchSearch(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <select value={batchStatus} onChange={(e) => setBatchStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[120px]">
+                <input type="text" placeholder="Search SKU..." value={batchSearch} onChange={(e) => setBatchSearch(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+                <select value={batchStatus} onChange={(e) => setBatchStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white min-w-[120px]">
                   <option value="">All Status</option>
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -315,7 +315,7 @@ export default function QRGeneration() {
                   ) : (
                     batches.map((batch: any) => (
                       <>
-                        <tr key={batch.batchId} className={`border-t hover:bg-gray-50/80 transition-colors ${expandedBatchId === batch.batchId ? 'bg-blue-50/30' : ''}`}>
+                        <tr key={batch.batchId} className={`border-t hover:bg-gray-50/80 transition-colors ${expandedBatchId === batch.batchId ? 'bg-red-50/30' : ''}`}>
                           <td className="py-4 px-2 text-center">
                               <button 
                                 onClick={() => setExpandedBatchId(expandedBatchId === batch.batchId ? null : batch.batchId)}
@@ -326,7 +326,7 @@ export default function QRGeneration() {
                           </td>
                           <td className="py-4 px-4 text-sm font-medium text-gray-700">#{batch.batchId}</td>
                           <td className="py-4 px-4 text-sm text-gray-600 font-semibold">{batch.skuCode}</td>
-                          <td className="py-4 px-4 text-sm"><span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-bold">{batch.quantity}</span></td>
+                          <td className="py-4 px-4 text-sm"><span className="bg-red-50 text-red-700 px-2 py-1 rounded-md font-bold">{batch.quantity}</span></td>
                           <td className="py-4 px-4 text-sm text-gray-500">{batch.createdAt ? new Date(batch.createdAt).toLocaleString() : 'N/A'}</td>
                           <td className="py-4 px-4">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${batch.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
@@ -345,7 +345,7 @@ export default function QRGeneration() {
                             {batch.fileUrl && (
                                 <button
                                   onClick={() => handleDownload(batch.batchId)}
-                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 transition-all"
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all"
                                   title="Download Original"
                                 >
                                   <i className="fas fa-download"></i>
@@ -379,7 +379,7 @@ export default function QRGeneration() {
                 </select>
                 <div className="flex gap-1">
                   <button disabled={page === 0} onClick={() => setPage(page - 1)} className="p-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"><i className="fas fa-chevron-left"></i></button>
-                  <div className="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold shadow-md shadow-blue-200">{page + 1}</div>
+                  <div className="bg-red-600 text-white w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold shadow-md shadow-red-200">{page + 1}</div>
                   <button disabled={(page + 1) * rowsPerPage >= totalCount} onClick={() => setPage(page + 1)} className="p-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"><i className="fas fa-chevron-right"></i></button>
                 </div>
               </div>
@@ -396,4 +396,4 @@ export default function QRGeneration() {
     </div>
   );
 }
-
+

@@ -105,8 +105,9 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
-                className="block w-full px-3 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="block w-full px-3 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30"
               />
+
             </div>
 
             {/* Password */}
@@ -125,7 +126,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="block w-full px-3 pr-10 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="block w-full px-3 pr-10 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30"
                 />
                 <div className="absolute inset-y-0 right-0 w-12 flex items-center justify-center">
                   <button
@@ -149,7 +150,7 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                  className="h-4 w-4 text-red-600 rounded focus:ring-red-500"
                 />
                 <label
                   htmlFor="remember-me"
@@ -160,7 +161,7 @@ export default function LoginPage() {
               </div>
               <a
                 href="#"
-                className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                className="text-sm font-medium text-red-600 hover:text-red-800"
               >
                 Forgot password?
               </a>
@@ -170,11 +171,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 rounded-lg font-medium text-white transition disabled:opacity-60"
+              className="w-full py-3 px-4 rounded-lg font-medium text-white transition disabled:opacity-60 shadow-lg shadow-red-200"
               style={{
                 background: loading
-                  ? "#93c5fd"
-                  : "linear-gradient(to right, #2563eb, #1d4ed8)",
+                  ? "#fca5a5"
+                  : "linear-gradient(to right, #D6001C, #be123c)",
               }}
             >
               {loading ? "Signing in..." : "Sign in"}

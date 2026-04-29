@@ -37,8 +37,8 @@ interface MasterTableFormProps {
   masterData: Record<string, any[]>;
 }
 
-const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500";
-const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white";
+const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500";
+const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 bg-white";
 
 export function MasterTableForm({ title, tableSchema, data, onChange, masterData }: MasterTableFormProps) {
   const columns = getTableColumns(tableSchema);
@@ -115,7 +115,7 @@ export function MasterTableForm({ title, tableSchema, data, onChange, masterData
                           checked={!!row[column.name]}
                           onChange={(e) => handleRowChange(rowIndex, column.name, e.target.checked)}
                         />
-                        <div className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-blue-600 transition"></div>
+                        <div className="w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-red-600 transition"></div>
                         <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition"></div>
                       </div>
                       <span className="text-sm text-gray-700">{column.name}</span>
@@ -155,7 +155,7 @@ export function MasterTableForm({ title, tableSchema, data, onChange, masterData
           </div>
         </div>
       ))}
-      <button onClick={addRow} className="flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition text-sm">
+      <button onClick={addRow} className="flex items-center gap-2 px-4 py-2 border border-red-500 text-red-600 rounded-lg hover:bg-red-50 transition text-sm">
         <i className="fas fa-plus"></i> Add {title.slice(0, -1)}
       </button>
     </div>

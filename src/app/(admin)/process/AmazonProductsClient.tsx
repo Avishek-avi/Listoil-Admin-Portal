@@ -100,7 +100,7 @@ export default function AmazonProductsClient() {
                     <button onClick={downloadTemplate} className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50">
                         <i className="fas fa-download text-xs"></i> Template
                     </button>
-                    <button onClick={() => setOpenUploadDialog(true)} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                    <button onClick={() => setOpenUploadDialog(true)} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700">
                         <i className="fas fa-cloud-upload-alt text-xs"></i> Upload CSV
                     </button>
                 </div>
@@ -127,7 +127,7 @@ export default function AmazonProductsClient() {
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr><td colSpan={10} className="py-12 text-center">
-                                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
                                 </td></tr>
                             ) : products.length === 0 ? (
                                 <tr><td colSpan={10} className="py-12 text-center text-gray-400">
@@ -140,7 +140,7 @@ export default function AmazonProductsClient() {
                                     const lowStock = Number(p.inventory) > 0 && Number(p.inventory) <= 5;
                                     const outOfStock = Number(p.inventory) === 0;
                                     return (
-                                        <tr key={p.id} className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                                        <tr key={p.id} className={`hover:bg-red-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                                             <td className="px-4 py-3">
                                                 <div className="w-12 h-12 rounded-lg border border-gray-100 bg-white flex items-center justify-center overflow-hidden">
                                                     {p.image
@@ -172,7 +172,7 @@ export default function AmazonProductsClient() {
                                                 }
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <span className="inline-block text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">{p.points ?? 0} pts</span>
+                                                <span className="inline-block text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">{p.points ?? 0} pts</span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 {outOfStock
@@ -187,7 +187,7 @@ export default function AmazonProductsClient() {
                                                     <button
                                                         onClick={() => { setSelectedProduct(p); setOpenPreviewDialog(true); }}
                                                         title="View details"
-                                                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
+                                                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
                                                     >
                                                         <i className="fas fa-eye text-sm"></i>
                                                     </button>
@@ -218,7 +218,7 @@ export default function AmazonProductsClient() {
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
                     <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
                         <h4 className="text-lg font-semibold text-gray-900 mb-4">Upload Products CSV</h4>
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition"
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-red-400 transition"
                             onClick={() => fileInputRef.current?.click()}>
                             <input type="file" accept=".csv" hidden ref={fileInputRef} onChange={handleFileChange} />
                             <i className="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
@@ -226,13 +226,13 @@ export default function AmazonProductsClient() {
                         </div>
                         {uploadMutation.isPending && (
                             <div className="mt-3 text-center">
-                                <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                                <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
                                 <p className="text-xs text-gray-500 mt-1">Uploading...</p>
                             </div>
                         )}
                         <div className="flex justify-end gap-2 mt-4">
                             <button className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50" onClick={() => setOpenUploadDialog(false)}>Cancel</button>
-                            <button className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50" disabled={!selectedFile || uploadMutation.isPending} onClick={handleUpload}>Upload</button>
+                            <button className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50" disabled={!selectedFile || uploadMutation.isPending} onClick={handleUpload}>Upload</button>
                         </div>
                     </div>
                 </div>
@@ -270,7 +270,7 @@ export default function AmazonProductsClient() {
                                 </div>
                                 <p className="text-sm font-medium mt-3 mb-1">Description</p>
                                 <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded max-h-[150px] overflow-auto">{selectedProduct.description}</p>
-                                <a href={selectedProduct.url} target="_blank" rel="noopener noreferrer" className="inline-block mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                <a href={selectedProduct.url} target="_blank" rel="noopener noreferrer" className="inline-block mt-3 text-sm text-red-600 hover:text-red-800 font-medium">
                                     View on Amazon →
                                 </a>
                             </div>
@@ -284,9 +284,9 @@ export default function AmazonProductsClient() {
 
             {/* SNACKBAR */}
             {snackbarOpen && (
-                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
                     <span className="text-sm">{snackbarMessage}</span>
-                    <button onClick={() => setSnackbarOpen(false)} className="text-blue-600 hover:text-blue-800 font-bold text-sm">✕</button>
+                    <button onClick={() => setSnackbarOpen(false)} className="text-red-600 hover:text-red-800 font-bold text-sm">✕</button>
                 </div>
             )}
         </div>

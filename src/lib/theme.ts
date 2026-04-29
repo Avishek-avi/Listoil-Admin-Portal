@@ -4,11 +4,11 @@ export const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#2563eb',
-      dark: '#1d4ed8',
+      main: '#D6001C',
+      dark: '#be123c',
     },
     secondary: {
-      main: '#10b981',
+      main: '#253746',
     },
     background: {
       default: '#f8f9f7',
@@ -20,8 +20,9 @@ export const lightTheme = createTheme({
     },
   },
   typography: {
-    fontFamily: "'Inter', sans-serif",
+    fontFamily: "var(--font-sans)",
   },
+
   components: {
     MuiCard: {
       styleOverrides: {
@@ -54,11 +55,11 @@ export const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#007aff',
-      dark: '#0051d5',
+      main: '#D6001C',
+      dark: '#be123c',
     },
     secondary: {
-      main: '#10b981',
+      main: '#253746',
     },
     background: {
       default: '#000000',
@@ -70,7 +71,7 @@ export const darkTheme = createTheme({
     },
   },
   typography: {
-    fontFamily: "'Inter', sans-serif",
+    fontFamily: "var(--font-sans)",
   },
   components: {
     MuiCard: {

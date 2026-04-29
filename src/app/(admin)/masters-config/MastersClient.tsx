@@ -22,7 +22,7 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
     const RenderNode = ({ node, path }: { node: SkuNode; path: string }) => {
         const hasChildren = node.children && node.children.length > 0;
         const icon = hasChildren ? (
-            <i className="fas fa-folder text-blue-500 mr-2" />
+            <i className="fas fa-folder text-red-500 mr-2" />
         ) : (
             <i className="fas fa-file text-gray-500 mr-2" />
         );
@@ -32,7 +32,7 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
         return (
             <li>
                 <div
-                    className={`flex items-center py-1 px-2 cursor-pointer rounded ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-100'}`}
+                    className={`flex items-center py-1 px-2 cursor-pointer rounded ${isSelected ? 'bg-red-50' : 'hover:bg-gray-100'}`}
                     onClick={() => {
                         if (hasChildren) toggle(path);
                         onSelect && onSelect(node.id);
@@ -48,7 +48,7 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
                     {icon}
                     <span className="ml-2 text-sm">{node.label}</span>
                     <span className="ml-auto mr-2">
-                        <span className="text-xs px-2 py-0.5 rounded-full border border-blue-400 text-blue-600">{node.levelName}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-red-400 text-red-600">{node.levelName}</span>
                     </span>
                 </div>
                 {hasChildren && open[path] && (
@@ -71,8 +71,8 @@ function TreeView({ data, onSelect, selectedId }: { data: SkuNode[]; onSelect?: 
     );
 }
 
-const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white";
-const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+const selectClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white";
+const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500";
 
 export default function MastersClient() {
     const { data, isLoading, error } = useQuery({
@@ -276,7 +276,7 @@ export default function MastersClient() {
     // Level color styles for L1–L6 SKU hierarchy
     const SKU_LEVEL_STYLES = [
         { badge: 'bg-indigo-100 text-indigo-700 border border-indigo-300', bar: 'bg-indigo-500', rowHover: 'hover:bg-indigo-50', rowSelected: 'bg-indigo-50' },
-        { badge: 'bg-blue-100 text-blue-700 border border-blue-300', bar: 'bg-blue-500', rowHover: 'hover:bg-blue-50', rowSelected: 'bg-blue-50' },
+        { badge: 'bg-red-100 text-red-700 border border-red-300', bar: 'bg-red-500', rowHover: 'hover:bg-red-50', rowSelected: 'bg-red-50' },
         { badge: 'bg-cyan-100 text-cyan-700 border border-cyan-300', bar: 'bg-cyan-400', rowHover: 'hover:bg-cyan-50', rowSelected: 'bg-cyan-50' },
         { badge: 'bg-teal-100 text-teal-700 border border-teal-300', bar: 'bg-teal-400', rowHover: 'hover:bg-teal-50', rowSelected: 'bg-teal-50' },
         { badge: 'bg-green-100 text-green-700 border border-green-300', bar: 'bg-green-500', rowHover: 'hover:bg-green-50', rowSelected: 'bg-green-50' },
@@ -327,7 +327,7 @@ export default function MastersClient() {
 
     if (isLoading) return (
         <div className="flex justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
         </div>
     );
     if (error) return <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">Failed to load configuration data</div>;
@@ -436,7 +436,7 @@ export default function MastersClient() {
                                                     if (e.target.checked) return Array.from(new Set([...prev, id]));
                                                     return prev.filter((x) => x !== id);
                                                 });
-                                            }} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                            }} className="rounded border-gray-300 text-red-600 focus:ring-red-500" />
                                             {ch.name}
                                         </label>
                                     ))}
@@ -457,7 +457,7 @@ export default function MastersClient() {
                                         }
                                     }}>Cancel</button>
 
-                                    <button type="button" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50" onClick={() => {
+                                    <button type="button" className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50" onClick={() => {
                                         if (!selectedStakeholderId) return;
                                         setConfirmOpen(true);
                                     }} disabled={stakeholderMutation.isPending}>
@@ -471,7 +471,7 @@ export default function MastersClient() {
                                             <p className="text-sm text-gray-600 mb-4">Are you sure you want to save changes to this stakeholder configuration?</p>
                                             <div className="flex justify-end gap-2">
                                                 <button type="button" className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50" onClick={() => setConfirmOpen(false)}>Cancel</button>
-                                                <button type="button" className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50" onClick={() => {
+                                                <button type="button" className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50" onClick={() => {
                                                     if (!selectedStakeholderId) return;
                                                     stakeholderMutation.mutate({
                                                         id: Number(selectedStakeholderId),
@@ -501,7 +501,7 @@ export default function MastersClient() {
                                             <span className="font-medium">{s.value}</span>
                                         </div>
                                         <div className="w-full bg-gray-200 rounded-full h-2">
-                                            <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${s.percent}%` }} />
+                                            <div className="bg-red-600 h-2 rounded-full" style={{ width: `${s.percent}%` }} />
                                         </div>
                                     </div>
                                 ))}
@@ -537,12 +537,12 @@ export default function MastersClient() {
                                         placeholder="Search products..."
                                         value={productSearch}
                                         onChange={(e) => { setProductSearch(e.target.value); setProductPage(1); }}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 shadow-sm"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 shadow-sm"
                                     />
                                 </div>
                                 <button 
                                     onClick={() => setIsAddModalOpen(true)}
-                                    className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-md shadow-blue-100"
+                                    className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition flex items-center gap-2 shadow-md shadow-red-100"
                                 >
                                     <i className="fas fa-plus text-xs"></i> Add Product
                                 </button>
@@ -567,7 +567,7 @@ export default function MastersClient() {
                                         <tr>
                                             <td colSpan={8} className="py-8 text-center text-gray-500">
                                                 <div className="flex flex-col items-center gap-2">
-                                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
                                                     Loading products...
                                                 </div>
                                             </td>
@@ -576,7 +576,7 @@ export default function MastersClient() {
                                         <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
                                             <td className="py-3 px-4 text-sm font-semibold text-gray-700">{p.category}</td>
                                             <td className="py-3 px-4 text-sm text-gray-600">{p.subCategory}</td>
-                                            <td className="py-3 px-4 text-sm font-mono text-blue-600">{p.productCode}</td>
+                                            <td className="py-3 px-4 text-sm font-mono text-red-600">{p.productCode}</td>
                                             <td className="py-3 px-4 text-sm font-medium text-gray-900">{p.productName}</td>
                                             <td className="py-3 px-4 text-sm text-gray-600">{p.packSize}L</td>
                                             <td className="py-3 px-4 text-sm font-bold text-emerald-600">
@@ -596,7 +596,7 @@ export default function MastersClient() {
                                                         });
                                                         setIsEditModalOpen(true);
                                                     }}
-                                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
                                                 >
                                                     <Edit size={16} />
                                                 </button>
@@ -652,7 +652,7 @@ export default function MastersClient() {
                                     placeholder="Search pincode, city..."
                                     value={pincodeSearch}
                                     onChange={(e) => { setPincodeSearch(e.target.value); setPincodePage(1); }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 shadow-sm"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-500 shadow-sm"
                                 />
                             </div>
                         </div>
@@ -672,7 +672,7 @@ export default function MastersClient() {
                                         <tr>
                                             <td colSpan={5} className="py-8 text-center text-gray-500">
                                                 <div className="flex flex-col items-center gap-2">
-                                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
                                                     Loading data...
                                                 </div>
                                             </td>
@@ -682,7 +682,7 @@ export default function MastersClient() {
                                             <td className="py-3 px-4 text-sm font-medium text-gray-900">{p.zone || '---'}</td>
                                             <td className="py-3 px-4 text-sm text-gray-600">{p.state}</td>
                                             <td className="py-3 px-4 text-sm text-gray-600">{p.city}</td>
-                                            <td className="py-3 px-4 text-sm font-mono text-blue-600">{p.pincode}</td>
+                                            <td className="py-3 px-4 text-sm font-mono text-red-600">{p.pincode}</td>
                                             <td className="py-3 px-4">
                                                 <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${p.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                                     {p.isActive ? 'ACTIVE' : 'INACTIVE'}
@@ -737,7 +737,7 @@ export default function MastersClient() {
                                         type="text" 
                                         value={editingProduct.productCode} 
                                         onChange={(e) => setEditingProduct({...editingProduct, productCode: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                 </div>
                                 <div>
@@ -746,7 +746,7 @@ export default function MastersClient() {
                                         type="text" 
                                         value={editingProduct.packSize} 
                                         onChange={(e) => setEditingProduct({...editingProduct, packSize: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                 </div>
                             </div>
@@ -756,7 +756,7 @@ export default function MastersClient() {
                                     type="text" 
                                     value={editingProduct.productName} 
                                     onChange={(e) => setEditingProduct({...editingProduct, productName: e.target.value})}
-                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                 />
                             </div>
                             <div>
@@ -765,7 +765,7 @@ export default function MastersClient() {
                                     type="number" 
                                     value={editingProduct.points} 
                                     onChange={(e) => setEditingProduct({...editingProduct, points: parseFloat(e.target.value) || 0})}
-                                    className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-600 focus:border-blue-500 outline-none"
+                                    className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-600 focus:border-red-500 outline-none"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
@@ -774,7 +774,7 @@ export default function MastersClient() {
                                     id="is_active_check"
                                     checked={editingProduct.isActive} 
                                     onChange={(e) => setEditingProduct({...editingProduct, isActive: e.target.checked})}
-                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                                 />
                                 <label htmlFor="is_active_check" className="text-sm font-medium text-gray-700">Mark as Active</label>
                             </div>
@@ -799,7 +799,7 @@ export default function MastersClient() {
                                     });
                                 }}
                                 disabled={updateProductMutation.isPending}
-                                className="px-6 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-100"
+                                className="px-6 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all shadow-md shadow-red-100"
                             >
                                 {updateProductMutation.isPending ? 'Saving...' : 'Save Changes'}
                             </button>
@@ -831,7 +831,7 @@ export default function MastersClient() {
                                         placeholder="Select or Type New"
                                         value={newProduct.category} 
                                         onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                     <datalist id="category-options">
                                         {(hierarchyOptions?.categories || []).map(c => <option key={`cat-${c}`} value={c} />)}
@@ -845,7 +845,7 @@ export default function MastersClient() {
                                         placeholder="Select or Type New"
                                         value={newProduct.subCategory} 
                                         onChange={(e) => setNewProduct({...newProduct, subCategory: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                     <datalist id="subcat-options">
                                         {(hierarchyOptions?.subCategories || []).map(c => <option key={`sub-${c}`} value={c} />)}
@@ -861,7 +861,7 @@ export default function MastersClient() {
                                         placeholder="Select or Type New"
                                         value={newProduct.ratingType} 
                                         onChange={(e) => setNewProduct({...newProduct, ratingType: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                     <datalist id="rating-options">
                                         {(hierarchyOptions?.ratingTypes || []).map(c => <option key={`rat-${c}`} value={c} />)}
@@ -874,7 +874,7 @@ export default function MastersClient() {
                                         placeholder="e.g. SKU-12345"
                                         value={newProduct.productCode} 
                                         onChange={(e) => setNewProduct({...newProduct, productCode: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                 </div>
                             </div>
@@ -886,7 +886,7 @@ export default function MastersClient() {
                                         placeholder="Full Variant Name"
                                         value={newProduct.productName} 
                                         onChange={(e) => setNewProduct({...newProduct, productName: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                 </div>
                                 <div>
@@ -896,7 +896,7 @@ export default function MastersClient() {
                                         placeholder="e.g. 3.5"
                                         value={newProduct.packSize} 
                                         onChange={(e) => setNewProduct({...newProduct, packSize: e.target.value})}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:border-red-500 outline-none"
                                     />
                                 </div>
                             </div>
@@ -906,7 +906,7 @@ export default function MastersClient() {
                                     type="number" 
                                     value={newProduct.points} 
                                     onChange={(e) => setNewProduct({...newProduct, points: parseFloat(e.target.value) || 0})}
-                                    className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-600 focus:border-blue-500 outline-none"
+                                    className="w-full px-3 py-2 border rounded-lg text-sm font-bold text-emerald-600 focus:border-red-500 outline-none"
                                 />
                             </div>
                         </div>
@@ -926,7 +926,7 @@ export default function MastersClient() {
                                     createProductMutation.mutate(newProduct);
                                 }}
                                 disabled={createProductMutation.isPending}
-                                className="px-8 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-100"
+                                className="px-8 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-100"
                             >
                                 {createProductMutation.isPending ? 'Creating...' : 'Create Product'}
                             </button>

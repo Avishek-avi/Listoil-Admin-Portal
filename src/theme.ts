@@ -8,10 +8,10 @@ const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#2563eb',
+      main: '#D6001C',
     },
     secondary: {
-      main: '#6b7280',
+      main: '#253746',
     },
     background: {
       default: '#f8f9f7',
@@ -19,7 +19,7 @@ const lightTheme = createTheme({
     },
   },
   typography: {
-    fontFamily: 'var(--font-roboto)',
+    fontFamily: 'var(--font-sans)',
   },
   components: {
     MuiCard: {
@@ -48,7 +48,7 @@ const darkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#007aff',
+      main: '#D6001C',
     },
     background: {
       default: '#000000',
@@ -56,8 +56,9 @@ const darkTheme = createTheme({
     },
   },
    typography: {
-    fontFamily: 'var(--font-roboto)',
+    fontFamily: 'var(--font-sans)',
   },
 });
+
 
 export { lightTheme, darkTheme };
