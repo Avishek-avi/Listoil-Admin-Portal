@@ -45,24 +45,37 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat bg-fixed relative"
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
       style={{
-        backgroundImage:
-          "url('https://ik.imagekit.io/ewxcertfq/UE9tZVRRbWZFbjhITUdhcGxjS0VoZz09.webp')",
-        fontFamily: "'Inter', sans-serif",
+        backgroundColor: "#D6001C",
+        backgroundImage: `
+          radial-gradient(circle at 50% 50%, rgba(255, 45, 74, 0.4) 0%, transparent 70%),
+          radial-gradient(circle at 50% 50%, #D6001C 0%, #8b0000 100%)
+        `,
+        fontFamily: "var(--font-sans), sans-serif",
       }}
     >
-      {/* Dark overlay */}
-      <div className="fixed inset-0 bg-black/28 pointer-events-none z-0" />
+      {/* Central glow focus */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/10 rounded-full blur-[120px] pointer-events-none" />
+      
+      {/* Artistic vignette and framing elements */}
+      <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-white/5 rounded-full blur-[100px] animate-pulse" />
+      <div className="absolute bottom-[-15%] left-[-5%] w-[30rem] h-[30rem] bg-black/30 rounded-full blur-[120px]" />
+      
+      {/* Subtle edge vignette */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)] pointer-events-none" />
+
+
 
       {/* Login card */}
       <div className="relative z-10 w-full max-w-md mx-auto px-4">
         <div
           className="rounded-2xl overflow-hidden p-8"
           style={{
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
+            background: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.4)",
           }}
         >
           {/* Header */}
