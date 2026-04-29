@@ -22,6 +22,8 @@ import {
     pincodeMaster
 } from '@/db/schema';
 import { desc, eq, sql, and, or, aliasedTable, inArray } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
+import { getUserScope, UserScope } from '@/lib/scope-utils';
 
 export interface ReportColumn {
     key: string;
@@ -36,29 +38,33 @@ export interface ReportData {
 
 export async function getReportDataAction(category: string, filters: any = {}): Promise<ReportData> {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
         switch (category) {
             case 'registration':
-                return await getRegistrationReport(filters);
+                return await getRegistrationReport(filters, scope);
             case 'qr-scans':
-                return await getQrScanReport(filters);
+                return await getQrScanReport(filters, scope);
             case 'redemptions':
-                return await getRedemptionReport(filters);
+                return await getRedemptionReport(filters, scope);
             case 'referrals':
-                return await getReferralReport(filters);
+                return await getReferralReport(filters, scope);
             case 'gamification':
-                return await getGamificationReport(filters); // Placeholder for now
+                return await getGamificationReport(filters, scope); 
             case 'compliance':
-                return await getComplianceReport(filters);
+                return await getComplianceReport(filters, scope);
             case 'stakeholder':
-                return await getStakeholderReport(filters);
+                return await getStakeholderReport(filters, scope);
             case 'sales':
-                return await getSalesReport(filters);
+                return await getSalesReport(filters, scope);
             case 'bank':
-                return await getBankReport(filters);
+                return await getBankReport(filters, scope);
             case 'otp':
-                return await getOtpReport(filters);
+                return await getOtpReport(filters, scope);
             case 'notifications':
-                return await getNotificationReport(filters);
+                return await getNotificationReport(filters, scope);
             default:
                 return { columns: [], rows: [] };
         }
@@ -68,8 +74,8 @@ export async function getReportDataAction(category: string, filters: any = {}): 
     }
 }
 
-async function getRegistrationReport(filters: any): Promise<ReportData> {
-    const data = await db.select({
+async function getRegistrationReport(filters: any, scope: UserScope): Promise<ReportData> {
+    const query = db.select({
         id: users.id,
         name: users.name,
         phone: users.phone,
@@ -79,7 +85,6 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
         isSuspended: users.isSuspended,
         roleName: userTypeEntity.typeName,
         levelName: userTypeLevelMaster.levelName,
-        // Location data from stakeholder tables
         retCity: retailers.city,
         retDistrict: retailers.district,
         retState: retailers.state,
@@ -92,7 +97,6 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
         csDistrict: counterSales.district,
         csState: counterSales.state,
         csPincode: counterSales.pincode,
-        // Personal details
         retAadhaar: retailers.aadhaar,
         retPan: retailers.pan,
         retDob: retailers.dob,
@@ -108,7 +112,6 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
         csDob: counterSales.dob,
         csGender: counterSales.gender,
         csIsKycVerified: counterSales.isKycVerified,
-        // Zone from pincode master (joined on coalesced pincode)
         zone: pincodeMaster.zone
     })
         .from(users)
@@ -121,8 +124,27 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
             eq(retailers.pincode, pincodeMaster.pincode),
             eq(mechanics.pincode, pincodeMaster.pincode),
             eq(counterSales.pincode, pincodeMaster.pincode)
-        ))
-        .where(inArray(users.roleId, [2, 3]))
+        ));
+
+    const conditions = [inArray(users.roleId, [2, 3])];
+
+    if (scope.type !== 'Global') {
+        const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+        const locFilter = scope.type === 'State' 
+            ? or(
+                inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.state})`, lowerNames)
+              )
+            : or(
+                inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+              );
+        if (locFilter) conditions.push(locFilter);
+    }
+
+    const data = await query.where(and(...conditions))
         .limit(50)
         .orderBy(desc(users.createdAt));
 
@@ -183,9 +205,11 @@ async function getRegistrationReport(filters: any): Promise<ReportData> {
     };
 }
 
-async function getQrScanReport(filters: any): Promise<ReportData> {
+async function getQrScanReport(filters: any, scope: UserScope): Promise<ReportData> {
+    const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+    
     // fetch latest rows from each transaction log table
-    const retailerRows = await db.select({
+    const retQuery = db.select({
         id: retailerTransactionLogs.id,
         sku: retailerTransactionLogs.sku,
         category: retailerTransactionLogs.category,
@@ -205,11 +229,17 @@ async function getQrScanReport(filters: any): Promise<ReportData> {
         .from(retailerTransactionLogs)
         .leftJoin(users, eq(retailerTransactionLogs.userId, users.id))
         .leftJoin(retailers, eq(users.id, retailers.userId))
-        .leftJoin(pincodeMaster, eq(retailers.pincode, pincodeMaster.pincode))
-        .orderBy(desc(retailerTransactionLogs.createdAt))
-        .limit(50);
+        .leftJoin(pincodeMaster, eq(retailers.pincode, pincodeMaster.pincode));
 
-    const mechanicRows = await db.select({
+    if (scope.type !== 'Global') {
+        retQuery.where(scope.type === 'State' 
+            ? inArray(sql`LOWER(${retailers.state})`, lowerNames)
+            : inArray(sql`LOWER(${retailers.city})`, lowerNames)
+        );
+    }
+    const retailerRows = await retQuery.orderBy(desc(retailerTransactionLogs.createdAt)).limit(50);
+
+    const mechQuery = db.select({
         id: mechanicTransactionLogs.id,
         sku: mechanicTransactionLogs.sku,
         category: mechanicTransactionLogs.category,
@@ -229,11 +259,17 @@ async function getQrScanReport(filters: any): Promise<ReportData> {
         .from(mechanicTransactionLogs)
         .leftJoin(users, eq(mechanicTransactionLogs.userId, users.id))
         .leftJoin(mechanics, eq(users.id, mechanics.userId))
-        .leftJoin(pincodeMaster, eq(mechanics.pincode, pincodeMaster.pincode))
-        .orderBy(desc(mechanicTransactionLogs.createdAt))
-        .limit(50);
+        .leftJoin(pincodeMaster, eq(mechanics.pincode, pincodeMaster.pincode));
 
-    const counterRows = await db.select({
+    if (scope.type !== 'Global') {
+        mechQuery.where(scope.type === 'State' 
+            ? inArray(sql`LOWER(${mechanics.state})`, lowerNames)
+            : inArray(sql`LOWER(${mechanics.city})`, lowerNames)
+        );
+    }
+    const mechanicRows = await mechQuery.orderBy(desc(mechanicTransactionLogs.createdAt)).limit(50);
+
+    const csQuery = db.select({
         id: counterSalesTransactionLogs.id,
         sku: counterSalesTransactionLogs.sku,
         category: counterSalesTransactionLogs.category,
@@ -253,9 +289,15 @@ async function getQrScanReport(filters: any): Promise<ReportData> {
         .from(counterSalesTransactionLogs)
         .leftJoin(users, eq(counterSalesTransactionLogs.userId, users.id))
         .leftJoin(counterSales, eq(users.id, counterSales.userId))
-        .leftJoin(pincodeMaster, eq(counterSales.pincode, pincodeMaster.pincode))
-        .orderBy(desc(counterSalesTransactionLogs.createdAt))
-        .limit(50);
+        .leftJoin(pincodeMaster, eq(counterSales.pincode, pincodeMaster.pincode));
+
+    if (scope.type !== 'Global') {
+        csQuery.where(scope.type === 'State' 
+            ? inArray(sql`LOWER(${counterSales.state})`, lowerNames)
+            : inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+        );
+    }
+    const counterRows = await csQuery.orderBy(desc(counterSalesTransactionLogs.createdAt)).limit(50);
 
     const mapRow = (r: any, userType: string) => ({
         id: r.id,
@@ -300,8 +342,8 @@ async function getQrScanReport(filters: any): Promise<ReportData> {
     };
 }
 
-async function getRedemptionReport(filters: any): Promise<ReportData> {
-    const data = await db.select({
+async function getRedemptionReport(filters: any, scope: UserScope): Promise<ReportData> {
+    const query = db.select({
         id: redemptions.redemptionId,
         points: redemptions.pointsRedeemed,
         amount: redemptions.amount,
@@ -334,7 +376,21 @@ async function getRedemptionReport(filters: any): Promise<ReportData> {
             eq(mechanics.pincode, pincodeMaster.pincode),
             eq(counterSales.pincode, pincodeMaster.pincode)
         ))
-        .where(inArray(users.roleId, [2, 3]))
+
+    const conditions = [inArray(users.roleId, [2, 3])];
+    if (scope.type !== 'Global') {
+        const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+        conditions.push(or(
+            inArray(sql`LOWER(${retailers.state})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+            inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+            inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+        ));
+    }
+
+    const data = await query.where(and(...conditions))
         .limit(50)
         .orderBy(desc(redemptions.createdAt));
 
@@ -363,11 +419,11 @@ async function getRedemptionReport(filters: any): Promise<ReportData> {
     };
 }
 
-async function getReferralReport(filters: any): Promise<ReportData> {
+async function getReferralReport(filters: any, scope: UserScope): Promise<ReportData> {
     const referrer = aliasedTable(users, 'referrer');
     const referred = aliasedTable(users, 'referred');
 
-    const data = await db.select({
+    const query = db.select({
         id: referrals.id,
         status: referrals.status,
         bonus: referrals.bonusAwarded,
@@ -382,10 +438,27 @@ async function getReferralReport(filters: any): Promise<ReportData> {
         .from(referrals)
         .leftJoin(referrer, eq(referrals.referrerId, referrer.id))
         .leftJoin(referred, eq(referrals.referredId, referred.id))
-        .where(and(
+        .leftJoin(retailers, eq(referrer.id, retailers.userId))
+        .leftJoin(mechanics, eq(referrer.id, mechanics.userId));
+
+    const conditions = [
+        and(
             inArray(referrer.roleId, [2, 3]),
             inArray(referred.roleId, [2, 3])
-        ))
+        )
+    ];
+
+    if (scope.type !== 'Global') {
+        const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+        conditions.push(or(
+            inArray(sql`LOWER(${retailers.state})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.city})`, lowerNames)
+        ));
+    }
+
+    const data = await query.where(and(...conditions))
         .limit(50)
         .orderBy(desc(referrals.createdAt));
 
@@ -410,8 +483,8 @@ async function getReferralReport(filters: any): Promise<ReportData> {
     };
 }
 
-async function getOtpReport(filters: any): Promise<ReportData> {
-    const data = await db.select({
+async function getOtpReport(filters: any, scope: UserScope): Promise<ReportData> {
+    const query = db.select({
         id: otpMaster.id,
         phone: otpMaster.phone,
         otp: otpMaster.otp,
@@ -423,7 +496,21 @@ async function getOtpReport(filters: any): Promise<ReportData> {
     })
         .from(otpMaster)
         .leftJoin(users, eq(otpMaster.userId, users.id))
-        .where(inArray(users.roleId, [2, 3]))
+        .leftJoin(retailers, eq(users.id, retailers.userId))
+        .leftJoin(mechanics, eq(users.id, mechanics.userId));
+
+    const conditions = [inArray(users.roleId, [2, 3])];
+    if (scope.type !== 'Global') {
+        const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+        conditions.push(or(
+            inArray(sql`LOWER(${retailers.state})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.city})`, lowerNames)
+        ));
+    }
+
+    const data = await query.where(and(...conditions))
         .limit(50)
         .orderBy(desc(otpMaster.createdAt));
 
@@ -445,8 +532,8 @@ async function getOtpReport(filters: any): Promise<ReportData> {
     };
 }
 
-async function getNotificationReport(filters: any): Promise<ReportData> {
-    const data = await db.select({
+async function getNotificationReport(filters: any, scope: UserScope): Promise<ReportData> {
+    const query = db.select({
         id: notificationLogs.logId,
         title: notificationLogs.pushTitle,
         message: notificationLogs.pushBody,
@@ -457,7 +544,21 @@ async function getNotificationReport(filters: any): Promise<ReportData> {
     })
         .from(notificationLogs)
         .leftJoin(users, eq(notificationLogs.userId, users.id))
-        .where(inArray(users.roleId, [2, 3]))
+        .leftJoin(retailers, eq(users.id, retailers.userId))
+        .leftJoin(mechanics, eq(users.id, mechanics.userId));
+
+    const conditions = [inArray(users.roleId, [2, 3])];
+    if (scope.type !== 'Global') {
+        const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+        conditions.push(or(
+            inArray(sql`LOWER(${retailers.state})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.city})`, lowerNames)
+        ));
+    }
+
+    const data = await query.where(and(...conditions))
         .limit(50)
         .orderBy(desc(notificationLogs.createdAt));
 
@@ -485,8 +586,8 @@ async function getGamificationReport(filters: any): Promise<ReportData> {
         rows: []
     };
 }
-async function getComplianceReport(filters: any): Promise<ReportData> {
-    const rawData = await db.select({
+async function getComplianceReport(filters: any, scope: UserScope): Promise<ReportData> {
+    const query = db.select({
         id: users.id,
         name: users.name,
         phone: users.phone,
@@ -510,7 +611,19 @@ async function getComplianceReport(filters: any): Promise<ReportData> {
             eq(retailers.pincode, pincodeMaster.pincode),
             eq(mechanics.pincode, pincodeMaster.pincode)
         ))
-        .where(inArray(users.roleId, [2, 3]))
+
+    const conditions = [inArray(users.roleId, [2, 3])];
+    if (scope.type !== 'Global') {
+        const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+        conditions.push(or(
+            inArray(sql`LOWER(${retailers.state})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.city})`, lowerNames)
+        ));
+    }
+
+    const rawData = await query.where(and(...conditions))
         .orderBy(desc(kycDocuments.createdAt));
 
     const userGroups = new Map<number, any>();
@@ -604,8 +717,10 @@ async function getSalesReport(filters: any): Promise<ReportData> {
     };
 }
 
-async function getBankReport(filters: any): Promise<ReportData> {
-    const retData = await db.select({
+async function getBankReport(filters: any, scope: UserScope): Promise<ReportData> {
+    const lowerNames = scope.entityNames.map(n => n.toLowerCase());
+
+    const retQuery = db.select({
         id: users.id,
         name: users.name,
         email: users.email,
@@ -621,10 +736,17 @@ async function getBankReport(filters: any): Promise<ReportData> {
         zone: pincodeMaster.zone
     }).from(users)
     .innerJoin(retailers, eq(users.id, retailers.userId))
-    .leftJoin(pincodeMaster, eq(retailers.pincode, pincodeMaster.pincode))
-    .limit(20);
+    .leftJoin(pincodeMaster, eq(retailers.pincode, pincodeMaster.pincode));
 
-    const mechData = await db.select({
+    if (scope.type !== 'Global') {
+        retQuery.where(scope.type === 'State' 
+            ? inArray(sql`LOWER(${retailers.state})`, lowerNames)
+            : inArray(sql`LOWER(${retailers.city})`, lowerNames)
+        );
+    }
+    const retData = await retQuery.limit(20);
+
+    const mechQuery = db.select({
         id: users.id,
         name: users.name,
         email: users.email,
@@ -640,8 +762,15 @@ async function getBankReport(filters: any): Promise<ReportData> {
         zone: pincodeMaster.zone
     }).from(users)
     .innerJoin(mechanics, eq(users.id, mechanics.userId))
-    .leftJoin(pincodeMaster, eq(mechanics.pincode, pincodeMaster.pincode))
-    .limit(20);
+    .leftJoin(pincodeMaster, eq(mechanics.pincode, pincodeMaster.pincode));
+
+    if (scope.type !== 'Global') {
+        mechQuery.where(scope.type === 'State' 
+            ? inArray(sql`LOWER(${mechanics.state})`, lowerNames)
+            : inArray(sql`LOWER(${mechanics.city})`, lowerNames)
+        );
+    }
+    const mechData = await mechQuery.limit(20);
 
     const rows = [...retData, ...mechData].map(r => ({
         ...r,

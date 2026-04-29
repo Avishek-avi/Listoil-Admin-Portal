@@ -124,72 +124,131 @@ export async function getMisAnalyticsAction() {
         const [redeemSum] = await redeemSumQuery;
         const redemptionRate = totalPointsAllotted > 0 ? (Number(redeemSum?.value || 0) / totalPointsAllotted) * 100 : 0;
 
-        const pointsTrendResult = await db.execute(sql`
+        let pointsTrendSql = sql`
             SELECT TO_CHAR(created_at, 'Mon') as month, TO_CHAR(created_at, 'YYYY-MM') as mf, sum(points)::numeric as total
             FROM (
-                SELECT created_at, points FROM retailer_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at, points, user_id FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT created_at, points FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at, points, user_id FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT created_at, points FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at, points, user_id FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
+            ${scope.type !== 'Global' ? sql.raw(`
+                LEFT JOIN retailers r ON t.user_id = r.user_id
+                LEFT JOIN mechanics m ON t.user_id = m.user_id
+                LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
+                WHERE ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql``}
             GROUP BY 1, 2 ORDER BY 2 ASC LIMIT 6
-        `);
+        `;
+        const pointsTrendResult = await db.execute(pointsTrendSql);
 
-        const memberGrowthResult = await db.execute(sql`
-            SELECT TO_CHAR(created_at, 'Mon') as month, TO_CHAR(created_at, 'YYYY-MM') as mf, count(*)::integer as count
-            FROM users
+        let memberGrowthSql = sql`
+            SELECT TO_CHAR(u.created_at, 'Mon') as month, TO_CHAR(u.created_at, 'YYYY-MM') as mf, count(*)::integer as count
+            FROM users u
+            ${scope.type !== 'Global' ? sql.raw(`
+                LEFT JOIN retailers r ON u.id = r.user_id
+                LEFT JOIN mechanics m ON u.id = m.user_id
+                LEFT JOIN counter_sales cs ON u.id = cs.user_id
+                WHERE ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql``}
             GROUP BY 1, 2 ORDER BY 2 ASC LIMIT 6
-        `);
+        `;
+        const memberGrowthResult = await db.execute(memberGrowthSql);
 
         // --- 2. PERFORMANCE METRICS ---
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const txnVolumeResult = await db.execute(sql`
+        let txnVolumeSql = sql`
             SELECT TO_CHAR(created_at, 'Dy') as day, TO_CHAR(created_at, 'YYYY-MM-DD') as df, count(*)::integer as count
             FROM (
-                SELECT created_at FROM retailer_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at, user_id FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT created_at FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at, user_id FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT created_at FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
+                SELECT created_at, user_id FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
-            WHERE created_at >= ${sevenDaysAgo.toISOString()}
+            ${scope.type !== 'Global' ? sql.raw(`
+                LEFT JOIN retailers r ON t.user_id = r.user_id
+                LEFT JOIN mechanics m ON t.user_id = m.user_id
+                LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
+                WHERE t.created_at >= '${sevenDaysAgo.toISOString()}' AND ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql`WHERE created_at >= ${sevenDaysAgo.toISOString()}`}
             GROUP BY 1, 2 ORDER BY 2 ASC
-        `);
+        `;
+        const txnVolumeResult = await db.execute(txnVolumeSql);
 
-        const categoryPerfResult = await db.execute(sql`
+        let categoryPerfSql = sql`
             SELECT COALESCE(category, 'General') as category, sum(points)::numeric as total
             FROM (
-                SELECT category, points FROM retailer_transaction_logs WHERE status = 'SUCCESS'
+                SELECT category, points, user_id FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT category, points FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
+                SELECT category, points, user_id FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT category, points FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
+                SELECT category, points, user_id FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
+            ${scope.type !== 'Global' ? sql.raw(`
+                LEFT JOIN retailers r ON t.user_id = r.user_id
+                LEFT JOIN mechanics m ON t.user_id = m.user_id
+                LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
+                WHERE ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql``}
             GROUP BY 1 ORDER BY 2 DESC LIMIT 5
-        `);
+        `;
+        const categoryPerfResult = await db.execute(categoryPerfSql);
 
-        const totalScansResult = await db.execute(sql`
+        let totalScansSql = sql`
             SELECT count(*)::integer as count FROM (
-                SELECT id FROM retailer_transaction_logs WHERE status = 'SUCCESS'
+                SELECT id, user_id FROM retailer_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT id FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
+                SELECT id, user_id FROM mechanic_transaction_logs WHERE status = 'SUCCESS'
                 UNION ALL
-                SELECT id FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
+                SELECT id, user_id FROM counter_sales_transaction_logs WHERE status = 'SUCCESS'
             ) as t
-        `);
+            ${scope.type !== 'Global' ? sql.raw(`
+                LEFT JOIN retailers r ON t.user_id = r.user_id
+                LEFT JOIN mechanics m ON t.user_id = m.user_id
+                LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
+                WHERE ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql``}
+        `;
+        const totalScansResult = await db.execute(totalScansSql);
         const totalScans = Number(totalScansResult.rows[0]?.count || 0);
 
-        const totalAttemptsResult = await db.execute(sql`
+        let totalAttemptsSql = sql`
             SELECT count(*)::integer as count FROM (
-                SELECT id FROM retailer_transaction_logs
+                SELECT id, user_id FROM retailer_transaction_logs
                 UNION ALL
-                SELECT id FROM mechanic_transaction_logs
+                SELECT id, user_id FROM mechanic_transaction_logs
                 UNION ALL
-                SELECT id FROM counter_sales_transaction_logs
+                SELECT id, user_id FROM counter_sales_transaction_logs
             ) as t
-        `);
+            ${scope.type !== 'Global' ? sql.raw(`
+                LEFT JOIN retailers r ON t.user_id = r.user_id
+                LEFT JOIN mechanics m ON t.user_id = m.user_id
+                LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
+                WHERE ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql``}
+        `;
+        const totalAttemptsResult = await db.execute(totalAttemptsSql);
         const totalAttempts = Number(totalAttemptsResult.rows[0]?.count || 0);
         const conversionRate = totalAttempts > 0 ? (totalScans / totalAttempts) * 100 : 0;
 
@@ -210,7 +269,7 @@ export async function getMisAnalyticsAction() {
         const [newMembersCount] = await db.select({ count: count() }).from(users).where(gte(users.createdAt, thirtyDaysAgo.toISOString()));
         const [churnedMembers] = await db.select({ count: count() }).from(users).where(lt(users.createdAt, ninetyDaysAgo.toISOString())); 
 
-        const recentActivitiesResult = await db.execute(sql`
+        let recentActivitiesSql = sql`
             SELECT u.id, u.name, ut.type_name as type, 
                    TO_CHAR(activity.created_at, 'YYYY-MM-DD HH24:MI') as "lastActivity", 
                    activity.points as points,
@@ -224,11 +283,21 @@ export async function getMisAnalyticsAction() {
             ) as activity
             JOIN users u ON activity.user_id = u.id
             JOIN user_type_entity ut ON u.role_id = ut.id
+            ${scope.type !== 'Global' ? sql.raw(`
+                LEFT JOIN retailers r ON u.id = r.user_id
+                LEFT JOIN mechanics m ON u.id = m.user_id
+                LEFT JOIN counter_sales cs ON u.id = cs.user_id
+                WHERE ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql``}
             ORDER BY activity.created_at DESC LIMIT 10
-        `);
+        `;
+        const recentActivitiesResult = await db.execute(recentActivitiesSql);
         const recentRows = recentActivitiesResult.rows as any[];
 
-        const topMembersResult = await db.execute(sql`
+        let topMembersSql = sql`
             SELECT u.name, ut.type_name as role, 
                    (COALESCE(r.total_earnings, 0) + COALESCE(m.total_earnings, 0) + COALESCE(cs.total_earnings, 0))::numeric as earnings
             FROM users u
@@ -236,8 +305,15 @@ export async function getMisAnalyticsAction() {
             LEFT JOIN retailers r ON u.id = r.user_id
             LEFT JOIN mechanics m ON u.id = m.user_id
             LEFT JOIN counter_sales cs ON u.id = cs.user_id
+            ${scope.type !== 'Global' ? sql.raw(`
+                WHERE ${scope.type === 'State' 
+                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                }
+            `) : sql``}
             ORDER BY earnings DESC LIMIT 5
-        `);
+        `;
+        const topMembersResult = await db.execute(topMembersSql);
 
         const topProductsResult = await db.execute(sql`
             SELECT COALESCE(category, 'General') as category, 
