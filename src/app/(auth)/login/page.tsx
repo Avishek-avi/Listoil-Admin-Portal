@@ -57,11 +57,11 @@ export default function LoginPage() {
     >
       {/* Central glow focus */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/10 rounded-full blur-[120px] pointer-events-none" />
-      
+
       {/* Artistic vignette and framing elements */}
       <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-white/5 rounded-full blur-[100px] animate-pulse" />
       <div className="absolute bottom-[-15%] left-[-5%] w-[30rem] h-[30rem] bg-black/30 rounded-full blur-[120px]" />
-      
+
       {/* Subtle edge vignette */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)] pointer-events-none" />
 
