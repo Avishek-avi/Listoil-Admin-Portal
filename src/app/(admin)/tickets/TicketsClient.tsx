@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTicketsAction, createTicketAction, searchUsersAction, getTicketTypesAction, getTicketStatusesAction, updateTicketAction, getTicketDetailsAction } from '@/actions/ticket-actions'
 import { FileText, UserPlus, CheckCircle2, X } from 'lucide-react'
-import { enqueueSnackbar } from 'notistack'
+import { useSnackbar } from 'notistack'
 
 /* ── Reusable searchable user dropdown ── */
 function UserAutocomplete({ value, onChange, options, onSearch, placeholder }: {
@@ -53,6 +53,7 @@ function UserAutocomplete({ value, onChange, options, onSearch, placeholder }: {
 }
 
 export default function TicketsClient() {
+    const { enqueueSnackbar } = useSnackbar()
     const [activeTab, setActiveTab] = useState(0)
     const [searchTerm, setSearchTerm] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -230,13 +231,17 @@ export default function TicketsClient() {
             enqueueSnackbar('Please fill all required fields', { variant: 'warning' })
             return
         }
+        if (!formData.requester) {
+            enqueueSnackbar('Please select a requester', { variant: 'warning' })
+            return
+        }
         createMutation.mutate({
             subject: formData.subject,
             description: formData.description,
             priority: formData.priority,
             typeId: Number(formData.typeId),
             statusId: Number(formData.statusId),
-            createdBy: formData.requester?.id || 1,
+            createdBy: formData.requester.id,
             assigneeId: formData.assignee?.id || undefined,
         })
     }

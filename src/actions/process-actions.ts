@@ -14,7 +14,7 @@ import { desc, eq, and, sql, or, ilike, inArray } from "drizzle-orm"
 import {
     redemptionChannels, retailers, mechanics, counterSales,
     qrCodes, skuVariant, skuPointConfig, auditLogs, skuEntity,
-    tblInventory, tblInventoryBatch, qrTypes, userTypeEntity
+    tblInventory, tblInventoryBatch, qrTypes, userTypeEntity, approvalStatuses
 } from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
@@ -442,13 +442,19 @@ export async function getMechanicsForManualEntryAction() {
             id: users.id,
             name: users.name,
             phone: users.phone,
-            uniqueId: mechanics.uniqueId
+            uniqueId: mechanics.uniqueId,
+            status: approvalStatuses.name
         })
         .from(users)
         .innerJoin(mechanics, eq(users.id, mechanics.userId))
+        .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
         .where(and(
             eq(users.roleId, 3), // Mechanic Role
-            eq(users.isSuspended, false)
+            eq(users.isSuspended, false),
+            or(
+                ilike(approvalStatuses.name, '%approved%'),
+                ilike(approvalStatuses.name, '%active%')
+            )
         ))
         .orderBy(users.name);
 
@@ -575,6 +581,23 @@ export async function submitManualScanAdjustmentAction(data: {
         if (!session?.user?.id) throw new Error("Unauthorized");
 
         return await db.transaction(async (tx) => {
+            // 0. Verify user is active and approved
+            const [targetUser] = await tx.select({
+                isSuspended: users.isSuspended,
+                statusName: approvalStatuses.name
+            })
+            .from(users)
+            .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
+            .where(eq(users.id, data.userId))
+            .limit(1);
+
+            if (!targetUser) throw new Error("User not found.");
+            if (targetUser.isSuspended) throw new Error("This user is currently suspended. Points cannot be credited to suspended users.");
+            const statusLower = (targetUser.statusName || '').toLowerCase();
+            if (!statusLower.includes('approved') && !statusLower.includes('active')) {
+                throw new Error(`This user's status is "${targetUser.statusName || 'Unknown'}". Only users with Active/Approved status can receive points.`);
+            }
+
             // 1. Double check QR status in both tables
             let qrSource: 'qrCodes' | 'inventory' | null = null;
             let sku: string = '';

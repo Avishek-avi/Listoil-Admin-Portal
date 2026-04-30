@@ -1132,15 +1132,13 @@ function ManualEntryTab() {
                     <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Points to Credit <span className="text-red-500">*</span></label>
                         <div className="relative">
-                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400">
-                                <i className="fas fa-coins"></i>
-                            </div>
                             <input 
                                 type="number" 
                                 placeholder="0" 
                                 value={formData.points}
+                                readOnly={formData.entryType === 'Scan Adjustment'}
                                 onChange={(e) => setFormData(prev => ({ ...prev, points: e.target.value }))}
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 text-sm transition-all pl-10"
+                                className={`w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm transition-all ${formData.entryType === 'Scan Adjustment' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-gray-50'}`}
                             />
                         </div>
                         <p className="text-[10px] text-gray-500 mt-1">Points are auto-populated based on SKU master if serial is valid.</p>

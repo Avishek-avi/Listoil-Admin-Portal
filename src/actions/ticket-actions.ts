@@ -199,6 +199,16 @@ export async function createTicketAction(data: {
     assigneeId?: number
 }) {
     try {
+        if (!data.subject || !data.description) {
+            return { success: false, error: "Subject and description are required." };
+        }
+        if (!data.typeId || !data.statusId) {
+            return { success: false, error: "Ticket type and status are required." };
+        }
+        if (!data.createdBy) {
+            return { success: false, error: "Requester is required. Please select a user." };
+        }
+
         const [newTicket] = await db.insert(tickets).values({
             typeId: data.typeId,
             statusId: data.statusId,
@@ -206,14 +216,15 @@ export async function createTicketAction(data: {
             description: data.description,
             priority: data.priority,
             createdBy: data.createdBy,
-            assigneeId: data.assigneeId,
+            assigneeId: data.assigneeId || null,
         }).returning();
 
         revalidatePath('/tickets');
         return { success: true, ticket: newTicket };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error creating ticket:", error);
-        return { success: false, error: "Failed to create ticket" };
+        const message = error?.message || "Failed to create ticket";
+        return { success: false, error: message };
     }
 }
 
