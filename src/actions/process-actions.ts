@@ -91,6 +91,7 @@ export async function getProcessDataAction() {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
         const scope = await getUserScope(Number(session.user.id));
+        const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
 
         const pendingRetailerConditions = [ilike(retailerTransactionLogs.status, 'pending')];
         const pendingRetailerQuery = db.select({
@@ -106,7 +107,7 @@ export async function getProcessDataAction() {
             .$dynamic();
 
         if (scope.type !== 'Global') {
-            pendingRetailerConditions.push(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            pendingRetailerConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
         }
 
         const pendingRetailer = await pendingRetailerQuery.where(and(...pendingRetailerConditions)).limit(20);
@@ -125,7 +126,7 @@ export async function getProcessDataAction() {
             .$dynamic();
 
         if (scope.type !== 'Global') {
-            pendingMechanicConditions.push(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+            pendingMechanicConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
         }
 
         const pendingMechanic = await pendingMechanicQuery.where(and(...pendingMechanicConditions)).limit(20);
@@ -144,7 +145,7 @@ export async function getProcessDataAction() {
             .$dynamic();
 
         if (scope.type !== 'Global') {
-            pendingCounterSalesConditions.push(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+            pendingCounterSalesConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
         }
 
         const pendingCounterSales = await pendingCounterSalesQuery.where(and(...pendingCounterSalesConditions)).limit(20);
@@ -182,9 +183,12 @@ export async function getProcessDataAction() {
 
         if (scope.type !== 'Global') {
             pendingRedemptionQuery.where(or(
-                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
             ));
         }
 
@@ -212,7 +216,7 @@ export async function getProcessDataAction() {
             let q = db.select({ count: sql<number>`count(*)` }).from(table).$dynamic();
             if (scope.type !== 'Global') {
                 q.leftJoin(userTable, eq(table.userId, userTable.userId));
-                conditions.push(scope.type === 'State' ? inArray(userTable.state, scope.entityNames) : inArray(userTable.city, scope.entityNames));
+                conditions.push(inArray(sql`LOWER(${scope.type === 'State' ? userTable.state : userTable.city})`, lowerNames));
             }
             return q.where(and(...conditions));
         };
@@ -227,9 +231,12 @@ export async function getProcessDataAction() {
                 .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
                 .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
                 .where(or(
-                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                    inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.city})`, lowerNames)
                 ));
         }
         const [redemptionPendingCount] = await redemptionPendingQuery;
@@ -265,9 +272,12 @@ export async function getProcessDataAction() {
 
         if (scope.type !== 'Global') {
             const scopeFilter = or(
-                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
             );
             [redemptionApprovedTodayQuery, redemptionRejectedTodayQuery, redemptionTotalValueTodayQuery].forEach(q => {
                 q.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
@@ -332,6 +342,7 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
         const scope = await getUserScope(Number(session.user.id));
+        const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
 
         // 1. Mechanic Transactions
         const mechQuery = db.select({
@@ -385,9 +396,7 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
         .$dynamic();
 
         if (scope.type !== 'Global') {
-            const scopeFilter = (table: any) => scope.type === 'State' 
-                ? inArray(table.state, scope.entityNames) 
-                : inArray(table.city, scope.entityNames);
+            const scopeFilter = (table: any) => inArray(sql`LOWER(${scope.type === 'State' ? table.state : table.city})`, lowerNames);
             
             mechQuery.where(scopeFilter(mechanics));
             retQuery.where(scopeFilter(retailers));

@@ -32,6 +32,8 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
         const scope = await getUserScope(Number(session.user.id));
+        const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
+        const lowerEntities = lowerNames.map(n => `'${n}'`).join(',');
 
         // Helper to apply filters
         const applyDateFilters = (table: any, dateField: any) => {
@@ -47,9 +49,12 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
         const redCond = applyDateFilters(redemptions, redemptions.createdAt);
 
         const scopeFilter = or(
-            scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-            scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-            scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+            inArray(sql`LOWER(${retailers.state})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+            inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+            inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+            inArray(sql`LOWER(${counterSales.city})`, lowerNames)
         );
 
         // 1. Overview Metrics Calculations
@@ -60,13 +65,13 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
 
         if (scope.type !== 'Global') {
             rSumQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
-                .where(and(...rCond, scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames)));
+                .where(and(...rCond, inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames)));
             
             eSumQuery.leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId))
-                .where(and(...eCond, scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames)));
+                .where(and(...eCond, inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames)));
 
             csSumQuery.leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId))
-                .where(and(...csCond, scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)));
+                .where(and(...csCond, inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)));
 
             redeemSumQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
                 .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
@@ -93,9 +98,9 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
         let csBalQuery = db.select({ value: sum(counterSales.pointsBalance) }).from(counterSales);
 
         if (scope.type !== 'Global') {
-            rBalQuery.where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
-            eBalQuery.where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
-            csBalQuery.where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+            rBalQuery.where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
+            eBalQuery.where(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
+            csBalQuery.where(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
         }
 
         const [rBalance] = await rBalQuery;
@@ -116,9 +121,12 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             let csTxQuery = db.select({ id: counterSalesTransactions.id, date: counterSalesTransactions.createdAt, points: counterSalesTransactions.points, userId: counterSalesTransactions.userId, type: sql<string>`'Credit'`, status: sql<string>`'Completed'` }).from(counterSalesTransactions);
 
             if (scope.type !== 'Global') {
-                rTxQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId)).where(and(...rCond, scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames)));
-                eTxQuery.leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId)).where(and(...eCond, scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames)));
-                csTxQuery.leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId)).where(and(...csCond, scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)));
+                rTxQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
+                    .where(and(...rCond, inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames)));
+                eTxQuery.leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId))
+                    .where(and(...eCond, inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames)));
+                csTxQuery.leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId))
+                    .where(and(...csCond, inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)));
             } else {
                 rTxQuery.where(and(...rCond));
                 eTxQuery.where(and(...eCond));
@@ -199,8 +207,8 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
                 LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
             `;
             const scopeWhere = scope.type === 'State' 
-                ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR e.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
+                ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(e.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(e.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`;
             
             issuedMonthlySql = sql`
                 SELECT TO_CHAR(t.created_at, 'Mon') as month, TO_CHAR(t.created_at, 'YYYY-MM') as "monthFull", sum(t.points)::numeric as total
@@ -261,13 +269,13 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             let q;
             if (type === 'Retailer') {
                 q = db.select({ total: sum(retailerTransactions.points) }).from(retailerTransactions).leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId));
-                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+                if (scope.type !== 'Global') q.where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
             } else if (type === 'Mechanic') {
                 q = db.select({ total: sum(mechanicTransactions.points) }).from(mechanicTransactions).leftJoin(mechanics, eq(mechanicTransactions.userId, mechanics.userId));
-                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+                if (scope.type !== 'Global') q.where(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
             } else {
                 q = db.select({ total: sum(counterSalesTransactions.points) }).from(counterSalesTransactions).leftJoin(counterSales, eq(counterSalesTransactions.userId, counterSales.userId));
-                if (scope.type !== 'Global') q.where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+                if (scope.type !== 'Global') q.where(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
             }
             const [res] = await q;
             return Number(res?.total || 0);

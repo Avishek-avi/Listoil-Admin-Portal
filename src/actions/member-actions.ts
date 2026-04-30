@@ -142,10 +142,14 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
         }
 
         if (scope.type !== 'Global') {
+            const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
             conditions.push(or(
-                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
             ));
         }
 

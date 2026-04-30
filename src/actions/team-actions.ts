@@ -124,7 +124,7 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
             scopeName: tsm.scopeName || 'Unknown',
             children: tsmSrs.map(sr => {
                 // Get retailers for this SR's city
-                const srRetailers = allRets.filter(r => r.city === sr.scopeName);
+                const srRetailers = allRets.filter(r => r.city?.toLowerCase() === sr.scopeName?.toLowerCase());
                 
                 return {
                     id: sr.id,
@@ -172,7 +172,7 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                 scopeType: 'State',
                 scopeName: 'N/A',
                 children: group.map(sr => {
-                    const srRetailers = allRets.filter(r => r.city === sr.scopeName);
+                    const srRetailers = allRets.filter(r => r.city?.toLowerCase() === sr.scopeName?.toLowerCase());
                     return {
                         id: sr.id,
                         name: sr.name || 'Unknown',
@@ -267,7 +267,7 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
             scopeType: sr.scopeType || 'City',
             scopeName: sr.scopeName || 'Unknown',
             children: allRets
-                .filter(ret => ret.city === sr.scopeName)
+                .filter(ret => ret.city?.toLowerCase() === sr.scopeName?.toLowerCase())
                 .map(ret => ({
                     id: ret.userId,
                     name: ret.name || 'Unknown Retailer',

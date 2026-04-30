@@ -32,6 +32,8 @@ export async function getMisAnalyticsAction() {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
         const scope = await getUserScope(Number(session.user.id));
+        const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
+        const lowerEntities = lowerNames.map(n => `'${n}'`).join(',');
 
         // --- 1. EXECUTIVE DASHBOARD DATA ---
         let memberCountQuery = db.select({ value: count() }).from(users);
@@ -42,9 +44,12 @@ export async function getMisAnalyticsAction() {
 
         if (scope.type !== 'Global') {
             const scopeFilter = or(
-                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
             );
 
             memberCountQuery.leftJoin(retailers, eq(users.id, retailers.userId))
@@ -53,13 +58,13 @@ export async function getMisAnalyticsAction() {
                 .where(scopeFilter);
 
             rPointsQuery.leftJoin(retailers, eq(retailerTransactionLogs.userId, retailers.userId))
-                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
             
             mechPointsQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
-                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
 
             csPointsQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
-                .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
 
             redeemSumQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
                 .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
@@ -89,9 +94,10 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON activity.user_id = m.user_id
                 LEFT JOIN counter_sales cs ON activity.user_id = cs.user_id
             `;
+            const lowerEntities = lowerNames.map(n => `'${n}'`).join(',');
             const scopeWhere = scope.type === 'State' 
-                ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
+                ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`;
             
             activeRecentSql = sql`
                 SELECT count(DISTINCT activity.user_id) as count FROM (
@@ -138,8 +144,8 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON t.user_id = m.user_id
                 LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
                 WHERE ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql``}
             GROUP BY 1, 2 ORDER BY 2 ASC LIMIT 6
@@ -154,8 +160,8 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON u.id = m.user_id
                 LEFT JOIN counter_sales cs ON u.id = cs.user_id
                 WHERE ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql``}
             GROUP BY 1, 2 ORDER BY 2 ASC LIMIT 6
@@ -179,8 +185,8 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON t.user_id = m.user_id
                 LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
                 WHERE t.created_at >= '${sevenDaysAgo.toISOString()}' AND ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql`WHERE created_at >= ${sevenDaysAgo.toISOString()}`}
             GROUP BY 1, 2 ORDER BY 2 ASC
@@ -201,8 +207,8 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON t.user_id = m.user_id
                 LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
                 WHERE ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql``}
             GROUP BY 1 ORDER BY 2 DESC LIMIT 5
@@ -222,8 +228,8 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON t.user_id = m.user_id
                 LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
                 WHERE ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql``}
         `;
@@ -243,8 +249,8 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON t.user_id = m.user_id
                 LEFT JOIN counter_sales cs ON t.user_id = cs.user_id
                 WHERE ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql``}
         `;
@@ -288,8 +294,8 @@ export async function getMisAnalyticsAction() {
                 LEFT JOIN mechanics m ON u.id = m.user_id
                 LEFT JOIN counter_sales cs ON u.id = cs.user_id
                 WHERE ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql``}
             ORDER BY activity.created_at DESC LIMIT 10
@@ -307,8 +313,8 @@ export async function getMisAnalyticsAction() {
             LEFT JOIN counter_sales cs ON u.id = cs.user_id
             ${scope.type !== 'Global' ? sql.raw(`
                 WHERE ${scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
+                    ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
+                    : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`
                 }
             `) : sql``}
             ORDER BY earnings DESC LIMIT 5
