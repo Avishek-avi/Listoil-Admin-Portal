@@ -14,9 +14,9 @@ import { revalidatePath } from "next/cache";
 export async function getNotificationTemplatesAction() {
     try {
         return await db.select().from(notificationTemplates).orderBy(desc(notificationTemplates.createdAt));
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error fetching notification templates:", error);
-        throw new Error("Failed to fetch notification templates");
+        return [];
     }
 }
 
@@ -30,18 +30,18 @@ export async function upsertNotificationTemplateAction(data: any) {
         }
         revalidatePath("/communication");
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving notification template:", error);
-        throw new Error("Failed to save notification template");
+        return { success: false, error: error.message || "Failed to save notification template" };
     }
 }
 
 export async function getEventMastersAction() {
     try {
         return await db.select().from(eventMaster).orderBy(desc(eventMaster.createdAt));
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error fetching event masters:", error);
-        throw new Error("Failed to fetch event masters");
+        return [];
     }
 }
 
@@ -55,9 +55,9 @@ export async function upsertEventMasterAction(data: any) {
         }
         revalidatePath("/communication");
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving event master:", error);
-        throw new Error("Failed to save event master");
+        return { success: false, error: error.message || "Failed to save event master" };
     }
 }
 
@@ -79,8 +79,8 @@ export async function getNotificationLogsAction(userId?: number) {
             query = query.where(eq(notificationLogs.userId, userId));
         }
         return await query.limit(100);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error fetching notification logs:", error);
-        throw new Error("Failed to fetch notification logs");
+        return [];
     }
 }

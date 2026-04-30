@@ -14,7 +14,7 @@ import { desc, eq, and, sql, or, ilike, inArray } from "drizzle-orm"
 import {
     redemptionChannels, retailers, mechanics, counterSales,
     qrCodes, skuVariant, skuPointConfig, auditLogs, skuEntity,
-    tblInventory, tblInventoryBatch
+    tblInventory, tblInventoryBatch, qrTypes, userTypeEntity
 } from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
@@ -465,20 +465,29 @@ export async function getQrCodeDetailsAction(serialNumber: string) {
         if (!session?.user?.id) throw new Error("Unauthorized");
 
         // 1. Check in qrCodes table (Production QRs)
-        let qrData: { id: number; code: string; sku: string; isScanned: boolean | null; source: 'qrCodes' | 'inventory' } | null = null;
+        let qrData: { 
+            id: number; 
+            code: string; 
+            sku: string; 
+            isScanned: boolean | null; 
+            isActive: boolean;
+            source: 'qrCodes' | 'inventory' 
+        } | null = null;
 
         const [qr] = await db.select({
             id: qrCodes.id,
             code: qrCodes.code,
             sku: qrCodes.sku,
             isScanned: qrCodes.isScanned,
+            isActive: qrTypes.isActive
         })
         .from(qrCodes)
+        .leftJoin(qrTypes, eq(qrCodes.typeId, qrTypes.id))
         .where(eq(qrCodes.code, serialNumber))
         .limit(1);
 
         if (qr) {
-            qrData = { ...qr, source: 'qrCodes' };
+            qrData = { ...qr, isActive: qr.isActive ?? true, source: 'qrCodes' };
         } else {
             // 2. Check in tblInventory (Synced QRs)
             const [inv] = await db.select({
@@ -486,6 +495,8 @@ export async function getQrCodeDetailsAction(serialNumber: string) {
                 code: tblInventory.serialNumber,
                 sku: tblInventoryBatch.skuCode,
                 isScanned: tblInventory.isQrScanned,
+                isActive: tblInventory.isActive,
+                batchActive: tblInventoryBatch.isActive
             })
             .from(tblInventory)
             .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
@@ -493,37 +504,59 @@ export async function getQrCodeDetailsAction(serialNumber: string) {
             .limit(1);
 
             if (inv) {
-                qrData = { ...inv, source: 'inventory' };
+                qrData = { 
+                    ...inv, 
+                    isActive: (inv.isActive && inv.batchActive), 
+                    source: 'inventory' 
+                };
             }
         }
 
         if (!qrData) return { error: "Serial number not found in system (checked Production & Synced Inventory)." };
+        if (!qrData.isActive) return { error: "This QR code or its batch is currently inactive." };
         if (qrData.isScanned) return { error: "This QR code has already been scanned." };
 
-        // 3. Find points for this SKU
-        const [skuInfo] = await db.select({
-            points: skuPointConfig.pointsPerUnit,
-            variantName: skuVariant.variantName
+        // 3. Find the variant for this SKU code
+        const [variantInfo] = await db.select({
+            variantId: skuVariant.id,
+            variantName: skuVariant.variantName,
+            entityName: skuEntity.name,
         })
-        .from(skuVariant)
-        .innerJoin(skuEntity, eq(skuVariant.skuEntityId, skuEntity.id))
-        .innerJoin(skuPointConfig, eq(skuPointConfig.skuVariantId, skuVariant.id))
+        .from(skuEntity)
+        .innerJoin(skuVariant, eq(skuVariant.skuEntityId, skuEntity.id))
+        .where(ilike(skuEntity.name, qrData.sku))
+        .limit(1);
+
+        if (!variantInfo) return { 
+            qr: qrData,
+            points: 0,
+            variantName: qrData.sku,
+            message: `Product code "${qrData.sku}" not found in SKU Master. Please add this SKU in Masters > SKU Configuration.`
+        };
+
+        // 4. Find points for this variant for Mechanic user type
+        const [pointInfo] = await db.select({
+            points: skuPointConfig.pointsPerUnit,
+        })
+        .from(skuPointConfig)
+        .innerJoin(userTypeEntity, eq(skuPointConfig.userTypeId, userTypeEntity.id))
         .where(and(
-            eq(skuEntity.name, qrData.sku),
-            eq(skuPointConfig.userTypeId, 3) // Mechanic
+            eq(skuPointConfig.skuVariantId, variantInfo.variantId),
+            ilike(userTypeEntity.typeName, '%Mechanic%')
         ))
         .limit(1);
 
-        if (!skuInfo) return { 
+        if (!pointInfo) return { 
             qr: qrData,
             points: 0,
-            message: `SKU "${qrData.sku}" found but no points configuration found for mechanics.`
+            variantName: variantInfo.variantName,
+            message: `SKU "${variantInfo.variantName}" (${qrData.sku}) found but no points configured for Mechanics. Please configure points in Masters > Point Configuration.`
         };
 
         return {
             qr: qrData,
-            points: Number(skuInfo.points),
-            variantName: skuInfo.variantName
+            points: Number(pointInfo.points),
+            variantName: variantInfo.variantName
         };
     } catch (error) {
         console.error("Error in getQrCodeDetailsAction:", error);
@@ -546,22 +579,40 @@ export async function submitManualScanAdjustmentAction(data: {
             let qrSource: 'qrCodes' | 'inventory' | null = null;
             let sku: string = '';
 
-            const [qr] = await tx.select().from(qrCodes).where(eq(qrCodes.code, data.serialNumber)).limit(1);
+            const [qr] = await tx.select({
+                id: qrCodes.id,
+                code: qrCodes.code,
+                sku: qrCodes.sku,
+                isScanned: qrCodes.isScanned,
+                isActive: qrTypes.isActive
+            })
+            .from(qrCodes)
+            .leftJoin(qrTypes, eq(qrCodes.typeId, qrTypes.id))
+            .where(eq(qrCodes.code, data.serialNumber))
+            .limit(1);
+
             if (qr) {
                 if (qr.isScanned) throw new Error("QR already scanned (Production).");
+                if (qr.isActive === false) throw new Error("This QR type is currently inactive.");
                 qrSource = 'qrCodes';
                 sku = qr.sku;
             } else {
-                const [inv] = await tx.select()
-                    .from(tblInventory)
-                    .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
-                    .where(eq(tblInventory.serialNumber, data.serialNumber))
-                    .limit(1);
+                const [inv] = await tx.select({
+                    isScanned: tblInventory.isQrScanned,
+                    isActive: tblInventory.isActive,
+                    batchActive: tblInventoryBatch.isActive,
+                    sku: tblInventoryBatch.skuCode
+                })
+                .from(tblInventory)
+                .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
+                .where(eq(tblInventory.serialNumber, data.serialNumber))
+                .limit(1);
                 
                 if (inv) {
-                    if (inv.tbl_inventory.isQrScanned) throw new Error("QR already scanned (Inventory).");
+                    if (inv.isScanned) throw new Error("QR already scanned (Inventory).");
+                    if (!inv.isActive || !inv.batchActive) throw new Error("This QR code or its batch is currently inactive.");
                     qrSource = 'inventory';
-                    sku = inv.tbl_inventory_batch.skuCode;
+                    sku = inv.sku;
                 }
             }
 
@@ -630,16 +681,16 @@ export async function submitManualScanAdjustmentAction(data: {
 
             // 6. Log Admin Action (Audit Log)
             await tx.insert(auditLogs).values({
+                tableName: 'mechanics',
+                recordId: data.userId,
+                operation: 'UPDATE',
                 action: 'MANUAL_POINTS_ENTRY',
-                performedBy: Number(session.user.id),
-                entityType: 'MECHANIC',
-                entityId: data.userId.toString(),
-                description: `Admin ${session.user.name} added ${data.points} points to mechanic ${user.name} for QR ${data.serialNumber}. Reason: ${data.reason}`,
-                metadata: {
+                changedBy: Number(session.user.id),
+                newState: {
                     points: data.points,
                     serialNumber: data.serialNumber,
                     reason: data.reason,
-                    mechanicId: data.userId
+                    description: `Admin ${session.user.name} added ${data.points} points to mechanic ${user.name} for QR ${data.serialNumber}.`
                 }
             });
 

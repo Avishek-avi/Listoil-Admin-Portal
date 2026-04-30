@@ -335,9 +335,9 @@ export async function updateKycDocumentStatusAction(documentId: number, status: 
         })
 
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error in updateKycDocumentStatusAction:", error);
-        throw error;
+        return { success: false, error: error.message || "Failed to update KYC status." };
     }
 }
 
@@ -600,9 +600,9 @@ export async function updateMemberApprovalStatusAction(userId: number, statusId:
         }
 
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error in updateMemberApprovalStatusAction:", error);
-        throw error;
+        return { success: false, error: error.message || "Failed to update status." };
     }
 }
 
@@ -649,9 +649,9 @@ export async function updateMemberDetailsAction(userId: number, type: string, da
 
         return { success: true };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error in updateMemberDetailsAction:", error);
-        throw error;
+        return { success: false, error: error.message || "Failed to update member details." };
     }
 }
 export async function createMemberAction(formData: any) {
