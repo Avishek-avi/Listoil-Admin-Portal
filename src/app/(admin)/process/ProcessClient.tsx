@@ -1,8 +1,15 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getProcessDataAction, getAllTransactionsAction, type TransactionRecord } from '@/actions/process-actions'
+import { 
+    getProcessDataAction, 
+    getAllTransactionsAction, 
+    type TransactionRecord,
+    getMechanicsForManualEntryAction,
+    getQrCodeDetailsAction,
+    submitManualScanAdjustmentAction
+} from '@/actions/process-actions'
 import {
     getAdminOrdersAction, updateAdminOrderStatusAction,
     AdminOrder,
@@ -974,44 +981,210 @@ export default function ProcessClient() {
             {activeTab === 3 && <AmazonProductsClient />}
 
             {/* Manual Entry Tab */}
-            {activeTab === 4 && (
-                <div>
-                    <div className="widget-card p-8 max-w-2xl mx-auto">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Manual Points Entry</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-500 mb-1">Select Member</label>
-                                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-sm">
-                                    <option>Search for member...</option>
-                                    <option>John Doe (RT-001)</option>
-                                    <option>Alice Smith (EL-042)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-500 mb-1">Entry Type</label>
-                                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-sm">
-                                    <option>Scan Adjustment</option>
-                                    <option>Bonus Points</option>
-                                    <option>Referral Reward</option>
-                                    <option>Correction</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-500 mb-1">Points / Amount</label>
-                                <input type="number" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-500 mb-1">Reason / Remarks</label>
-                                <textarea rows={4} placeholder="Enter reason for manual entry..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm resize-none"></textarea>
-                            </div>
-                            <div className="md:col-span-2 flex justify-end gap-2 mt-1">
-                                <button className="btn btn-secondary">Cancel</button>
-                                <button className="btn btn-primary">Submit Entry</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {activeTab === 4 && <ManualEntryTab />}
         </div>
     )
+}
+
+function ManualEntryTab() {
+    const queryClient = useQueryClient();
+    const [loading, setLoading] = useState(false);
+    const [mechanics, setMechanics] = useState<any[]>([]);
+    const [formData, setFormData] = useState({
+        userId: '',
+        entryType: 'Scan Adjustment',
+        serialNumber: '',
+        points: '',
+        reason: ''
+    });
+    const [qrStatus, setQrStatus] = useState<{ loading: boolean; error?: string; success?: string }>({ loading: false });
+    const [notification, setNotification] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
+
+    useEffect(() => {
+        const fetchMechanics = async () => {
+            const data = await getMechanicsForManualEntryAction();
+            setMechanics(data);
+        };
+        fetchMechanics();
+    }, []);
+
+    const handleQrBlur = async () => {
+        if (!formData.serialNumber || formData.entryType !== 'Scan Adjustment') return;
+
+        setQrStatus({ loading: true });
+        const result = await getQrCodeDetailsAction(formData.serialNumber);
+        
+        if (result.error) {
+            setQrStatus({ loading: false, error: result.error });
+            setFormData(prev => ({ ...prev, points: '' }));
+        } else {
+            setQrStatus({ 
+                loading: false, 
+                success: `Valid QR: ${result.variantName || 'Unknown SKU'}` 
+            });
+            setFormData(prev => ({ ...prev, points: result.points?.toString() || '0' }));
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (!formData.userId || !formData.serialNumber || !formData.points || !formData.reason) {
+            setNotification({
+                open: true,
+                message: 'Please fill all mandatory fields.',
+                severity: 'error'
+            });
+            return;
+        }
+
+        setLoading(true);
+        const result = await submitManualScanAdjustmentAction({
+            userId: Number(formData.userId),
+            serialNumber: formData.serialNumber,
+            points: Number(formData.points),
+            reason: formData.reason
+        });
+
+        setLoading(false);
+        if (result.success) {
+            setNotification({
+                open: true,
+                message: 'Manual entry submitted successfully!',
+                severity: 'success'
+            });
+            setFormData({
+                userId: '',
+                entryType: 'Scan Adjustment',
+                serialNumber: '',
+                points: '',
+                reason: ''
+            });
+            setQrStatus({ loading: false });
+            queryClient.invalidateQueries({ queryKey: ['all-transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['process-data'] });
+        } else {
+            setNotification({
+                open: true,
+                message: result.error || 'Failed to submit manual entry.',
+                severity: 'error'
+            });
+        }
+    };
+
+    return (
+        <div className="animate-in fade-in duration-500">
+            <div className="widget-card p-8 max-w-2xl mx-auto border-t-4 border-red-600 shadow-xl">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
+                        <i className="fas fa-plus-circle text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-900">Manual Points Entry</h3>
+                        <p className="text-sm text-gray-500">Adjust points for mechanics manually</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Select Active Mechanic <span className="text-red-500">*</span></label>
+                        <select 
+                            value={formData.userId}
+                            onChange={(e) => setFormData(prev => ({ ...prev, userId: e.target.value }))}
+                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 text-sm transition-all"
+                        >
+                            <option value="">Search for mechanic...</option>
+                            {mechanics.map(m => (
+                                <option key={m.id} value={m.id}>{m.name} ({m.uniqueId}) - {m.phone}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Entry Type</label>
+                        <select 
+                            value={formData.entryType}
+                            onChange={(e) => setFormData(prev => ({ ...prev, entryType: e.target.value }))}
+                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 text-sm transition-all"
+                        >
+                            <option value="Scan Adjustment">Scan Adjustment</option>
+                            {/* Hidden types for now */}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">QR Serial Number <span className="text-red-500">*</span></label>
+                        <input 
+                            type="text" 
+                            placeholder="Enter 12-digit serial..." 
+                            value={formData.serialNumber}
+                            onChange={(e) => setFormData(prev => ({ ...prev, serialNumber: e.target.value }))}
+                            onBlur={handleQrBlur}
+                            className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 text-sm transition-all ${qrStatus.error ? 'border-red-500' : qrStatus.success ? 'border-green-500' : 'border-gray-200'}`}
+                        />
+                        {qrStatus.loading && <p className="text-[10px] text-blue-500 mt-1 font-medium"><i className="fas fa-spinner fa-spin mr-1"></i> Validating serial...</p>}
+                        {qrStatus.error && <p className="text-[10px] text-red-500 mt-1 font-medium"><i className="fas fa-exclamation-circle mr-1"></i> {qrStatus.error}</p>}
+                        {qrStatus.success && <p className="text-[10px] text-green-600 mt-1 font-medium"><i className="fas fa-check-circle mr-1"></i> {qrStatus.success}</p>}
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Points to Credit <span className="text-red-500">*</span></label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400">
+                                <i className="fas fa-coins"></i>
+                            </div>
+                            <input 
+                                type="number" 
+                                placeholder="0" 
+                                value={formData.points}
+                                onChange={(e) => setFormData(prev => ({ ...prev, points: e.target.value }))}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 text-sm transition-all pl-10"
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">Points are auto-populated based on SKU master if serial is valid.</p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Reason / Remarks <span className="text-red-500">*</span></label>
+                        <textarea 
+                            rows={3} 
+                            placeholder="Enter detailed reason for manual entry..." 
+                            value={formData.reason}
+                            onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
+                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 text-sm transition-all resize-none"
+                        ></textarea>
+                    </div>
+
+                    <div className="md:col-span-2 flex justify-end gap-3 mt-4">
+                        <button 
+                            onClick={() => setFormData({ userId: '', entryType: 'Scan Adjustment', serialNumber: '', points: '', reason: '' })}
+                            className="px-6 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                        >
+                            Reset Form
+                        </button>
+                        <button 
+                            onClick={handleSubmit}
+                            disabled={loading || !!qrStatus.error || qrStatus.loading}
+                            className={`px-8 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2 ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 active:scale-95'}`}
+                        >
+                            {loading ? <><i className="fas fa-spinner fa-spin"></i> Submitting...</> : 'Submit Adjustment'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <Snackbar 
+                open={notification.open} 
+                autoHideDuration={6000} 
+                onClose={() => setNotification(prev => ({ ...prev, open: false }))}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            >
+                <Alert severity={notification.severity} sx={{ width: '100%', borderRadius: '12px' }}>
+                    {notification.message}
+                </Alert>
+            </Snackbar>
+        </div>
+    );
 }

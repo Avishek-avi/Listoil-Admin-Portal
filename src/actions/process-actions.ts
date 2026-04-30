@@ -11,7 +11,11 @@ import {
     earningTypes
 } from "@/db/schema"
 import { desc, eq, and, sql, or, ilike, inArray } from "drizzle-orm"
-import { redemptionChannels, retailers, mechanics, counterSales } from "@/db/schema"
+import {
+    redemptionChannels, retailers, mechanics, counterSales,
+    qrCodes, skuVariant, skuPointConfig, auditLogs, skuEntity,
+    tblInventory, tblInventoryBatch
+} from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
 
@@ -417,5 +421,223 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
     } catch (error) {
         console.error("Error in getAllTransactionsAction:", error);
         return [];
+    }
+}
+
+export async function getMechanicsForManualEntryAction() {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        const activeMechanics = await db.select({
+            id: users.id,
+            name: users.name,
+            phone: users.phone,
+            uniqueId: mechanics.uniqueId
+        })
+        .from(users)
+        .innerJoin(mechanics, eq(users.id, mechanics.userId))
+        .where(and(
+            eq(users.roleId, 3), // Mechanic Role
+            eq(users.isSuspended, false)
+        ))
+        .orderBy(users.name);
+
+        return activeMechanics;
+    } catch (error) {
+        console.error("Error in getMechanicsForManualEntryAction:", error);
+        return [];
+    }
+}
+
+export async function getQrCodeDetailsAction(serialNumber: string) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        // 1. Check in qrCodes table (Production QRs)
+        let qrData: { id: number; code: string; sku: string; isScanned: boolean | null; source: 'qrCodes' | 'inventory' } | null = null;
+
+        const [qr] = await db.select({
+            id: qrCodes.id,
+            code: qrCodes.code,
+            sku: qrCodes.sku,
+            isScanned: qrCodes.isScanned,
+        })
+        .from(qrCodes)
+        .where(eq(qrCodes.code, serialNumber))
+        .limit(1);
+
+        if (qr) {
+            qrData = { ...qr, source: 'qrCodes' };
+        } else {
+            // 2. Check in tblInventory (Synced QRs)
+            const [inv] = await db.select({
+                id: tblInventory.inventoryId,
+                code: tblInventory.serialNumber,
+                sku: tblInventoryBatch.skuCode,
+                isScanned: tblInventory.isQrScanned,
+            })
+            .from(tblInventory)
+            .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
+            .where(eq(tblInventory.serialNumber, serialNumber))
+            .limit(1);
+
+            if (inv) {
+                qrData = { ...inv, source: 'inventory' };
+            }
+        }
+
+        if (!qrData) return { error: "Serial number not found in system (checked Production & Synced Inventory)." };
+        if (qrData.isScanned) return { error: "This QR code has already been scanned." };
+
+        // 3. Find points for this SKU
+        const [skuInfo] = await db.select({
+            points: skuPointConfig.pointsPerUnit,
+            variantName: skuVariant.variantName
+        })
+        .from(skuVariant)
+        .innerJoin(skuEntity, eq(skuVariant.skuEntityId, skuEntity.id))
+        .innerJoin(skuPointConfig, eq(skuPointConfig.skuVariantId, skuVariant.id))
+        .where(and(
+            eq(skuEntity.name, qrData.sku),
+            eq(skuPointConfig.userTypeId, 3) // Mechanic
+        ))
+        .limit(1);
+
+        if (!skuInfo) return { 
+            qr: qrData,
+            points: 0,
+            message: `SKU "${qrData.sku}" found but no points configuration found for mechanics.`
+        };
+
+        return {
+            qr: qrData,
+            points: Number(skuInfo.points),
+            variantName: skuInfo.variantName
+        };
+    } catch (error) {
+        console.error("Error in getQrCodeDetailsAction:", error);
+        return { error: "Failed to fetch QR details." };
+    }
+}
+
+export async function submitManualScanAdjustmentAction(data: {
+    userId: number;
+    serialNumber: string;
+    points: number;
+    reason: string;
+}) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        return await db.transaction(async (tx) => {
+            // 1. Double check QR status in both tables
+            let qrSource: 'qrCodes' | 'inventory' | null = null;
+            let sku: string = '';
+
+            const [qr] = await tx.select().from(qrCodes).where(eq(qrCodes.code, data.serialNumber)).limit(1);
+            if (qr) {
+                if (qr.isScanned) throw new Error("QR already scanned (Production).");
+                qrSource = 'qrCodes';
+                sku = qr.sku;
+            } else {
+                const [inv] = await tx.select()
+                    .from(tblInventory)
+                    .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
+                    .where(eq(tblInventory.serialNumber, data.serialNumber))
+                    .limit(1);
+                
+                if (inv) {
+                    if (inv.tbl_inventory.isQrScanned) throw new Error("QR already scanned (Inventory).");
+                    qrSource = 'inventory';
+                    sku = inv.tbl_inventory_batch.skuCode;
+                }
+            }
+
+            if (!qrSource) throw new Error("Invalid serial number.");
+
+            // 2. Check user
+            const [user] = await tx.select()
+                .from(users)
+                .where(and(eq(users.id, data.userId), eq(users.roleId, 3)))
+                .limit(1);
+            
+            if (!user) throw new Error("Invalid mechanic selected.");
+            if (user.isSuspended) throw new Error("Mechanic is suspended.");
+
+            // 3. Create Transaction Entry (mechanicTransactionLogs)
+            const [newLog] = await tx.insert(mechanicTransactionLogs).values({
+                userId: data.userId,
+                earningType: 9, // QR Scan
+                points: data.points.toString(),
+                category: 'QR_SCAN',
+                status: 'approved',
+                qrCode: data.serialNumber,
+                sku: sku,
+                remarks: `Manual Adjustment: ${data.reason}`,
+                metadata: {
+                    adminId: session.user.id,
+                    adminName: session.user.name,
+                    manualEntry: true,
+                    reason: data.reason,
+                    source: qrSource,
+                    scannedAt: new Date().toISOString()
+                }
+            }).returning();
+
+            // 4. Update status in correct table
+            if (qrSource === 'qrCodes') {
+                await tx.update(qrCodes)
+                    .set({
+                        isScanned: true,
+                        scannedBy: data.userId
+                    })
+                    .where(eq(qrCodes.code, data.serialNumber));
+            } else {
+                await tx.update(tblInventory)
+                    .set({
+                        isQrScanned: true
+                    })
+                    .where(eq(tblInventory.serialNumber, data.serialNumber));
+            }
+
+            // 5. Update Mechanic Balance
+            const [mechanic] = await tx.select().from(mechanics).where(eq(mechanics.userId, data.userId)).limit(1);
+            if (mechanic) {
+                const currentBalance = Number(mechanic.pointsBalance || 0);
+                const currentEarnings = Number(mechanic.totalEarnings || 0);
+                const currentRedeemable = Number(mechanic.redeemablePoints || 0);
+
+                await tx.update(mechanics)
+                    .set({
+                        pointsBalance: (currentBalance + data.points).toString(),
+                        totalEarnings: (currentEarnings + data.points).toString(),
+                        redeemablePoints: (currentRedeemable + data.points).toString()
+                    })
+                    .where(eq(mechanics.userId, data.userId));
+            }
+
+            // 6. Log Admin Action (Audit Log)
+            await tx.insert(auditLogs).values({
+                action: 'MANUAL_POINTS_ENTRY',
+                performedBy: Number(session.user.id),
+                entityType: 'MECHANIC',
+                entityId: data.userId.toString(),
+                description: `Admin ${session.user.name} added ${data.points} points to mechanic ${user.name} for QR ${data.serialNumber}. Reason: ${data.reason}`,
+                metadata: {
+                    points: data.points,
+                    serialNumber: data.serialNumber,
+                    reason: data.reason,
+                    mechanicId: data.userId
+                }
+            });
+
+            return { success: true };
+        });
+    } catch (error: any) {
+        console.error("Error in submitManualScanAdjustmentAction:", error);
+        return { success: false, error: error.message || "Failed to submit manual entry." };
     }
 }
