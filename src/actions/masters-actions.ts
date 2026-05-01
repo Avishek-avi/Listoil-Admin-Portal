@@ -3,6 +3,7 @@
 import { db } from '@/db';
 import { userTypeEntity, skuPointConfig, skuPointRules, skuVariant, skuEntity, skuLevelMaster, redemptionChannels, retailerTransactions, mechanicTransactions, counterSalesTransactions, users, approvalStatuses, pincodeMaster } from '@/db/schema';
 import { emitEvent, BUS_EVENTS } from '@/server/rabbitMq/broker';
+import { auth } from '@/lib/auth';
 import { eq, desc, sql, sql as sqlTag, and, inArray, or, ilike } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
@@ -51,6 +52,9 @@ export interface SkuPerformance {
 
 export async function getMastersDataAction() {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
         // 1. Fetch Stakeholders from userTypeEntity
         const stakeholders = await db.select({
             id: userTypeEntity.id,
@@ -284,6 +288,13 @@ export async function updateStakeholderConfigAction(data: {
     minRedemptionLimit: number;
 }) {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        // Only Admin roles should update config
+        if (!session.user.permissions?.includes('all') && !session.user.role?.toLowerCase().includes('admin')) {
+            throw new Error("Insufficient permissions to update master configuration");
+        }
+
         await db.update(userTypeEntity)
             .set({
                 maxDailyScans: data.maxDailyScans,

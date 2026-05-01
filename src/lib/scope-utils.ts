@@ -64,12 +64,14 @@ export async function getUserScope(userId: number): Promise<UserScope> {
         .where(and(eq(userScopeMapping.userId, userId), eq(userScopeMapping.isActive, true)));
 
         if (mappings.length === 0) {
-            // Default to Global if no mapping but role is recognized? 
-            // Or restrict to empty if mapping is required for TSM/SR.
-            // For now, if TSM/SR has no mapping, they see nothing.
-            const scopeType = role === 'TSM' ? 'State' : (role === 'SR' ? 'City' : 'Global');
+            // Fail-secure: If a scoped role (TSM/SR) has no mapping, they should not be able to see anything.
+            // Returning empty entityNames would match nothing in queries, but throwing is safer to avoid bypasses.
+            if (role === 'TSM' || role === 'SR' || normalizedRole.includes('STATE MANAGER') || normalizedRole.includes('REPRESENTATIVE')) {
+                throw new Error(`User ${userId} has a scoped role (${role}) but no geographical entities assigned.`);
+            }
+
             return { 
-                type: scopeType as any, 
+                type: 'Global', 
                 entityIds: [], 
                 entityNames: [], 
                 role, 

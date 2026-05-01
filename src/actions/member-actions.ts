@@ -215,6 +215,32 @@ export async function getMemberDetailsAction(type: string, id: number) {
 
         if (!userRecord) return null;
 
+        // Scope check: Ensure the requester has access to this member's territory
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
+        if (scope.type !== 'Global') {
+            const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
+            
+            // Need to fetch territory for scope verification
+            let territoryName = '';
+            if (userRecord.roleId === 2) { // Retailer
+                const [r] = await db.select({ val: scope.type === 'State' ? retailers.state : retailers.city }).from(retailers).where(eq(retailers.userId, id));
+                territoryName = r?.val || '';
+            } else if (userRecord.roleId === 3) { // Mechanic
+                const [m] = await db.select({ val: scope.type === 'State' ? mechanics.state : mechanics.city }).from(mechanics).where(eq(mechanics.userId, id));
+                territoryName = m?.val || '';
+            } else if (userRecord.roleId === 4) { // Counter Sales
+                const [cs] = await db.select({ val: scope.type === 'State' ? counterSales.state : counterSales.city }).from(counterSales).where(eq(counterSales.userId, id));
+                territoryName = cs?.val || '';
+            }
+
+            if (!territoryName || !lowerNames.includes(territoryName.toLowerCase())) {
+                throw new Error("Access denied: Member is outside your assigned territory.");
+            }
+        }
+
         // 2. Fetch specific details based on type
         if (normalizedType.includes('retailer')) {
             const records = await db.select().from(retailers).where(eq(retailers.userId, id));

@@ -580,6 +580,12 @@ export async function submitManualScanAdjustmentAction(data: {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
 
+        // Add Admin role gate
+        const isAdmin = session.user.permissions?.includes('all') || session.user.role?.toLowerCase().includes('admin');
+        if (!isAdmin) {
+            throw new Error("Only administrators can perform manual point adjustments.");
+        }
+
         return await db.transaction(async (tx) => {
             // 0. Verify user is active and approved
             const [targetUser] = await tx.select({

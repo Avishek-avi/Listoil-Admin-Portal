@@ -173,6 +173,25 @@ export async function searchUsersAction(searchTerm: string) {
             usersQuery = usersQuery.where(and(...conditions));
         }
 
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
+        if (scope.type !== 'Global') {
+            const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
+            usersQuery.leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(or(
+                    inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                    inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                ));
+        }
+
         const usersList = await usersQuery.limit(20);
 
         return usersList.map(u => ({
@@ -313,6 +332,30 @@ export async function getTicketDetailsAction(ticketId: string) {
             .where(eq(tickets.id, id));
 
         if (!t) return null;
+
+        // Scope check
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+        const scope = await getUserScope(Number(session.user.id));
+
+        if (scope.type !== 'Global') {
+            const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
+            // Fetch territory of requester to check scope
+            const [requesterTerritory] = await db.select({
+                state: sql<string>`COALESCE(${retailers.state}, ${mechanics.state}, ${counterSales.state})`,
+                city: sql<string>`COALESCE(${retailers.city}, ${mechanics.city}, ${counterSales.city})`
+            })
+            .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .where(eq(users.id, t.requesterId));
+
+            const val = scope.type === 'State' ? requesterTerritory?.state : requesterTerritory?.city;
+            if (!val || !lowerNames.includes(val.toLowerCase())) {
+                throw new Error("Access denied: Ticket requester is outside your assigned territory.");
+            }
+        }
 
         return {
             ...t,

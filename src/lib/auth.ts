@@ -65,8 +65,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             .where(or(eq(users.email, username), eq(users.phone, username)))
             .limit(1)
 
-          console.log(userResult)
-
           if (userResult.length === 0) {
             throw new InvalidCredentials()
           }

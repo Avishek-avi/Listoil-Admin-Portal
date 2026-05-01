@@ -10,9 +10,12 @@ import {
 import { eq, desc, and } from "drizzle-orm";
 import { NotificationService } from "@/server/services/notification.service";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
 
 export async function getNotificationTemplatesAction() {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
         return await db.select().from(notificationTemplates).orderBy(desc(notificationTemplates.createdAt));
     } catch (error: any) {
         console.error("Error fetching notification templates:", error);
@@ -22,6 +25,8 @@ export async function getNotificationTemplatesAction() {
 
 export async function upsertNotificationTemplateAction(data: any) {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
         const { id, ...rest } = data;
         if (id) {
             await db.update(notificationTemplates).set({ ...rest, updatedAt: new Date().toISOString() }).where(eq(notificationTemplates.id, id));
@@ -38,6 +43,8 @@ export async function upsertNotificationTemplateAction(data: any) {
 
 export async function getEventMastersAction() {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
         return await db.select().from(eventMaster).orderBy(desc(eventMaster.createdAt));
     } catch (error: any) {
         console.error("Error fetching event masters:", error);
@@ -47,6 +54,8 @@ export async function getEventMastersAction() {
 
 export async function upsertEventMasterAction(data: any) {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
         const { id, ...rest } = data;
         if (id) {
             await db.update(eventMaster).set(rest).where(eq(eventMaster.id, id));
@@ -63,6 +72,8 @@ export async function upsertEventMasterAction(data: any) {
 
 export async function sendManualNotificationAction(userId: number, templateId: number, data: Record<string, any> = {}) {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
         const result = await NotificationService.sendManualNotification(userId, templateId, data);
         return { success: true, result };
     } catch (error: any) {
@@ -73,6 +84,8 @@ export async function sendManualNotificationAction(userId: number, templateId: n
 
 export async function getNotificationLogsAction(userId?: number) {
     try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
         let query = db.select().from(notificationLogs).orderBy(desc(notificationLogs.sentAt));
         if (userId) {
             // @ts-ignore
