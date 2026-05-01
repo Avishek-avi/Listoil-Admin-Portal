@@ -217,7 +217,7 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const mechCountQuery = db.select({ count: count() }).from(mechanicTransactionLogs);
 
         const [csCount] = await csCountQuery.where(getScopeCondition(counterSales));
-        
+
         if (scope.type !== 'Global') {
             retCountQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
                 .where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
@@ -331,7 +331,7 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const pendingItems = [...(redemptionsList || []), ...(kycList || [])]
             .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime())
             .slice(0, 10);
-        
+
         const totalPendingCount = pendingItems.length;
 
 
@@ -434,10 +434,10 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                     LEFT JOIN mechanics m ON u.id = m.user_id
                     LEFT JOIN counter_sales cs ON u.id = cs.user_id
                 `;
-                const scopeWhere = scope.type === 'State' 
+                const scopeWhere = scope.type === 'State'
                     ? `(LOWER(r.state) IN (${lowerEntities}) OR LOWER(m.state) IN (${lowerEntities}) OR LOWER(cs.state) IN (${lowerEntities}))`
                     : `(LOWER(r.city) IN (${lowerEntities}) OR LOWER(m.city) IN (${lowerEntities}) OR LOWER(cs.city) IN (${lowerEntities}))`;
-                
+
                 topSql = sql.raw(`
                     SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
                     FROM (
@@ -616,7 +616,7 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
             pendingApprovalsCount: 0,
             pendingApprovals: [],
 
-            segments: { 
+            segments: {
                 retailer: { points: 0, active: 0, kycCompliance: 0, total: 0 },
                 mechanic: { points: 0, active: 0, kycCompliance: 0, total: 0 }
             },

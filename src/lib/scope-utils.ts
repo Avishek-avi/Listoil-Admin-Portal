@@ -38,6 +38,8 @@ export async function getUserScope(userId: number): Promise<UserScope> {
             permissions = ['dashboard.view', 'members.view', 'tickets.manage', 'mis.view'];
         } else if (normalizedRole === 'SR' || normalizedRole.includes('REPRESENTATIVE')) {
             permissions = ['dashboard.view', 'members.view', 'tickets.manage', 'mis.view'];
+        } else if (normalizedRole === 'DISTRIBUTOR') {
+            permissions = ['dashboard.view', 'members.view', 'tickets.manage'];
         } else if (levelId < 5 || normalizedRole.includes('ADMIN') || normalizedRole.includes('SALES HEAD')) {
             permissions = ['all'];
         } else if (normalizedRole.includes('SUPPORT') || normalizedRole.includes('CALL CENTER')) {
@@ -66,7 +68,7 @@ export async function getUserScope(userId: number): Promise<UserScope> {
         if (mappings.length === 0) {
             // Fail-secure: If a scoped role (TSM/SR) has no mapping, they should not be able to see anything.
             // Returning empty entityNames would match nothing in queries, but throwing is safer to avoid bypasses.
-            if (role === 'TSM' || role === 'SR' || normalizedRole.includes('STATE MANAGER') || normalizedRole.includes('REPRESENTATIVE')) {
+            if (role === 'TSM' || role === 'SR' || normalizedRole === 'DISTRIBUTOR' || normalizedRole.includes('STATE MANAGER') || normalizedRole.includes('REPRESENTATIVE')) {
                 throw new Error(`User ${userId} has a scoped role (${role}) but no geographical entities assigned.`);
             }
 

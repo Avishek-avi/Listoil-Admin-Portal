@@ -1,30 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Detailed System Architecture & Flow Guide</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 950px; margin: 40px auto; padding: 20px; background-color: #f9f9f9; }
-        .container { background-color: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; text-align: center; }
-        h2 { color: #2980b9; margin-top: 40px; border-left: 5px solid #3498db; padding-left: 15px; }
-        h3 { color: #16a085; margin-top: 25px; }
-        table { border-collapse: collapse; width: 100%; margin: 25px 0; font-size: 0.95em; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        .highlight { background-color: #fff9c4; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
-        .note { background-color: #e8f5e9; border-left: 6px solid #4caf50; padding: 15px; margin: 20px 0; }
-        .code-block { background-color: #2d3436; color: #dfe6e9; padding: 20px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; overflow-x: auto; }
-        code { background-color: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-family: Consolas, Monaco, monospace; color: #d63031; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 950px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        h2 {
+            color: #2980b9;
+            margin-top: 40px;
+            border-left: 5px solid #3498db;
+            padding-left: 15px;
+        }
+
+        h3 {
+            color: #16a085;
+            margin-top: 25px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 25px 0;
+            font-size: 0.95em;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        .highlight {
+            background-color: #fff9c4;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        .note {
+            background-color: #e8f5e9;
+            border-left: 6px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .code-block {
+            background-color: #2d3436;
+            color: #dfe6e9;
+            padding: 20px;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+            overflow-x: auto;
+        }
+
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: Consolas, Monaco, monospace;
+            color: #d63031;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Technical End-to-End System Flow Guide</h1>
-        
+
         <h2>1. Member Onboarding & KYC Lifecycle</h2>
-        <p>This process transitions a user from initial registration to a fully verified stakeholder capable of earning points.</p>
-        
+        <p>This process transitions a user from initial registration to a fully verified stakeholder capable of earning
+            points.</p>
+
         <table>
             <thead>
                 <tr>
@@ -39,7 +115,8 @@
                     <td><strong>1. Registration</strong></td>
                     <td>Mobile App Signup</td>
                     <td><code>users</code>: Insert record. <code>block_status</code> = 'basic_registration'.</td>
-                    <td><code>retailers</code>/<code>electricians</code>: Insert profile record with <code>user_id</code>.</td>
+                    <td><code>retailers</code>/<code>electricians</code>: Insert profile record with
+                        <code>user_id</code>.</td>
                 </tr>
                 <tr>
                     <td><strong>2. KYC Upload</strong></td>
@@ -50,7 +127,8 @@
                 <tr>
                     <td><strong>3. Admin Review</strong></td>
                     <td><code>updateKycDocumentStatusAction</code></td>
-                    <td><code>kyc_documents</code>: <code>status</code> -> 'verified', <code>verified_at</code> = NOW().</td>
+                    <td><code>kyc_documents</code>: <code>status</code> -> 'verified', <code>verified_at</code> = NOW().
+                    </td>
                     <td><strong>Event:</strong> <code>USER_KYC_APPROVED</code> emitted.</td>
                 </tr>
                 <tr>
@@ -66,33 +144,45 @@
         <h3>A. QR Validation & Rule Lookup</h3>
         <p>When a QR code is scanned, the system performs a multi-stage lookup:</p>
         <ul>
-            <li><strong>Integrity Check:</strong> Queries <code>qr_codes</code> to ensure <code>is_scanned</code> is <code>false</code>.</li>
-            <li><strong>Base Configuration:</strong> Fetches <code>points_per_unit</code> from <code>sku_point_config</code> based on <code>user_type_id</code> and <code>sku_variant_id</code>.</li>
-            <li><strong>Rule Overlays:</strong> Applies <code>sku_point_rules</code> (e.g., multiplier rules for specific regions or timeframes).</li>
+            <li><strong>Integrity Check:</strong> Queries <code>qr_codes</code> to ensure <code>is_scanned</code> is
+                <code>false</code>.</li>
+            <li><strong>Base Configuration:</strong> Fetches <code>points_per_unit</code> from
+                <code>sku_point_config</code> based on <code>user_type_id</code> and <code>sku_variant_id</code>.</li>
+            <li><strong>Rule Overlays:</strong> Applies <code>sku_point_rules</code> (e.g., multiplier rules for
+                specific regions or timeframes).</li>
         </ul>
 
         <h3>B. Settlement & Accounting</h3>
         <ul>
-            <li><strong>Logging:</strong> Inserts into <code>retailer_transaction_logs</code> with state <span class="highlight">PENDING</span>.</li>
-            <li><strong>Approval:</strong> Upon approval, the member's <code>points_balance</code> is updated in the profile table (e.g., <code>retailers</code>).</li>
-            <li><strong>Auditing:</strong> A record is inserted into <code>retailer_ledger</code> to track the <code>opening_balance</code> and <code>closing_balance</code> of the transaction.</li>
+            <li><strong>Logging:</strong> Inserts into <code>retailer_transaction_logs</code> with state <span
+                    class="highlight">PENDING</span>.</li>
+            <li><strong>Approval:</strong> Upon approval, the member's <code>points_balance</code> is updated in the
+                profile table (e.g., <code>retailers</code>).</li>
+            <li><strong>Auditing:</strong> A record is inserted into <code>retailer_ledger</code> to track the
+                <code>opening_balance</code> and <code>closing_balance</code> of the transaction.</li>
         </ul>
 
         <h2>3. Redemption & Payout Lifecycle</h2>
         <p>The conversion of virtual points into UPI, Bank, or Amazon rewards.</p>
         <ol>
-            <li><strong>Request Submission:</strong> Points are validated; if sufficient, they are deducted from <code>points_balance</code> and added to <code>total_redeemed</code>.</li>
-            <li><strong>Ledgering:</strong> A <span class="highlight">DEBIT</span> entry is created in the stakeholder's ledger.</li>
-            <li><strong>Redemption Record:</strong> A row is added to <code>redemptions</code> and either <code>redemption_upi</code> or <code>redemption_bank_transfers</code>.</li>
-            <li><strong>Payout Execution:</strong> Admin approval triggers the <code>REDEMPTION_APPROVED</code> handler, which initiates a Razorpay Payout.</li>
-            <li><strong>Finality:</strong> status is updated to <code>SUCCESS</code> and the <code>utr</code> is saved upon webhook receipt.</li>
+            <li><strong>Request Submission:</strong> Points are validated; if sufficient, they are deducted from
+                <code>points_balance</code> and added to <code>total_redeemed</code>.</li>
+            <li><strong>Ledgering:</strong> A <span class="highlight">DEBIT</span> entry is created in the stakeholder's
+                ledger.</li>
+            <li><strong>Redemption Record:</strong> A row is added to <code>redemptions</code> and either
+                <code>redemption_upi</code> or <code>redemption_bank_transfers</code>.</li>
+            <li><strong>Payout Execution:</strong> Admin approval triggers the <code>REDEMPTION_APPROVED</code> handler,
+                which initiates a Razorpay Payout.</li>
+            <li><strong>Finality:</strong> status is updated to <code>SUCCESS</code> and the <code>utr</code> is saved
+                upon webhook receipt.</li>
         </ol>
 
         <h2>4. Replication Guide for Fresh Programs</h2>
         <div class="note">
-            <strong>Seeding Priority:</strong> When starting a fresh program, you MUST seed tables in this order to respect Foreign Key constraints:
+            <strong>Seeding Priority:</strong> When starting a fresh program, you MUST seed tables in this order to
+            respect Foreign Key constraints:
         </div>
-        
+
         <div class="code-block">
             -- 1. Master Configuration<br>
             INSERT INTO approval_statuses (name) VALUES ('KYC_PENDING'), ('ACTIVE');<br>
@@ -107,10 +197,14 @@
 
         <h2>5. System Monitoring</h2>
         <ul>
-            <li><strong>API Health:</strong> Monitor <code>third_party_api_logs</code> for failures in external communications (Razorpay, Amazon).</li>
-            <li><strong>Security:</strong> Check <code>audit_logs</code> for any unauthorized manual point adjustments.</li>
-            <li><strong>Performance:</strong> Aggregated data for the dashboard is derived from the various <code>transactions</code> and <code>transaction_logs</code> tables.</li>
+            <li><strong>API Health:</strong> Monitor <code>third_party_api_logs</code> for failures in external
+                communications (Razorpay, Amazon).</li>
+            <li><strong>Security:</strong> Check <code>audit_logs</code> for any unauthorized manual point adjustments.
+            </li>
+            <li><strong>Performance:</strong> Aggregated data for the dashboard is derived from the various
+                <code>transactions</code> and <code>transaction_logs</code> tables.</li>
         </ul>
     </div>
 </body>
+
 </html>

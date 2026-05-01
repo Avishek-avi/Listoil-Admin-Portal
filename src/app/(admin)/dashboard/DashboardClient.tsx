@@ -71,17 +71,17 @@ export default function DashboardClient() {
         );
     }
 
-        const iconBox = (bg: string, icon: string) => (
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
-                <i className={`${icon} text-white text-sm`}></i>
-            </div>
-        );
+    const iconBox = (bg: string, icon: string) => (
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
+            <i className={`${icon} text-white text-sm`}></i>
+        </div>
+    );
 
 
 
     // -- Chart Configs --
     const charts = dashboardData?.charts;
-    
+
     const lineChartData = {
         labels: charts?.memberGrowth?.labels || [],
         datasets: [
@@ -238,7 +238,7 @@ export default function DashboardClient() {
                             <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.retailer?.kycCompliance ?? 0}%` }}></div>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={() => router.push('/members?type=retailer')}
                         className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
                     >
@@ -280,7 +280,7 @@ export default function DashboardClient() {
                             <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.mechanic?.kycCompliance ?? 0}%` }}></div>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={() => router.push('/members?type=mechanic')}
                         className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
                     >
@@ -297,7 +297,7 @@ export default function DashboardClient() {
                 <div className="widget-card rounded-xl shadow p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Member Growth</h3>
-                        <select 
+                        <select
                             value={growthRange}
                             onChange={(e) => setGrowthRange(e.target.value)}
                             className="text-sm border border-gray-300 rounded px-2 py-1 outline-none"
@@ -317,7 +317,7 @@ export default function DashboardClient() {
                 <div className="widget-card rounded-xl shadow p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">Points Transactions</h3>
-                        <select 
+                        <select
                             value={transactionRange}
                             onChange={(e) => setTransactionRange(e.target.value)}
                             className="text-sm border border-gray-300 rounded px-2 py-1 outline-none"
@@ -370,43 +370,43 @@ export default function DashboardClient() {
                             className="w-full text-left px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg transition flex items-center justify-between group"
                         >
                             <div className="flex items-center">
-                                  <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-user-plus text-white text-xs"></i></div>
-                                  <span className="text-sm font-medium text-gray-700">Add New Member</span>
+                                <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-user-plus text-white text-xs"></i></div>
+                                <span className="text-sm font-medium text-gray-700">Add New Member</span>
                             </div>
-                               <i className="fas fa-chevron-right text-gray-300 group-hover:text-red-500 transition text-xs"></i>
+                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-red-500 transition text-xs"></i>
                         </button>
-                            <button
-                                onClick={() => router.push('/qr-management')}
-                                className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-emerald-50"
-                                style={{background:"rgba(16,185,129,0.05)", border:"1px solid rgba(16,185,129,0.1)"}}
-                            >
+                        <button
+                            onClick={() => router.push('/qr-management')}
+                            className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-emerald-50"
+                            style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.1)" }}
+                        >
                             <div className="flex items-center">
-                                  <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-qrcode text-white text-xs"></i></div>
-                                  <span className="text-sm font-medium text-gray-700">Sync QR Codes</span>
+                                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-qrcode text-white text-xs"></i></div>
+                                <span className="text-sm font-medium text-gray-700">Sync QR Codes</span>
                             </div>
-                               <i className="fas fa-chevron-right text-gray-300 group-hover:text-emerald-500 transition text-xs"></i>
+                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-emerald-500 transition text-xs"></i>
                         </button>
-                            <button
-                                onClick={() => router.push('/schemes-campaigns')}
-                                className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-violet-50"
-                                style={{background:"rgba(139,92,246,0.05)", border:"1px solid rgba(139,92,246,0.1)"}}
-                            >
+                        <button
+                            onClick={() => router.push('/schemes-campaigns')}
+                            className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-violet-50"
+                            style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.1)" }}
+                        >
                             <div className="flex items-center">
-                                  <div className="w-8 h-8 rounded-lg bg-violet-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-bullhorn text-white text-xs"></i></div>
-                                  <span className="text-sm font-medium text-gray-700">Create Campaign</span>
+                                <div className="w-8 h-8 rounded-lg bg-violet-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-bullhorn text-white text-xs"></i></div>
+                                <span className="text-sm font-medium text-gray-700">Create Campaign</span>
                             </div>
-                               <i className="fas fa-chevron-right text-gray-300 group-hover:text-violet-500 transition text-xs"></i>
+                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-violet-500 transition text-xs"></i>
                         </button>
-                            <button
-                                onClick={() => router.push('/mis-analytics?tab=reports')}
-                                className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-orange-50"
-                                style={{background:"rgba(249,115,22,0.05)", border:"1px solid rgba(249,115,22,0.1)"}}
-                            >
+                        <button
+                            onClick={() => router.push('/mis-analytics?tab=reports')}
+                            className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-orange-50"
+                            style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.1)" }}
+                        >
                             <div className="flex items-center">
-                                  <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-chart-line text-white text-xs"></i></div>
-                                  <span className="text-sm font-medium text-gray-700">View Reports</span>
+                                <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-chart-line text-white text-xs"></i></div>
+                                <span className="text-sm font-medium text-gray-700">View Reports</span>
                             </div>
-                               <i className="fas fa-chevron-right text-gray-300 group-hover:text-orange-500 transition text-xs"></i>
+                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-orange-500 transition text-xs"></i>
                         </button>
                     </div>
                 </div>
@@ -497,7 +497,7 @@ export default function DashboardClient() {
                                             <p className="text-sm font-medium">{item.label}</p>
                                             <p className="text-xs text-gray-500">{item.subLabel}</p>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={() => router.push(item.type === 'KYC' ? `/members?type=${item.label.includes('Retailer') ? 'retailer' : 'mechanic'}&kycStatus=Pending` : '/process?tab=1')}
                                             className={`text-xs font-medium hover:underline ${item.type === 'KYC' ? 'text-orange-600' : 'text-red-600'}`}
                                         >

@@ -34,21 +34,25 @@ export default function Layout({ children }: LayoutProps) {
       {/* Sidebar – Desktop */}
       <div className={`sidebar flex-col hidden lg:flex flex-shrink-0 h-screen sticky top-0 transition-all duration-300 ${sidebarExpanded ? 'w-64' : 'w-20'}`} style={{ background: 'var(--sidebar-bg)' }}>
         {/* Logo */}
-        <div className="sidebar-logo-area flex items-center justify-between">
-          {sidebarExpanded && (
+        <div className="sidebar-logo-area flex flex-col items-center justify-center relative py-8 transition-all duration-300 min-h-[140px]">
+          {sidebarExpanded ? (
             <img 
               src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png"
               alt="Listoil Logo"
-              className="h-8 w-auto shrink-0"
+              className="h-16 w-auto shrink-0 transition-all animate-fade-in"
             />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center border border-red-100 animate-fade-in">
+               <i className="fas fa-oil-can text-red-600 text-xl"></i>
+            </div>
           )}
           <button 
             onClick={() => setSidebarExpanded(!sidebarExpanded)}
-            className="shrink-0 p-1.5 rounded-lg transition-colors"
+            className="absolute right-2 top-2 shrink-0 p-1.5 rounded-lg transition-colors hover:bg-gray-100"
             style={{ color: "#64748b" }}
             title={sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}
           >
-            <i className={`fas ${sidebarExpanded ? 'fa-chevron-left' : 'fa-chevron-right'} text-sm`}></i>
+            <i className={`fas ${sidebarExpanded ? 'fa-chevron-left' : 'fa-chevron-right'} text-xs`}></i>
           </button>
         </div>
         {sidebarExpanded && (
@@ -67,13 +71,16 @@ export default function Layout({ children }: LayoutProps) {
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="sidebar-logo-area flex items-center justify-between">
+        <div className="sidebar-logo-area flex flex-col items-center justify-center relative py-8 min-h-[140px]">
           <img 
             src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png"
             alt="Listoil Logo"
-            className="h-8 w-auto"
+            className="h-16 w-auto"
           />
-          <button onClick={() => setMobileOpen(false)} style={{ color: "#64748b" }}>
+          <button 
+            onClick={() => setMobileOpen(false)} 
+            className="absolute right-4 top-4 p-2 text-gray-400 hover:text-gray-600"
+          >
             <i className="fas fa-times text-sm"></i>
           </button>
         </div>

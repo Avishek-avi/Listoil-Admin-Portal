@@ -10,7 +10,8 @@ import {
     userTypeEntity,
     approvalStatuses,
     userTypeLevelMaster,
-    kycDocuments
+    kycDocuments,
+    distributors
 } from "@/db/schema"
 import { desc, eq, and, sql, ilike, count, or, inArray, aliasedTable } from "drizzle-orm"
 import { BUS_EVENTS, emitEvent } from "@/server/rabbitMq/broker"
@@ -73,7 +74,7 @@ export interface MemberHierarchy {
 
 function getInitials(name: string) {
     if (!name) return '??';
-    const parts = name.split(' ');
+    const parts = name.trim().split(/\s+/).filter(Boolean);
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return parts[0].substring(0, 2).toUpperCase();
 }
@@ -118,6 +119,7 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
             retailerKyc: retailers.isKycVerified,
             mechanicKyc: mechanics.isKycVerified,
             counterSalesKyc: counterSales.isKycVerified,
+            distributorKyc: distributors.isKycVerified,
             approvalStatus: approvalStatuses.name,
             retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`
         })
@@ -125,6 +127,7 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
             .leftJoin(retailers, eq(users.id, retailers.userId))
             .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .leftJoin(distributors, eq(users.id, distributors.userId))
             .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
             .$dynamic();
 
@@ -147,9 +150,11 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
                 inArray(sql`LOWER(${retailers.state})`, lowerNames),
                 inArray(sql`LOWER(${mechanics.state})`, lowerNames),
                 inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                inArray(sql`LOWER(${distributors.state})`, lowerNames),
                 inArray(sql`LOWER(${retailers.city})`, lowerNames),
                 inArray(sql`LOWER(${mechanics.city})`, lowerNames),
-                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames),
+                inArray(sql`LOWER(${distributors.city})`, lowerNames)
             ));
         }
 
@@ -165,7 +170,7 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
                 const entityUsers = allUsers.filter(u => u.roleId === entity.id);
 
                 entity.members.list = entityUsers.map(u => {
-                    const isKycVerified = u.retailerKyc ?? u.mechanicKyc ?? u.counterSalesKyc ?? false;
+                    const isKycVerified = u.retailerKyc ?? u.mechanicKyc ?? u.counterSalesKyc ?? (u as any).distributorKyc ?? false;
 
                     return {
                         id: `USR${u.id.toString().padStart(3, '0')}`,
@@ -234,6 +239,9 @@ export async function getMemberDetailsAction(type: string, id: number) {
             } else if (userRecord.roleId === 4) { // Counter Sales
                 const [cs] = await db.select({ val: scope.type === 'State' ? counterSales.state : counterSales.city }).from(counterSales).where(eq(counterSales.userId, id));
                 territoryName = cs?.val || '';
+            } else if (userRecord.roleId === 18) { // Distributor
+                const [d] = await db.select({ val: scope.type === 'State' ? distributors.state : distributors.city }).from(distributors).where(eq(distributors.userId, id));
+                territoryName = d?.val || '';
             }
 
             if (!territoryName || !lowerNames.includes(territoryName.toLowerCase())) {
@@ -243,10 +251,35 @@ export async function getMemberDetailsAction(type: string, id: number) {
 
         // 2. Fetch specific details based on type
         if (normalizedType.includes('retailer')) {
-            const records = await db.select().from(retailers).where(eq(retailers.userId, id));
-            if (records.length > 0) specificRecord = records[0];
+            const records = await db.select({
+                retailer: retailers,
+                distributorName: sql<string>`(SELECT name FROM users WHERE id = ${retailers.attachedDistributorId} LIMIT 1)`
+            })
+            .from(retailers)
+            .where(eq(retailers.userId, id));
+
+            if (records.length > 0) {
+                specificRecord = {
+                    ...records[0].retailer,
+                    mappedDistributor: records[0].distributorName
+                };
+            }
         } else if (normalizedType.includes('mechanic')) {
-            const records = await db.select().from(mechanics).where(eq(mechanics.userId, id));
+            const records = await db.select({
+                mechanic: mechanics,
+                retailerName: sql<string>`(SELECT name FROM users WHERE id = ${mechanics.attachedRetailerId} LIMIT 1)`
+            })
+            .from(mechanics)
+            .where(eq(mechanics.userId, id));
+
+            if (records.length > 0) {
+                specificRecord = {
+                    ...records[0].mechanic,
+                    mappedRetailer: records[0].retailerName
+                };
+            }
+        } else if (normalizedType.includes('distributor')) {
+            const records = await db.select().from(distributors).where(eq(distributors.userId, id));
             if (records.length > 0) specificRecord = records[0];
         } else if (normalizedType.includes('counter staff')) {
             const records = await db.select({
@@ -426,13 +459,15 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
                 baseConditions.push(or(
                     inArray(sql`LOWER(${retailers.state})`, lowerNames),
                     inArray(sql`LOWER(${mechanics.state})`, lowerNames),
-                    inArray(sql`LOWER(${counterSales.state})`, lowerNames)
+                    inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                    inArray(sql`LOWER(${distributors.state})`, lowerNames)
                 ));
             } else {
                 baseConditions.push(or(
                     inArray(sql`LOWER(${retailers.city})`, lowerNames),
                     inArray(sql`LOWER(${mechanics.city})`, lowerNames),
-                    inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                    inArray(sql`LOWER(${counterSales.city})`, lowerNames),
+                    inArray(sql`LOWER(${distributors.city})`, lowerNames)
                 ));
             }
         }
@@ -470,16 +505,18 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             retailerKyc: retailers.isKycVerified,
             mechanicKyc: mechanics.isKycVerified,
             counterSalesKyc: counterSales.isKycVerified,
+            distributorKyc: distributors.isKycVerified,
             approvalStatus: approvalStatuses.name,
             approvalStatusId: users.approvalStatusId,
             retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`,
-            aadhaar: sql<string>`COALESCE(${retailers.aadhaar}, ${mechanics.aadhaar}, ${counterSales.aadhaar})`,
-            pan: sql<string>`COALESCE(${retailers.pan}, ${mechanics.pan}, ${counterSales.pan})`
+            aadhaar: sql<string>`COALESCE(${retailers.aadhaar}, ${mechanics.aadhaar}, ${counterSales.aadhaar}, ${distributors.aadhaar})`,
+            pan: sql<string>`COALESCE(${retailers.pan}, ${mechanics.pan}, ${counterSales.pan}, ${distributors.pan})`
         })
             .from(users)
             .leftJoin(retailers, eq(users.id, retailers.userId))
             .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .leftJoin(distributors, eq(users.id, distributors.userId))
             .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
             .where(and(...baseConditions))
             .limit(limit)
@@ -489,7 +526,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
         const fetchedUsers = await listQuery;
 
         const list = fetchedUsers.map(u => {
-            const isKycVerified = u.retailerKyc ?? u.mechanicKyc ?? u.counterSalesKyc ?? false;
+            const isKycVerified = u.retailerKyc ?? u.mechanicKyc ?? u.counterSalesKyc ?? (u as any).distributorKyc ?? false;
 
             return {
                 id: `USR${u.id.toString().padStart(3, '0')}`,
@@ -727,6 +764,7 @@ export async function createMemberAction(formData: any) {
             17: 'SALES HEAD',
             15: 'TSM',
             16: 'SR',
+            18: 'DISTRIBUTOR',
             3: 'MECHANIC',
             2: 'RETAILER'
         };
@@ -740,10 +778,14 @@ export async function createMemberAction(formData: any) {
             }
         } else if (creatorRole === 'TSM' && targetRoleName !== 'SR') {
             throw new Error("TSMs can only create Sales Representatives.");
+        } else if (creatorRole === 'SR' && targetRoleName !== 'DISTRIBUTOR') {
+            // SRs create Distributors
+            // throw new Error("SRs can only create Distributors."); 
+            // Wait, the user might want SR to create Retailers too.
         }
         if (creatorRole === 'SR') {
-            if (!['MECHANIC', 'RETAILER'].includes(targetRoleName)) {
-                throw new Error("SRs can only create Mechanics or Retailers.");
+            if (!['MECHANIC', 'RETAILER', 'DISTRIBUTOR'].includes(targetRoleName)) {
+                throw new Error("SRs can only create Distributors, Retailers or Mechanics.");
             }
             // Validate city is within SR territory
             if (city) {
@@ -767,11 +809,25 @@ export async function createMemberAction(formData: any) {
             throw new Error("A Mechanic must be mapped to an existing Retailer.");
         }
 
+        // Validate attached distributor for Retailers
+        const attachedDistributorId = formData.attachedDistributorId;
+        if (targetRoleName === 'RETAILER' && !attachedDistributorId) {
+            throw new Error("A Retailer must be mapped to an existing Distributor.");
+        }
+
         // Check if attached retailer exists if provided
         if (attachedRetailerId) {
             const retailerExists = await db.select().from(users).where(and(eq(users.id, Number(attachedRetailerId)), eq(users.roleId, 2))).limit(1);
             if (retailerExists.length === 0) {
                 throw new Error("The selected retailer for mapping is invalid or does not exist.");
+            }
+        }
+
+        // Check if attached distributor exists if provided
+        if (attachedDistributorId) {
+            const distributorExists = await db.select().from(users).where(and(eq(users.id, Number(attachedDistributorId)), eq(users.roleId, 18))).limit(1);
+            if (distributorExists.length === 0) {
+                throw new Error("The selected distributor for mapping is invalid or does not exist.");
             }
         }
 
@@ -793,7 +849,7 @@ export async function createMemberAction(formData: any) {
             
             // Set initial status
             let approvalStatusId = 20; // ACTIVE for internal roles
-            if (['MECHANIC', 'RETAILER'].includes(targetRoleName)) {
+            if (['MECHANIC', 'RETAILER', 'DISTRIBUTOR'].includes(targetRoleName)) {
                 approvalStatusId = 15; // KYC_PENDING for members
             }
 
@@ -860,7 +916,29 @@ export async function createMemberAction(formData: any) {
                     bankAccountName,
                     upiId,
                     kycDocuments: docs || {},
-                    onboardingTypeId: 1
+                    onboardingTypeId: 1,
+                    attachedDistributorId: attachedDistributorId ? Number(attachedDistributorId) : null,
+                });
+            } else if (targetRoleName === 'DISTRIBUTOR') {
+                const sapCustomerCode = formData.sapCustomerCode;
+                await tx.insert(distributors).values({
+                    userId: newUser.id,
+                    uniqueId: `DIST${newUser.id}${Date.now().toString().slice(-4)}`,
+                    name,
+                    phone,
+                    email,
+                    aadhaar: aadhaar || 'NA',
+                    pan: finalPan,
+                    gst,
+                    city,
+                    district,
+                    state,
+                    pincode,
+                    addressLine1,
+                    addressLine2,
+                    shopName: shopName || name,
+                    onboardingTypeId: 1,
+                    sapCustomerCode
                 });
             }
 
@@ -1111,6 +1189,35 @@ export async function getRetailersByCityAction(city: string) {
         return result;
     } catch (error) {
         console.error("Error getting retailers by city:", error);
+        return [];
+    }
+}
+
+export async function getDistributorsByCityAction(city: string) {
+    try {
+        const session = await auth();
+        const userId = Number(session?.user?.id);
+        const userScope = await getUserScope(userId);
+        
+        if (userScope.role.toUpperCase() === 'SR') {
+            const isAssigned = userScope.entityNames.some(c => c.toUpperCase() === city.toUpperCase());
+            if (!isAssigned) return [];
+        }
+
+        const result = await db.select({
+            id: users.id,
+            name: users.name,
+            shopName: distributors.shopName
+        })
+        .from(users)
+        .innerJoin(distributors, eq(users.id, distributors.userId))
+        .where(and(
+            eq(sql`UPPER(${distributors.city})`, city.toUpperCase()),
+            eq(users.roleId, 18) // Distributor Role ID
+        ));
+        return result;
+    } catch (error) {
+        console.error("Error getting distributors by city:", error);
         return [];
     }
 }

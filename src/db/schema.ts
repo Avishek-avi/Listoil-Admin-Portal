@@ -363,6 +363,37 @@ export const locationEntityPincode = pgTable("location_entity_pincode", {
 	}),
 ]);
 
+export const distributors = pgTable("distributors", {
+	id: serial().primaryKey().notNull(),
+	userId: integer("user_id").notNull(),
+	uniqueId: text("unique_id").notNull(),
+	name: text(),
+	phone: text().notNull(),
+	email: text(),
+	aadhaar: text(),
+	pan: text(),
+	gst: text(),
+	city: text(),
+	district: text(),
+	state: text(),
+	onboardingTypeId: integer("onboarding_type_id").notNull(),
+	shopName: text("shop_name"),
+	addressLine1: text("address_line_1"),
+	addressLine2: text("address_line_2"),
+	pincode: text(),
+	sapCustomerCode: text("sap_customer_code"),
+	isKycVerified: boolean("is_kyc_verified").default(false),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+	foreignKey({
+		columns: [table.userId],
+		foreignColumns: [users.id],
+		name: "distributors_user_id_fkey"
+	}),
+	unique("distributors_unique_id_key").on(table.uniqueId),
+	unique("distributors_phone_key").on(table.phone),
+]);
+
 export const mechanics = pgTable("mechanics", {
 	id: serial().primaryKey().notNull(),
 	userId: integer("user_id").notNull(),
@@ -901,11 +932,17 @@ export const retailers = pgTable("retailers", {
 	pincode: text(),
 	redeemablePoints: numeric("redeemable_points", { precision: 10, scale: 2 }).default('0'),
 	aadhaarAddress: text("aadhaar_address"),
+	attachedDistributorId: integer("attached_distributor_id"),
 }, (table) => [
 	foreignKey({
 		columns: [table.userId],
 		foreignColumns: [users.id],
 		name: "retailers_user_id_fkey"
+	}),
+	foreignKey({
+		columns: [table.attachedDistributorId],
+		foreignColumns: [users.id],
+		name: "retailers_attached_distributor_id_fkey"
 	}),
 	unique("retailers_unique_id_key").on(table.uniqueId),
 	unique("retailers_phone_key").on(table.phone),
