@@ -469,7 +469,7 @@ export default function MembersClient() {
             <div className="tabs mb-4 px-1">
                 {filteredLevels.map((level: any, index: number) => (
                     <button
-                        key={level.id}
+                        key={level.displayName || index}
                         className={`tab ${levelTab === index ? 'active' : ''}`}
                         onClick={() => handleLevelChange(index)}
                         style={{ fontSize: '0.9rem', padding: '8px 24px' }}
@@ -483,7 +483,7 @@ export default function MembersClient() {
             <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide px-1">
                 {currentLevel.entities.map((entity: any, index: number) => (
                     <button
-                        key={entity.id}
+                        key={entity.id || index}
                         onClick={() => { setEntityTab(index); setPage(1); }}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${activeEntityTab === index
                             ? 'bg-red-600 text-white shadow-md'
@@ -975,7 +975,7 @@ export default function MembersClient() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {kycDocuments.map((doc: any, idx: number) => (
-                                        <div key={idx}>
+                                        <div key={doc.id || idx}>
                                             <p className="text-sm font-medium mb-1">{doc.documentType}</p>
                                             <div
                                                 onClick={() => handleViewDocument(doc.signedUrl, doc.documentType)}
@@ -1691,8 +1691,8 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                         { label: 'Aadhaar Front', type: 'aadhaar_front' },
                                         { label: 'Aadhaar Back', type: 'aadhaar_back' },
                                         { label: 'PAN Image', type: 'pan' }
-                                    ].map(doc => (
-                                        <div key={doc.type} className="space-y-2">
+                                    ].map((doc, idx) => (
+                                        <div key={doc.type || idx} className="space-y-2">
                                             <label className="text-[10px] font-bold text-gray-500 uppercase">{doc.label}</label>
                                             <div className="relative group">
                                                 <input 

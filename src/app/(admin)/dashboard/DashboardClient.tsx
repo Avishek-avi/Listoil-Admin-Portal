@@ -44,56 +44,61 @@ export default function DashboardClient() {
     // -- State for Charts & Filters --
     const [growthRange, setGrowthRange] = useState('7d');
     const [transactionRange, setTransactionRange] = useState('7d');
+    const [performerTab, setPerformerTab] = useState<'retailer' | 'mechanic'>('retailer');
 
     // -- Fetch Dashboard Data --
     const { data: dashboardData, isLoading, error } = useQuery({
         queryKey: ['dashboard-data', growthRange, transactionRange],
         queryFn: () => getDashboardDataAction({ growthRange, transactionRange }),
-        // Poll every 30 seconds for live-like updates
         refetchInterval: 30000
     });
 
-
-
     if (sessionStatus === "loading" || isLoading) {
         return (
-            <div className="flex justify-center p-8">
+            <div className="flex justify-center p-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
             </div>
         );
     }
 
-    if (error) {
+    if (error || dashboardData?.error) {
         return (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                Failed to load dashboard data. Please try again later.
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg m-6">
+                <p className="font-bold">Failed to load dashboard data</p>
+                <p className="text-xs mt-1 text-red-500 font-mono">
+                    {error?.message || dashboardData?.errorMessage || "An unknown error occurred"}
+                </p>
             </div>
         );
     }
 
-    const iconBox = (bg: string, icon: string) => (
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
-            <i className={`${icon} text-white text-sm`}></i>
-        </div>
-    );
-
-
-
     // -- Chart Configs --
     const charts = dashboardData?.charts;
-
+    
     const lineChartData = {
         labels: charts?.memberGrowth?.labels || [],
         datasets: [
             {
-                label: "New Members",
-                data: charts?.memberGrowth?.data || [],
+                label: "Retailers",
+                data: charts?.memberGrowth?.retailer || [],
                 borderColor: "#D6001C",
                 backgroundColor: "rgba(214, 0, 28, 0.1)",
                 tension: 0.4,
                 fill: true,
                 pointRadius: 4,
-                pointBackgroundColor: "#D6001C"
+                pointBackgroundColor: "#D6001C",
+                yAxisID: 'y',
+            },
+            {
+                label: "Mechanics",
+                data: charts?.memberGrowth?.mechanic || [],
+                borderColor: "#0957C3",
+                backgroundColor: "rgba(9, 87, 195, 0.1)",
+                tension: 0.4,
+                fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: "#0957C3",
+                yAxisID: 'y1',
             },
         ],
     };
@@ -101,11 +106,50 @@ export default function DashboardClient() {
     const lineChartOptions = {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+            mode: 'index' as const,
+            intersect: false,
+        },
         plugins: {
-            legend: { display: false },
+            legend: { 
+                display: true, 
+                position: 'bottom' as const,
+                labels: {
+                    usePointStyle: true,
+                    pointStyle: 'rectRounded',
+                    boxWidth: 8,
+                    padding: 20,
+                    font: { size: 10, weight: 'bold' as any }
+                }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                titleColor: '#111827',
+                bodyColor: '#4b5563',
+                borderColor: '#e5e7eb',
+                borderWidth: 1,
+                padding: 10,
+                displayColors: true,
+                usePointStyle: true,
+            }
         },
         scales: {
-            y: { beginAtZero: true, grid: { display: false } },
+            y: { 
+                type: 'linear' as const,
+                display: true,
+                position: 'left' as const,
+                beginAtZero: true, 
+                grid: { display: true, color: '#f3f4f6' },
+                title: { display: true, text: 'Retailers', font: { size: 10, weight: 'bold' as any } }
+            },
+            y1: {
+                type: 'linear' as const,
+                display: true,
+                position: 'right' as const,
+                beginAtZero: true,
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: 'Mechanics', font: { size: 10, weight: 'bold' as any } }
+            },
             x: { grid: { display: false } },
         },
     };
@@ -114,16 +158,28 @@ export default function DashboardClient() {
         labels: charts?.pointsTransactions?.labels || [],
         datasets: [
             {
-                label: "Points Earned",
-                data: charts?.pointsTransactions?.earned || [],
-                backgroundColor: "#0957C3",
+                label: "Retailer Points Issued",
+                data: charts?.pointsTransactions?.retailer || [],
+                backgroundColor: "#9D66FF",
                 borderRadius: 4,
+                barPercentage: 0.8,
+                categoryPercentage: 0.8,
+            },
+            {
+                label: "Mechanic Points Issued",
+                data: charts?.pointsTransactions?.mechanic || [],
+                backgroundColor: "#5C93FF",
+                borderRadius: 4,
+                barPercentage: 0.8,
+                categoryPercentage: 0.8,
             },
             {
                 label: "Points Redeemed",
                 data: charts?.pointsTransactions?.redeemed || [],
-                backgroundColor: "#D6001C",
+                backgroundColor: "#FF9552",
                 borderRadius: 4,
+                barPercentage: 0.8,
+                categoryPercentage: 0.8,
             },
         ],
     };
@@ -132,392 +188,445 @@ export default function DashboardClient() {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: true, position: "bottom" as const },
+            legend: { 
+                display: true, 
+                position: "bottom" as const, 
+                labels: { 
+                    usePointStyle: true,
+                    pointStyle: 'rectRounded',
+                    boxWidth: 8, 
+                    padding: 20,
+                    font: { size: 10, weight: 'bold' as any } 
+                } 
+            },
+            tooltip: {
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                titleColor: '#111827',
+                bodyColor: '#4b5563',
+                borderColor: '#e5e7eb',
+                borderWidth: 1,
+                padding: 10,
+                displayColors: true,
+                usePointStyle: true,
+            }
         },
         scales: {
-            y: { beginAtZero: true, grid: { display: false } },
-            x: { grid: { display: false } },
+            y: { 
+                beginAtZero: true, 
+                grid: { display: true, color: '#f3f4f6' },
+                ticks: {
+                    callback: (value: any) => {
+                        if (value >= 1000) return (value / 1000) + 'K';
+                        return value;
+                    },
+                    font: { size: 10 }
+                }
+            },
+            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
         },
     };
 
-
     const stats = dashboardData?.stats;
-
-    // Calculate percentages for bars
     const activePercent = stats?.totalMembers ? Math.round((stats.activeMembers / stats.totalMembers) * 100) : 0;
-    const blockedPercent = stats?.totalMembers ? Math.round((stats.blockedMembers / stats.totalMembers) * 100) : 0;
-    const kycPercent = stats?.totalMembers ? Math.round((stats.kycApproved / stats.totalMembers) * 100) : 0;
+
+    // Formatting Helpers
+    const formatPoints = (val: number) => {
+        if (!val) return '0';
+        if (val >= 100000) return `${(val / 100000).toFixed(1)}L`;
+        if (val >= 1000) return `${(val / 1000).toFixed(1)}K`;
+        return val.toLocaleString();
+    };
+
+    const formatCurrency = (val: number) => {
+        if (!val) return '₹0';
+        if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)}Cr`;
+        if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
+        if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
+        return `₹${val.toLocaleString()}`;
+    };
 
     return (
-        <div>
-            {/* Dashboard Content */}
+        <div className="space-y-6">
+            {/* ① Context & Filter Bar */}
+            <div className="widget-card rounded-xl p-4 bg-white shadow-sm border border-gray-100">
+                <div className="flex flex-wrap gap-4 items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-xs font-bold flex items-center gap-2">
+                            <i className="fas fa-user-shield"></i> Admin View
+                        </div>
+                        <div className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold flex items-center gap-1">
+                            <i className="fas fa-globe"></i> National
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3 items-center">
+                        <div className="flex items-center gap-2">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">Growth</label>
+                            <select 
+                                value={growthRange}
+                                onChange={(e) => setGrowthRange(e.target.value)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none"
+                            >
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                                <option value="90d">Last Quarter</option>
+                                <option value="365d">Last Year</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">Points</label>
+                            <select 
+                                value={transactionRange}
+                                onChange={(e) => setTransactionRange(e.target.value)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none"
+                            >
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d">Last 30 Days</option>
+                                <option value="90d">Last Quarter</option>
+                                <option value="365d">Last Year</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            {/* ② Program Health KPIs (6 compact cards) */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg">
+            {/* ② Top Level Health KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-stretch">
+                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg bg-white border border-gray-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-400">Total Enrolled</span>
-                        <i className="fas fa-users text-red-500 text-sm"></i>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Total Members</span>
+                        <i className="fas fa-users text-blue-500 text-xs"></i>
                     </div>
                     <p className="text-xl font-bold text-gray-900">{stats?.totalMembers?.toLocaleString() ?? 0}</p>
-                    <p className="text-xs text-green-600 mt-1"><i className="fas fa-arrow-up mr-1"></i>+0 this week</p>
+                    <p className="text-[10px] text-green-600 font-bold mt-1 flex items-center gap-1">
+                        <i className="fas fa-arrow-up"></i> +0.0%
+                    </p>
                 </div>
-                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg">
+                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg bg-white border border-gray-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-400">Active (30d)</span>
-                        <i className="fas fa-user-check text-green-500 text-sm"></i>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Active (30d)</span>
+                        <i className="fas fa-user-check text-green-500 text-xs"></i>
                     </div>
                     <p className="text-xl font-bold text-gray-900">{stats?.activeMembers?.toLocaleString() ?? 0}</p>
-                    <p className="text-xs text-gray-400 mt-1">{activePercent}% engagement</p>
+                    <p className="text-[10px] text-gray-400 font-medium mt-1">{activePercent}% active</p>
                 </div>
-                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg">
+                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg bg-white border border-gray-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-400">Points Issued</span>
-                        <i className="fas fa-coins text-yellow-500 text-sm"></i>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Points Issued</span>
+                        <i className="fas fa-coins text-yellow-500 text-xs"></i>
                     </div>
                     <p className="text-xl font-bold text-gray-900">{stats?.totalPointsIssued?.toLocaleString() ?? 0}</p>
-                    <p className="text-xs text-green-600 mt-1"><i className="fas fa-arrow-up mr-1"></i>+0%</p>
+                    <p className="text-[10px] text-green-600 font-bold mt-1 flex items-center gap-1">
+                        <i className="fas fa-arrow-up"></i> +0.0%
+                    </p>
                 </div>
-                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg">
+                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg bg-white border border-gray-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-400">Redeemed</span>
-                        <i className="fas fa-gift text-purple-500 text-sm"></i>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Redeemed</span>
+                        <i className="fas fa-gift text-purple-500 text-xs"></i>
                     </div>
                     <p className="text-xl font-bold text-gray-900">{stats?.pointsRedeemed?.toLocaleString() ?? 0}</p>
-                    <p className="text-xs text-gray-400 mt-1">-- burn rate</p>
+                    <p className="text-[10px] text-gray-400 font-medium mt-1">-- burn rate</p>
                 </div>
-                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg">
+                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg bg-white border border-gray-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-400">KYC Pending</span>
-                        <i className="fas fa-clock text-orange-500 text-sm"></i>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">KYC Pending</span>
+                        <i className="fas fa-clock text-orange-500 text-xs"></i>
                     </div>
                     <p className="text-xl font-bold text-orange-500">{stats?.kycPending?.toLocaleString() ?? 0}</p>
-                    <p className="text-xs text-red-500 mt-1"><i className="fas fa-exclamation-circle mr-1"></i>-- urgent</p>
+                    <p className="text-[10px] text-red-500 font-bold mt-1">Urgent Action</p>
                 </div>
-                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg">
+                <div className="widget-card rounded-xl p-4 transition hover:-translate-y-1 hover:shadow-lg bg-white border border-gray-100">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-400">Redemption Q</span>
-                        <i className="fas fa-hourglass-half text-red-500 text-sm"></i>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Redemptions</span>
+                        <i className="fas fa-hourglass-half text-red-500 text-xs"></i>
                     </div>
                     <p className="text-xl font-bold text-red-500">{dashboardData?.pendingApprovalsCount ?? 0}</p>
-                    <p className="text-xs text-gray-400 mt-1">Pending approval</p>
+                    <p className="text-[10px] text-gray-400 font-medium mt-1">Awaiting review</p>
                 </div>
             </div>
 
-            {/* ③ Segment Overview (Retailers vs Mechanics) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                {/* Retailer Segment */}
-                <div className="widget-card rounded-xl p-6 transition hover:shadow-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-gray-900">Retailer Overview</h3>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">Invoice Based</span>
+            {/* ③ Segment Overview: Retailers vs Mechanics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                {/* Retailer Card */}
+                <div className="widget-card rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden flex flex-col transition hover:shadow-md">
+                    <div className="p-6 flex-1 flex flex-col">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                                    <i className="fas fa-store text-red-600 text-lg"></i>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 leading-tight">Retailers</h3>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Invoice Sync · Points via Purchase</p>
+                                </div>
+                            </div>
+                            <span className="px-3 py-1 bg-red-50 text-red-600 text-[10px] font-bold rounded-full border border-red-100 uppercase tracking-wider">Invoice-based</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 flex-1">
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Enrolled</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{dashboardData?.segments?.retailer?.total?.toLocaleString() ?? 0}</p>
+                                <p className="text-[10px] text-green-600 font-bold mt-2 flex items-center gap-1">
+                                    <i className="fas fa-arrow-up text-[8px]"></i> +0 this month
+                                </p>
+                            </div>
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Active (Invoiced)</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{dashboardData?.segments?.retailer?.active?.toLocaleString() ?? 0}</p>
+                                <p className="text-[10px] text-gray-400 font-medium mt-2">
+                                    {dashboardData?.segments?.retailer?.total ? Math.round((dashboardData.segments.retailer.active / dashboardData.segments.retailer.total) * 100) : 0}% active rate
+                                </p>
+                            </div>
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Invoice Value</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{formatCurrency(dashboardData?.segments?.retailer?.invoiceValue)}</p>
+                                <p className="text-[10px] text-green-600 font-bold mt-2 flex items-center gap-1">
+                                    <i className="fas fa-arrow-up text-[8px]"></i> +0% vs last mo
+                                </p>
+                            </div>
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Points Issued</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{formatPoints(dashboardData?.segments?.retailer?.points)}</p>
+                                <p className="text-[10px] text-gray-400 font-medium mt-2">via automated sync</p>
+                            </div>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="p-3 bg-red-50 rounded-lg">
-                            <p className="text-xs text-gray-500">Total Points Issued</p>
-                            <p className="text-xl font-bold text-red-600">{dashboardData?.segments?.retailer?.points?.toLocaleString() ?? 0}</p>
+                    <div className="px-6 py-3.5 bg-gray-50/80 border-t border-gray-100 flex flex-wrap items-center gap-5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                            KYC Approved: <span className="text-gray-900">{dashboardData?.segments?.retailer?.kyc?.approved ?? 0}</span>
                         </div>
-                        <div className="p-3 bg-green-50 rounded-lg">
-                            <p className="text-xs text-gray-500">Total Retailers</p>
-                            <p className="text-xl font-bold text-green-600">{dashboardData?.segments?.retailer?.total ?? 0}</p>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                            <div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div>
+                            KYC Pending: <span className="text-gray-900">{dashboardData?.segments?.retailer?.kyc?.pending ?? 0}</span>
                         </div>
-                    </div>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">Active Retailers</span>
-                            <span className="font-semibold">{dashboardData?.segments?.retailer?.active ?? 0}</span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-red-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.retailer?.total ? (dashboardData.segments.retailer.active / dashboardData.segments.retailer.total) * 100 : 0}%` }}></div>
-                        </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">KYC Compliance</span>
-                            <span className="font-semibold">{dashboardData?.segments?.retailer?.kycCompliance ?? 0}%</span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.retailer?.kycCompliance ?? 0}%` }}></div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                            Blocked: <span className="text-gray-900">{dashboardData?.segments?.retailer?.kyc?.blocked ?? 0}</span>
                         </div>
                     </div>
-                    <button
-                        onClick={() => router.push('/members?type=retailer')}
-                        className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
-                    >
-                        View Detailed Analytics
-                    </button>
-
-
                 </div>
 
-                {/* Mechanic Segment */}
-                <div className="widget-card rounded-xl p-6 transition hover:shadow-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-gray-900">Mechanic Overview</h3>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-semibold">Scan Based</span>
+                {/* Mechanic Card */}
+                <div className="widget-card rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden flex flex-col transition hover:shadow-md">
+                    <div className="p-6 flex-1 flex flex-col">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+                                    <i className="fas fa-user-gear text-blue-600 text-lg"></i>
+                                </div>
+                                Exception and QR Scan · Points per Scan
+                            </div>
+                            <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 uppercase tracking-wider">Scan-based</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 flex-1">
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Enrolled</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{dashboardData?.segments?.mechanic?.total?.toLocaleString() ?? 0}</p>
+                                <p className="text-[10px] text-green-600 font-bold mt-2 flex items-center gap-1">
+                                    <i className="fas fa-arrow-up text-[8px]"></i> +0 this month
+                                </p>
+                            </div>
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Active (Scanned)</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{dashboardData?.segments?.mechanic?.active?.toLocaleString() ?? 0}</p>
+                                <p className="text-[10px] text-gray-400 font-medium mt-2">
+                                    {dashboardData?.segments?.mechanic?.total ? Math.round((dashboardData.segments.mechanic.active / dashboardData.segments.mechanic.total) * 100) : 0}% active rate
+                                </p>
+                            </div>
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">QR Scans (30d)</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{dashboardData?.segments?.mechanic?.qrScans30d?.toLocaleString() ?? 0}</p>
+                                <p className="text-[10px] text-green-600 font-bold mt-2 flex items-center gap-1">
+                                    <i className="fas fa-arrow-up text-[8px]"></i> +0% this period
+                                </p>
+                            </div>
+                            <div className="bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Points Issued</p>
+                                <p className="text-2xl font-bold text-gray-900 leading-none">{formatPoints(dashboardData?.segments?.mechanic?.points)}</p>
+                                <p className="text-[10px] text-gray-400 font-medium mt-2">via QR scan validation</p>
+                            </div>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div className="p-3 bg-orange-50 rounded-lg">
-                            <p className="text-xs text-gray-500">Scan Points Issued</p>
-                            <p className="text-xl font-bold text-orange-600">{dashboardData?.segments?.mechanic?.points?.toLocaleString() ?? 0}</p>
+                    <div className="px-6 py-3.5 bg-gray-50/80 border-t border-gray-100 flex flex-wrap items-center gap-5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                            KYC Approved: <span className="text-gray-900">{dashboardData?.segments?.mechanic?.kyc?.approved ?? 0}</span>
                         </div>
-                        <div className="p-3 bg-teal-50 rounded-lg">
-                            <p className="text-xs text-gray-500">Total Scans</p>
-                            <p className="text-xl font-bold text-teal-600">{stats?.totalScans?.toLocaleString() ?? 0}</p>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                            <div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div>
+                            KYC Pending: <span className="text-gray-900">{dashboardData?.segments?.mechanic?.kyc?.pending ?? 0}</span>
                         </div>
-                    </div>
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">Active Mechanics</span>
-                            <span className="font-semibold">{dashboardData?.segments?.mechanic?.active?.toLocaleString() ?? 0}</span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.mechanic?.total ? (dashboardData.segments.mechanic.active / dashboardData.segments.mechanic.total) * 100 : 0}%` }}></div>
-                        </div>
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">KYC Compliance</span>
-                            <span className="font-semibold">{dashboardData?.segments?.mechanic?.kycCompliance ?? 0}%</span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${dashboardData?.segments?.mechanic?.kycCompliance ?? 0}%` }}></div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-tight">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                            Blocked: <span className="text-gray-900">{dashboardData?.segments?.mechanic?.kyc?.blocked ?? 0}</span>
                         </div>
                     </div>
-                    <button
-                        onClick={() => router.push('/members?type=mechanic')}
-                        className="w-full mt-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
-                    >
-                        View Detailed Analytics
-                    </button>
-
-
                 </div>
             </div>
 
-            {/* ④ CHARTS ROW */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                {/* Member Growth Chart */}
-                <div className="widget-card rounded-xl shadow p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Member Growth</h3>
-                        <select
-                            value={growthRange}
-                            onChange={(e) => setGrowthRange(e.target.value)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 outline-none"
-                        >
-                            <option value="7d">Last 7 days</option>
-                            <option value="30d">Last 30 days</option>
-                            <option value="90d">Last 3 months</option>
-                            <option value="365d">Last year</option>
-                        </select>
+            {/* ④ Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="widget-card rounded-xl p-6 bg-white shadow-sm border border-gray-100 relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-tight">Enrollment Trend</h3>
+                            <p className="text-[10px] text-gray-400 font-bold">Retailers vs Mechanics registrations</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">Live Trend</span>
+                        </div>
                     </div>
-                    <div className="h-64">
+                    <div className="h-72">
                         <Line data={lineChartData} options={lineChartOptions} />
                     </div>
                 </div>
-
-                {/* Points Transaction Chart */}
-                <div className="widget-card rounded-xl shadow p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Points Transactions</h3>
-                        <select
-                            value={transactionRange}
-                            onChange={(e) => setTransactionRange(e.target.value)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 outline-none"
-                        >
-                            <option value="7d">Last 7 days</option>
-                            <option value="30d">Last 30 days</option>
-                            <option value="90d">Last 3 months</option>
-                            <option value="365d">Last year</option>
-                        </select>
+                <div className="widget-card rounded-xl p-6 bg-white shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-tight">Points Flow by Segment</h3>
+                            <p className="text-[10px] text-gray-400 font-bold">Issued (Retailer + Mechanic) vs Redeemed</p>
+                        </div>
                     </div>
-
-                    <div className="h-64">
+                    <div className="h-72">
                         <Bar data={barChartData} options={barChartOptions} />
                     </div>
                 </div>
             </div>
 
-            {/* Admin Activity Overview (New Section) */}
-            <div className="mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Internal Admin Oversight</h3>
-                    <div className="h-px flex-1 bg-gray-100"></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="widget-card rounded-xl p-4 bg-gray-50/50 border-dashed border-2 border-gray-200">
-                        <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-gray-400">Registered Admins</span>
-                            <i className="fas fa-user-shield text-gray-400 text-xs"></i>
+            {/* ⑤ Bottom Row: Top Performers | Pending Actions | Activity Feed */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-6 items-stretch">
+                {/* Top Performers Card */}
+                <div className="widget-card rounded-xl p-6 bg-white shadow-sm border border-gray-100 flex flex-col">
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-lg font-bold text-gray-900">Top Performers</h3>
+                        <div className="flex p-1 bg-gray-50 rounded-xl border border-gray-100">
+                            <button 
+                                onClick={() => setPerformerTab('retailer')}
+                                className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200 ${performerTab === 'retailer' ? 'bg-red-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Retailers
+                            </button>
+                            <button 
+                                onClick={() => setPerformerTab('mechanic')}
+                                className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200 ${performerTab === 'mechanic' ? 'bg-red-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Mechanics
+                            </button>
                         </div>
-                        <p className="text-lg font-bold text-gray-700">{dashboardData?.adminStats?.totalAdmins ?? 0}</p>
                     </div>
-                    <div className="widget-card rounded-xl p-4 bg-gray-50/50 border-dashed border-2 border-gray-200">
-                        <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-gray-400">Active Admin Sessions</span>
-                            <i className="fas fa-key text-gray-400 text-xs"></i>
-                        </div>
-                        <p className="text-lg font-bold text-gray-700">{dashboardData?.adminStats?.activeAdmins ?? 0}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* 4. QUICK ACTIONS & RECENT TRANSACTIONS */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                {/* Quick Actions */}
-                <div className="widget-card rounded-xl shadow p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                    <div className="space-y-3">
-                        <button
-                            onClick={() => router.push('/members')}
-                            className="w-full text-left px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg transition flex items-center justify-between group"
-                        >
-                            <div className="flex items-center">
-                                <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-user-plus text-white text-xs"></i></div>
-                                <span className="text-sm font-medium text-gray-700">Add New Member</span>
-                            </div>
-                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-red-500 transition text-xs"></i>
-                        </button>
-                        <button
-                            onClick={() => router.push('/qr-management')}
-                            className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-emerald-50"
-                            style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.1)" }}
-                        >
-                            <div className="flex items-center">
-                                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-qrcode text-white text-xs"></i></div>
-                                <span className="text-sm font-medium text-gray-700">Sync QR Codes</span>
-                            </div>
-                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-emerald-500 transition text-xs"></i>
-                        </button>
-                        <button
-                            onClick={() => router.push('/schemes-campaigns')}
-                            className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-violet-50"
-                            style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.1)" }}
-                        >
-                            <div className="flex items-center">
-                                <div className="w-8 h-8 rounded-lg bg-violet-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-bullhorn text-white text-xs"></i></div>
-                                <span className="text-sm font-medium text-gray-700">Create Campaign</span>
-                            </div>
-                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-violet-500 transition text-xs"></i>
-                        </button>
-                        <button
-                            onClick={() => router.push('/mis-analytics?tab=reports')}
-                            className="w-full text-left px-4 py-3 rounded-lg transition flex items-center justify-between group hover:bg-orange-50"
-                            style={{ background: "rgba(249,115,22,0.05)", border: "1px solid rgba(249,115,22,0.1)" }}
-                        >
-                            <div className="flex items-center">
-                                <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center mr-3 flex-shrink-0"><i className="fas fa-chart-line text-white text-xs"></i></div>
-                                <span className="text-sm font-medium text-gray-700">View Reports</span>
-                            </div>
-                            <i className="fas fa-chevron-right text-gray-300 group-hover:text-orange-500 transition text-xs"></i>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Recent Transactions Table */}
-                <div className="widget-card rounded-xl shadow p-6 lg:col-span-2">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Recent Transactions</h3>
-                        <button className="text-sm text-red-600 hover:text-red-800">View All</button>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Transaction ID</th>
-                                    <th>Member</th>
-                                    <th>Type</th>
-                                    <th>Points</th>
-                                    <th>Time</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {dashboardData?.recentActivity?.map((row: any) => (
-                                    <tr key={row.id}>
-                                        <td className="font-mono text-xs text-gray-400">{row.id}</td>
-                                        <td className="font-medium">{row.member}</td>
-                                        <td>
-                                            <span className={`badge ${row.typeClass}`}>{row.type}</span>
-                                        </td>
-                                        <td className={`font-semibold ${row.ptClass}`}>{row.points}</td>
-                                        <td className="text-gray-400 text-xs">{row.time}</td>
-                                    </tr>
-                                ))}
-                                {(!dashboardData?.recentActivity || dashboardData.recentActivity.length === 0) && (
-                                    <tr>
-                                        <td colSpan={5} className="py-4 text-center text-gray-500">
-                                            No recent transactions found
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {/* 5. TOP PERFORMERS & PENDING APPROVALS */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Top Performers */}
-                <div className="widget-card rounded-xl shadow p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Performers This Month</h3>
-                    <div className="space-y-4">
-                        {dashboardData?.topPerformers?.map((p: any, i: number) => (
-                            <div key={i} className="flex items-center justify-between">
-                                <div className="flex items-center">
-                                    <div className={`h-10 w-10 rounded-full ${p.bg} flex items-center justify-center mr-3`}>
-                                        <span className={`${p.text} font-bold`}>{p.initial}</span>
+                    <div className="space-y-6 flex-1">
+                        {(dashboardData?.topPerformers?.[performerTab === 'retailer' ? 'retailers' : 'mechanics'] || []).map((p: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between group">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-yellow-50 text-yellow-600 border border-yellow-100' : 'bg-gray-50 text-gray-400 border border-gray-100'}`}>
+                                        {i + 1}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                                        <p className="text-xs text-gray-500">{p.pts}</p>
+                                        <p className="text-sm font-bold text-gray-900 group-hover:text-[#7C3AED] transition-colors">{p.name}</p>
+                                        <p className="text-[10px] text-gray-400 font-medium">{p.location} · {p.id}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-sm font-semibold text-green-600">{p.change}</p>
-                                    <p className="text-xs text-gray-400">vs last month</p>
+                                    <p className="text-sm font-bold text-gray-900">{performerTab === 'retailer' ? formatCurrency(p.val) : p.pts}</p>
+                                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">
+                                        {performerTab === 'retailer' ? 'invoice value' : 'scanned pts'}
+                                    </p>
                                 </div>
                             </div>
                         ))}
-                        {(!dashboardData?.topPerformers || dashboardData.topPerformers.length === 0) && (
-                            <p className="text-sm text-gray-500 text-center">No performance data available</p>
-                        )}
                     </div>
                 </div>
 
-                {/* Pending Approvals */}
-                <div className="widget-card rounded-xl shadow p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Pending Approvals</h3>
-                        <span className="badge badge-warning">{dashboardData?.pendingApprovalsCount ?? 0} items</span>
+                {/* Pending Actions Card */}
+                <div className="widget-card rounded-xl p-6 bg-white shadow-sm border border-gray-100 flex flex-col">
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-lg font-bold text-gray-900">Pending Actions</h3>
+                        <span className="px-2.5 py-1 bg-orange-50 text-orange-600 text-[10px] font-bold rounded-full border border-orange-100">
+                            {dashboardData?.pendingApprovalsCount ?? 0} items
+                        </span>
                     </div>
-                    <div className="space-y-3">
-                        {dashboardData?.pendingApprovalsCount > 0 ? (
-                            <>
-                                {dashboardData.pendingApprovals.map((item: any, idx: number) => (
-                                    <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${item.type === 'KYC' ? 'bg-orange-50' : 'bg-red-50'}`}>
-                                        <div>
-                                            <p className="text-sm font-medium">{item.label}</p>
-                                            <p className="text-xs text-gray-500">{item.subLabel}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => router.push(item.type === 'KYC' ? `/members?type=${item.label.includes('Retailer') ? 'retailer' : 'mechanic'}&kycStatus=Pending` : '/process?tab=1')}
-                                            className={`text-xs font-medium hover:underline ${item.type === 'KYC' ? 'text-orange-600' : 'text-red-600'}`}
-                                        >
-                                            Review
-                                        </button>
-
-                                    </div>
-                                ))}
-
-                                <div className="text-center py-2">
-                                    <p className="text-sm text-gray-600 mb-2">
-                                        {dashboardData.pendingApprovalsCount} pending requests total
-                                    </p>
-                                    <button className="text-sm text-red-600 hover:text-red-800 font-medium">
-                                        View All Approvals
-                                    </button>
+                    <div className="space-y-4 flex-1">
+                        <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 flex items-center justify-between cursor-pointer hover:bg-orange-50 transition-colors" onClick={() => router.push('/members')}>
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center shadow-lg shadow-orange-200">
+                                    <i className="fas fa-id-card text-white text-sm"></i>
                                 </div>
-                            </>
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900">KYC Approvals</p>
+                                    <p className="text-[10px] text-orange-600 font-bold">{dashboardData?.pendingApprovals?.kyc?.mechanics} Mechanics · {dashboardData?.pendingApprovals?.kyc?.retailers} Retailers</p>
+                                </div>
+                            </div>
+                            <span className="text-sm font-bold text-orange-700 bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
+                                {dashboardData?.pendingApprovals?.kyc?.count}
+                            </span>
+                        </div>
+
+                        <div className="p-4 bg-red-50/50 rounded-xl border border-red-100 flex items-center justify-between cursor-pointer hover:bg-red-50 transition-colors" onClick={() => router.push('/process')}>
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center shadow-lg shadow-red-200">
+                                    <i className="fas fa-gift text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900">Redemption Queue</p>
+                                    <p className="text-[10px] text-red-600 font-bold">{formatCurrency(dashboardData?.pendingApprovals?.redemptions?.value)} total value</p>
+                                </div>
+                            </div>
+                            <span className="text-sm font-bold text-red-700 bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
+                                {dashboardData?.pendingApprovals?.redemptions?.count}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Program Activity Card */}
+                <div className="widget-card rounded-xl p-6 bg-white shadow-sm border border-gray-100 flex flex-col">
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-lg font-bold text-gray-900">Program Activity</h3>
+                        <button className="text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-widest">View All</button>
+                    </div>
+                    <div className="space-y-5 flex-1">
+                        {(dashboardData?.recentActivity || []).length > 0 ? (
+                            dashboardData.recentActivity.slice(0, 6).map((activity: any, i: number) => {
+                                const isPoints = activity.type?.toLowerCase().includes('points') || activity.type?.toLowerCase().includes('transaction');
+                                const isKYC = activity.type?.toLowerCase().includes('kyc');
+                                
+                                return (
+                                    <div key={i} className="flex items-center justify-between group cursor-default">
+                                        <div className="flex gap-4 items-center">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 ${
+                                                isPoints ? 'bg-blue-50' : isKYC ? 'bg-orange-50' : 'bg-green-50'
+                                            }`}>
+                                                <i className={`fas ${
+                                                    isPoints ? 'fa-gift text-blue-500' : 
+                                                    isKYC ? 'fa-check-circle text-orange-500' : 
+                                                    'fa-user-plus text-green-500'
+                                                } text-[10px]`}></i>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
+                                                    {activity.member}
+                                                </p>
+                                                <p className="text-[10px] text-gray-400 font-medium">{activity.time} · {activity.id}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className={`text-sm font-bold ${activity.ptClass || 'text-gray-900'}`}>{activity.points}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">{activity.type}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })
                         ) : (
-                            <p className="text-sm text-gray-500 text-center">No pending approvals</p>
+                            <div className="flex flex-col items-center justify-center h-full text-center py-10">
+                                <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
+                                    <i className="fas fa-history text-gray-300"></i>
+                                </div>
+                                <p className="text-xs text-gray-400 font-medium">No recent activity found</p>
+                            </div>
                         )}
                     </div>
                 </div>
