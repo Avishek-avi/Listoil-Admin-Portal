@@ -24,20 +24,44 @@ import { getUserScope } from "@/lib/scope-utils"
 const STAKEHOLDER_ROLES = [2, 3]; // Retailer, Mechanic
 const ADMIN_ROLES = [1, 9, 10, 11]; // Evolve Admin, Support Admin, Client Admin, Admin
 
-export async function getDashboardDataAction(filters?: { growthRange?: string, transactionRange?: string }) {
+export async function getDashboardDataAction(filters?: { 
+    growthRange?: string, 
+    transactionRange?: string,
+    state?: string,
+    city?: string
+}) {
     try {
         const growthRange = filters?.growthRange || '7d';
         const transactionRange = filters?.transactionRange || '7d';
+        const stateOverride = filters?.state;
+        const cityOverride = filters?.city;
 
         const session = await auth();
         console.log("[Dashboard] User ID:", session?.user?.id, "Role:", session?.user?.role);
 
         if (!session?.user?.id) throw new Error("Unauthorized");
         const userId = Number(session.user.id);
-        const scope = await getUserScope(userId);
-        console.log("[Dashboard] Scope Type:", scope.type, "Entities:", scope.entityNames?.length);
+        const userScope = await getUserScope(userId);
+        const isAdmin = ADMIN_ROLES.includes(Number(session.user.roleId)) || userScope.permissions.includes('all');
 
-        const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
+        // Apply overrides if Admin
+        let currentScopeType = userScope.type;
+        let currentEntityNames = userScope.entityNames || [];
+
+        if (isAdmin) {
+            if (cityOverride) {
+                currentScopeType = 'City';
+                currentEntityNames = [cityOverride];
+            } else if (stateOverride) {
+                currentScopeType = 'State';
+                currentEntityNames = [stateOverride];
+            }
+        }
+
+        const lowerNames = currentEntityNames.map(n => n.toLowerCase());
+        const scope = { ...userScope, type: currentScopeType, entityNames: currentEntityNames };
+
+        console.log("[Dashboard] Effective Scope Type:", scope.type, "Entities:", scope.entityNames?.length);
 
         // Helper to get scope filtering condition
         const getScopeCondition = (table: any) => {
@@ -540,10 +564,17 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const growthInterval = growthRange === '30d' ? '30 days' : growthRange === '90d' ? '90 days' : growthRange === '365d' ? '1 year' : '7 days';
         const transInterval = transactionRange === '30d' ? '30 days' : transactionRange === '90d' ? '90 days' : transactionRange === '365d' ? '1 year' : '7 days';
 
+        const locationTable = scope.type === 'State' ? 'state' : 'city';
+        const locationIn = lowerNames.map(n => `'${n.replace(/'/g, "''")}'`).join(',');
+        const hasScope = scope.type !== 'Global' && lowerNames.length > 0;
+
         const memberGrowthRetailer = await safeExecute(sql.raw(`
             SELECT day::text, count(*) as count FROM (
-                SELECT date_trunc('day', created_at)::date as day
-                FROM users WHERE role_id = 2
+                SELECT date_trunc('day', u.created_at)::date as day
+                FROM users u
+                ${hasScope ? `JOIN retailers r ON u.id = r.user_id` : ''}
+                WHERE u.role_id = 2
+                ${hasScope ? `AND LOWER(r.${locationTable}) IN (${locationIn})` : ''}
             ) t
             WHERE day >= (now() - interval '${growthInterval}')::date
             GROUP BY 1 ORDER BY 1
@@ -551,8 +582,11 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
         const memberGrowthMechanic = await safeExecute(sql.raw(`
             SELECT day::text, count(*) as count FROM (
-                SELECT date_trunc('day', created_at)::date as day
-                FROM users WHERE role_id = 3
+                SELECT date_trunc('day', u.created_at)::date as day
+                FROM users u
+                ${hasScope ? `JOIN mechanics m ON u.id = m.user_id` : ''}
+                WHERE u.role_id = 3
+                ${hasScope ? `AND LOWER(m.${locationTable}) IN (${locationIn})` : ''}
             ) t
             WHERE day >= (now() - interval '${growthInterval}')::date
             GROUP BY 1 ORDER BY 1
@@ -560,9 +594,17 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
         const pointsRetailer = await safeExecute(sql.raw(`
             SELECT day::text, sum(points) as points FROM (
-                SELECT date_trunc('day', created_at)::date as day, points FROM counter_sales_transaction_logs
+                SELECT date_trunc('day', l.created_at)::date as day, l.points 
+                FROM counter_sales_transaction_logs l
+                ${hasScope ? `JOIN counter_sales cs ON l.user_id = cs.user_id` : ''}
+                ${hasScope ? `WHERE LOWER(cs.${locationTable}) IN (${locationIn})` : ''}
+                
                 UNION ALL
-                SELECT date_trunc('day', created_at)::date as day, points FROM retailer_transactions
+                
+                SELECT date_trunc('day', rt.created_at)::date as day, rt.points 
+                FROM retailer_transactions rt
+                ${hasScope ? `JOIN retailers r ON rt.user_id = r.user_id` : ''}
+                ${hasScope ? `WHERE LOWER(r.${locationTable}) IN (${locationIn})` : ''}
             ) as t
             WHERE day >= (now() - interval '${transInterval}')::date
             GROUP BY 1 ORDER BY 1
@@ -570,7 +612,10 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
         const pointsMechanic = await safeExecute(sql.raw(`
             SELECT day::text, sum(points) as points FROM (
-                SELECT date_trunc('day', created_at)::date as day, points FROM mechanic_transaction_logs
+                SELECT date_trunc('day', mtl.created_at)::date as day, mtl.points 
+                FROM mechanic_transaction_logs mtl
+                ${hasScope ? `JOIN mechanics m ON mtl.user_id = m.user_id` : ''}
+                ${hasScope ? `WHERE LOWER(m.${locationTable}) IN (${locationIn})` : ''}
             ) as t
             WHERE day >= (now() - interval '${transInterval}')::date
             GROUP BY 1 ORDER BY 1
@@ -578,9 +623,33 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
         const pointsRedeemed = await safeExecute(sql.raw(`
             SELECT day::text, sum(points) as points FROM (
-                SELECT date_trunc('day', created_at)::date as day, points_deducted as points FROM physical_rewards_redemptions
+                SELECT date_trunc('day', prr.created_at)::date as day, prr.points_deducted as points 
+                FROM physical_rewards_redemptions prr
+                ${hasScope ? `
+                JOIN (
+                    SELECT user_id, state, city FROM retailers
+                    UNION ALL
+                    SELECT user_id, state, city FROM mechanics
+                    UNION ALL
+                    SELECT user_id, state, city FROM counter_sales
+                ) loc ON prr.user_id = loc.user_id
+                WHERE LOWER(loc.${locationTable}) IN (${locationIn})
+                ` : ''}
+                
                 UNION ALL
-                SELECT date_trunc('day', created_at)::date as day, points_deducted as points FROM user_amazon_orders
+                
+                SELECT date_trunc('day', uao.created_at)::date as day, uao.points_deducted as points 
+                FROM user_amazon_orders uao
+                ${hasScope ? `
+                JOIN (
+                    SELECT user_id, state, city FROM retailers
+                    UNION ALL
+                    SELECT user_id, state, city FROM mechanics
+                    UNION ALL
+                    SELECT user_id, state, city FROM counter_sales
+                ) loc ON uao.user_id = loc.user_id
+                WHERE LOWER(loc.${locationTable}) IN (${locationIn})
+                ` : ''}
             ) as t
             WHERE day >= (now() - interval '${transInterval}')::date
             GROUP BY 1 ORDER BY 1
@@ -717,6 +786,30 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                 pointsTransactions: { retailer: [], mechanic: [], redeemed: [], labels: [] } 
             }
         };
+    }
+}
+
+export async function getDashboardLocationsAction() {
+    try {
+        const { pincodeMaster } = await import("@/db/schema");
+        
+        const statesResult = await db.selectDistinct({ state: pincodeMaster.state })
+            .from(pincodeMaster)
+            .where(sql`${pincodeMaster.state} IS NOT NULL`)
+            .orderBy(pincodeMaster.state);
+        
+        const citiesResult = await db.selectDistinct({ city: pincodeMaster.city, state: pincodeMaster.state })
+            .from(pincodeMaster)
+            .where(sql`${pincodeMaster.city} IS NOT NULL`)
+            .orderBy(pincodeMaster.city);
+
+        return {
+            states: statesResult.map(s => s.state).filter(Boolean) as string[],
+            cities: citiesResult.map(c => ({ city: c.city, state: c.state })).filter(c => c.city && c.state) as { city: string, state: string }[]
+        };
+    } catch (error) {
+        console.error("Locations fetch error:", error);
+        return { states: [], cities: [] };
     }
 }
 

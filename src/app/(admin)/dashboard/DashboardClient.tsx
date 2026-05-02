@@ -17,7 +17,7 @@ import {
 } from "chart.js";
 import { Line, Bar } from "react-chartjs-2";
 import { useQuery } from "@tanstack/react-query";
-import { getDashboardDataAction } from "@/actions/dashboard-actions";
+import { getDashboardDataAction, getDashboardLocationsAction } from "@/actions/dashboard-actions";
 
 // Register ChartJS components
 ChartJS.register(
@@ -45,13 +45,31 @@ export default function DashboardClient() {
     const [growthRange, setGrowthRange] = useState('7d');
     const [transactionRange, setTransactionRange] = useState('7d');
     const [performerTab, setPerformerTab] = useState<'retailer' | 'mechanic'>('retailer');
+    const [selectedState, setSelectedState] = useState('');
+    const [selectedCity, setSelectedCity] = useState('');
+
+    // -- Fetch Locations --
+    const { data: locations } = useQuery({
+        queryKey: ['dashboard-locations'],
+        queryFn: () => getDashboardLocationsAction(),
+        staleTime: 1000 * 60 * 60 // 1 hour
+    });
 
     // -- Fetch Dashboard Data --
     const { data: dashboardData, isLoading, error } = useQuery({
-        queryKey: ['dashboard-data', growthRange, transactionRange],
-        queryFn: () => getDashboardDataAction({ growthRange, transactionRange }),
+        queryKey: ['dashboard-data', growthRange, transactionRange, selectedState, selectedCity],
+        queryFn: () => getDashboardDataAction({ 
+            growthRange, 
+            transactionRange,
+            state: selectedState,
+            city: selectedCity
+        }),
         refetchInterval: 30000
     });
+
+    const filteredCities = Array.from(new Map((locations?.cities || [])
+        .filter(c => !selectedState || c.state === selectedState)
+        .map(c => [c.city, c])).values());
 
     if (sessionStatus === "loading" || isLoading) {
         return (
@@ -260,29 +278,32 @@ export default function DashboardClient() {
                     </div>
                     <div className="flex flex-wrap gap-3 items-center">
                         <div className="flex items-center gap-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase">Growth</label>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">State</label>
                             <select 
-                                value={growthRange}
-                                onChange={(e) => setGrowthRange(e.target.value)}
-                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none"
+                                value={selectedState}
+                                onChange={(e) => {
+                                    setSelectedState(e.target.value);
+                                    setSelectedCity(''); // Reset city on state change
+                                }}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none min-w-[120px]"
                             >
-                                <option value="7d">Last 7 Days</option>
-                                <option value="30d">Last 30 Days</option>
-                                <option value="90d">Last Quarter</option>
-                                <option value="365d">Last Year</option>
+                                <option value="">All States</option>
+                                {Array.from(new Set(locations?.states || [])).map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
                             </select>
                         </div>
                         <div className="flex items-center gap-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase">Points</label>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">City</label>
                             <select 
-                                value={transactionRange}
-                                onChange={(e) => setTransactionRange(e.target.value)}
-                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none"
+                                value={selectedCity}
+                                onChange={(e) => setSelectedCity(e.target.value)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none min-w-[120px]"
                             >
-                                <option value="7d">Last 7 Days</option>
-                                <option value="30d">Last 30 Days</option>
-                                <option value="90d">Last Quarter</option>
-                                <option value="365d">Last Year</option>
+                                <option value="">All Cities</option>
+                                {filteredCities.map(c => (
+                                    <option key={`${c.state}-${c.city}`} value={c.city}>{c.city}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
