@@ -1645,14 +1645,13 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
 
                                 {formData.roleId === '3' && (
                                     <div className="space-y-1">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Retailer</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Retailer (Optional)</label>
                                         <select 
                                             value={formData.attachedRetailerId} 
                                             onChange={e => setFormData({ ...formData, attachedRetailerId: e.target.value })} 
                                             className={selectClass}
-                                            required
                                         >
-                                            <option value="">Select Retailer</option>
+                                            <option value="">{cityRetailers.length === 0 ? "Direct Mechanic (No Retailer)" : "Select Retailer"}</option>
                                             {cityRetailers.map(r => (
                                                 <option key={r.id} value={r.id}>
                                                     {r.name} {r.shopName ? `(${r.shopName})` : ''}
@@ -1664,14 +1663,13 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
 
                                 {formData.roleId === '2' && (
                                     <div className="space-y-1">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Distributor</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Distributor (Optional)</label>
                                         <select 
                                             value={formData.attachedDistributorId} 
                                             onChange={e => setFormData({ ...formData, attachedDistributorId: e.target.value })} 
                                             className={selectClass}
-                                            required
                                         >
-                                            <option value="">Select Distributor</option>
+                                            <option value="">{cityDistributors.length === 0 ? "Direct Retailer (No Distributor)" : "Select Distributor"}</option>
                                             {cityDistributors.map(d => (
                                                 <option key={d.id} value={d.id}>
                                                     {d.name} {d.shopName ? `(${d.shopName})` : ''}

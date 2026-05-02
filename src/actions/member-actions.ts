@@ -804,15 +804,14 @@ export async function createMemberAction(formData: any) {
             }
         }
 
-        // Validate attached retailer for Mechanics
+        // Optional mapping checks
         if (targetRoleName === 'MECHANIC' && !attachedRetailerId) {
-            throw new Error("A Mechanic must be mapped to an existing Retailer.");
+            // Allow direct mechanics
         }
 
-        // Validate attached distributor for Retailers
         const attachedDistributorId = formData.attachedDistributorId;
         if (targetRoleName === 'RETAILER' && !attachedDistributorId) {
-            throw new Error("A Retailer must be mapped to an existing Distributor.");
+            // Allow direct retailers
         }
 
         // Check if attached retailer exists if provided
