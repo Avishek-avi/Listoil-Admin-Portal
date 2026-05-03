@@ -1,13 +1,38 @@
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
-import { createBoosterSchemeAction, updateBoosterSchemeAction } from "@/actions/schemes-actions";
+import { createBoosterSchemeAction, updateBoosterSchemeAction, getSchemeAuditLogsAction } from "@/actions/schemes-actions";
 import { toast } from "react-hot-toast";
 
 interface SchemesClientProps {
     initialSchemes: any[];
     masterData: any;
 }
+
+const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+};
+
+const FIELD_LABELS: Record<string, string> = {
+    name: 'Scheme Name',
+    description: 'Description',
+    startDate: 'Start Date',
+    endDate: 'End Date',
+    rewardType: 'Reward Type',
+    rewardValue: 'Reward Amount',
+    maxBudget: 'Total Points Budget',
+    maxUsers: 'User Limit',
+    targetType: 'Targeting Level',
+    targetIds: 'Selected Items',
+    geoScope: 'Geographic Scope',
+    audienceIds: 'Target Audience'
+};
 
 export default function SchemesClient({ initialSchemes, masterData }: SchemesClientProps) {
     const [activeTab, setActiveTab] = useState('Booster Scheme');
@@ -16,6 +41,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
     const [editingSchemeId, setEditingSchemeId] = useState<number | null>(null);
     const [schemeLogs, setSchemeLogs] = useState<any[]>([]);
     const [logsLoading, setLogsLoading] = useState(false);
+    const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -82,6 +108,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                     toast.success("Booster Scheme updated successfully!");
                     setIsCreateModalOpen(false);
                     setEditingSchemeId(null);
+                    fetchLogs();
                 } else {
                     toast.error(res.error || "Failed to update scheme");
                 }
@@ -94,6 +121,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                 if (res.success) {
                     toast.success("Booster Scheme created successfully!");
                     setIsCreateModalOpen(false);
+                    fetchLogs();
                 } else {
                     toast.error(res.error || "Failed to create scheme");
                 }
@@ -236,18 +264,75 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         setIsCreateModalOpen(true);
     };
 
+    const getReadableDiff = (oldS: any, newS: any) => {
+        const changes: any[] = [];
+        
+        // Flatten oldState if it has the DB structure
+        const oldFlat: any = {
+            name: oldS.name,
+            description: oldS.description,
+            startDate: oldS.startDate?.substring(0, 10),
+            endDate: oldS.endDate?.substring(0, 10),
+            maxBudget: oldS.budget,
+            ...(oldS.config?.booster || {})
+        };
+
+        // Flatten newState (which is already mostly flat from formData)
+        const newFlat: any = { ...newS };
+
+        Object.keys(FIELD_LABELS).forEach(key => {
+            const ov = oldFlat[key];
+            const nv = newFlat[key];
+
+            // Deep compare for objects/arrays
+            if (JSON.stringify(ov) !== JSON.stringify(nv)) {
+                changes.push({
+                    label: FIELD_LABELS[key],
+                    old: ov,
+                    new: nv
+                });
+            }
+        });
+
+        return changes;
+    };
+
+    const renderValue = (val: any) => {
+        if (val === null || val === undefined) return <span className="text-gray-300 italic">None</span>;
+        if (typeof val === 'object') {
+            if (Array.isArray(val)) {
+                if (val.length === 0) return <span className="text-gray-300 italic">Empty</span>;
+                return val.join(', ');
+            }
+            // For geoScope etc
+            return Object.entries(val)
+                .filter(([_, v]) => Array.isArray(v) && v.length > 0)
+                .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${(v as any[]).join(', ')}`)
+                .join(' | ');
+        }
+        return String(val);
+    };
+
     const fetchLogs = async () => {
         setLogsLoading(true);
-        const { getSchemeAuditLogsAction } = await import("@/actions/schemes-actions");
-        const res = await getSchemeAuditLogsAction();
-        if (res.success) {
-            setSchemeLogs(res.data);
+        try {
+            const res = await getSchemeAuditLogsAction();
+            if (res.success) {
+                setSchemeLogs(res.data || []);
+            } else {
+                toast.error(res.error || "Failed to fetch logs");
+            }
+        } catch (err: any) {
+            console.error("Fetch logs error:", err);
+            toast.error("An unexpected error occurred while fetching logs");
+        } finally {
+            setLogsLoading(false);
         }
-        setLogsLoading(false);
     };
 
     useEffect(() => {
         if (activeTab === 'Scheme Logs') {
+            console.log("[SchemesClient] Tab switched to Logs, fetching...");
             fetchLogs();
         }
     }, [activeTab]);
@@ -308,7 +393,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                             <div className="flex items-center gap-2 text-xs font-medium">
                                                 <i className="far fa-calendar text-gray-400 w-4"></i>
                                                 <span className="text-gray-400">Validity:</span>
-                                                <span className="text-gray-700">{new Date(scheme.startDate).toLocaleDateString()} - {new Date(scheme.endDate).toLocaleDateString()}</span>
+                                                <span className="text-gray-700">{formatDate(scheme.startDate)} - {formatDate(scheme.endDate)}</span>
                                             </div>
                                             <div className="flex items-center gap-2 text-xs font-medium">
                                                 <i className="fas fa-coins text-red-500 w-4"></i>
@@ -392,9 +477,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                     <td className="px-8 py-5">
                                                         <button 
                                                             className="text-[10px] font-black text-red-600 hover:underline uppercase tracking-widest"
-                                                            onClick={() => {
-                                                                console.log("Details:", { old: log.oldState, new: log.newState });
-                                                            }}
+                                                            onClick={() => setSelectedLog(log)}
                                                         >
                                                             View Diff
                                                         </button>
@@ -403,12 +486,20 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                             ))}
                                         </tbody>
                                     </table>
-                                    {schemeLogs.length === 0 && !logsLoading && (
-                                        <div className="p-20 text-center">
-                                            <i className="fas fa-history text-4xl text-gray-100 mb-4"></i>
-                                            <p className="text-sm font-bold text-gray-400">No logs found yet</p>
-                                        </div>
-                                    )}
+                                            {schemeLogs.length === 0 && !logsLoading && (
+                                                <div className="p-20 text-center">
+                                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                        <i className="fas fa-history text-2xl text-gray-200"></i>
+                                                    </div>
+                                                    <p className="text-sm font-bold text-gray-400">No logs found for schemes</p>
+                                                    <button 
+                                                        onClick={fetchLogs}
+                                                        className="mt-4 text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline"
+                                                    >
+                                                        Click here to try again
+                                                    </button>
+                                                </div>
+                                            )}
                                 </div>
                             </div>
                         ) : (
@@ -791,6 +882,67 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Diff Modal */}
+            {selectedLog && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
+                        <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                                    <i className="fas fa-history text-xl"></i>
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Change Details</h2>
+                                    <p className="text-sm text-gray-500 font-medium">Comparing version #{selectedLog.id} for Scheme #{selectedLog.recordId}</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedLog(null)}
+                                className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+                            >
+                                <i className="fas fa-times text-gray-400"></i>
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-8">
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-3 gap-4 px-6 py-3 bg-gray-50 rounded-2xl text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    <div>Field</div>
+                                    <div>Original Value</div>
+                                    <div>Updated To</div>
+                                </div>
+                                <div className="space-y-2">
+                                    {getReadableDiff(selectedLog.oldState, selectedLog.newState).map((change, idx) => (
+                                        <div key={idx} className="grid grid-cols-3 gap-4 px-6 py-5 bg-white border border-gray-100 rounded-3xl items-center hover:border-red-100 transition-colors group">
+                                            <div className="text-[11px] font-black text-gray-800">{change.label}</div>
+                                            <div className="text-[11px] font-medium text-gray-500 line-clamp-2">{renderValue(change.old)}</div>
+                                            <div className="flex items-center gap-3">
+                                                <i className="fas fa-arrow-right text-[10px] text-red-300"></i>
+                                                <div className="text-[11px] font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-xl">{renderValue(change.new)}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {getReadableDiff(selectedLog.oldState, selectedLog.newState).length === 0 && (
+                                        <div className="p-20 text-center opacity-40">
+                                            <p className="text-sm font-bold text-gray-400 italic">No field-level changes detected</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="p-8 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                            <button 
+                                onClick={() => setSelectedLog(null)}
+                                className="px-8 py-3 bg-white border border-gray-200 rounded-2xl text-xs font-black text-gray-600 uppercase tracking-widest hover:bg-gray-50 transition-all"
+                            >
+                                Close Preview
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
