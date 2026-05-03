@@ -38,6 +38,15 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         }
     });
 
+    const [searchTerms, setSearchTerms] = useState({
+        category: '',
+        subCategory: '',
+        sku: '',
+        zone: '',
+        state: '',
+        city: ''
+    });
+
     const tabs = ['Booster Scheme', 'Slab Based', 'Cross-Sell'];
 
     const handleCreate = async (e: React.FormEvent) => {
@@ -78,19 +87,48 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         }
     };
 
+    const filteredCategories = useMemo(() => {
+        return masterData.categories.filter((cat: any) => 
+            cat.name.toLowerCase().includes(searchTerms.category.toLowerCase())
+        );
+    }, [masterData.categories, searchTerms.category]);
+
     const filteredSubCategories = useMemo(() => {
         return masterData.subCategories.filter((sc: any) => 
-            formData.selection.categoryIds.length === 0 || 
-            formData.selection.categoryIds.some(cid => Number(cid) === Number(sc.parentId))
+            (formData.selection.categoryIds.length === 0 || 
+             formData.selection.categoryIds.some(cid => Number(cid) === Number(sc.parentId))) &&
+            sc.name.toLowerCase().includes(searchTerms.subCategory.toLowerCase())
         );
-    }, [masterData.subCategories, formData.selection.categoryIds]);
+    }, [masterData.subCategories, formData.selection.categoryIds, searchTerms.subCategory]);
 
     const filteredSkus = useMemo(() => {
         return masterData.skus.filter((sku: any) => 
-            formData.selection.subCategoryIds.length === 0 || 
-            formData.selection.subCategoryIds.some(sid => Number(sid) === Number(sku.subCategoryId))
+            (formData.selection.subCategoryIds.length === 0 || 
+             formData.selection.subCategoryIds.some(sid => Number(sid) === Number(sku.subCategoryId))) &&
+            sku.name.toLowerCase().includes(searchTerms.sku.toLowerCase())
         );
-    }, [masterData.skus, formData.selection.subCategoryIds]);
+    }, [masterData.skus, formData.selection.subCategoryIds, searchTerms.sku]);
+
+    // Geo Filters
+    const filteredZones = useMemo(() => {
+        return masterData.geography.zones.filter((z: string) => 
+            z.toLowerCase().includes(searchTerms.zone.toLowerCase())
+        );
+    }, [masterData.geography.zones, searchTerms.zone]);
+
+    const filteredStates = useMemo(() => {
+        return masterData.geography.states.filter((s: any) => 
+            (formData.geoScope.zones.length === 0 || formData.geoScope.zones.includes(s.zone)) &&
+            s.name.toLowerCase().includes(searchTerms.state.toLowerCase())
+        );
+    }, [masterData.geography.states, formData.geoScope.zones, searchTerms.state]);
+
+    const filteredCities = useMemo(() => {
+        return masterData.geography.cities.filter((c: any) => 
+            (formData.geoScope.states.length === 0 || formData.geoScope.states.includes(c.state)) &&
+            c.name.toLowerCase().includes(searchTerms.city.toLowerCase())
+        );
+    }, [masterData.geography.cities, formData.geoScope.states, searchTerms.city]);
 
     const toggleSelection = (type: 'category' | 'subCategory' | 'sku', id: number) => {
         setFormData(prev => {
@@ -318,8 +356,18 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Categories</p>
                                             <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{formData.selection.categoryIds.length}</span>
                                         </div>
+                                        <div className="relative mb-2 mt-1">
+                                            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search Category..." 
+                                                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
+                                                value={searchTerms.category}
+                                                onChange={e => setSearchTerms({...searchTerms, category: e.target.value})}
+                                            />
+                                        </div>
                                         <div className="h-[450px] overflow-y-auto p-2 bg-gray-50 rounded-3xl border border-gray-100 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-200">
-                                            {masterData.categories.map((item: any) => (
+                                            {filteredCategories.map((item: any) => (
                                                 <button
                                                     key={item.id}
                                                     type="button"
@@ -341,6 +389,16 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         <div className="flex justify-between items-center px-1">
                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Sub-Categories</p>
                                             <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{formData.selection.subCategoryIds.length}</span>
+                                        </div>
+                                        <div className="relative mb-2 mt-1">
+                                            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search Sub-Category..." 
+                                                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
+                                                value={searchTerms.subCategory}
+                                                onChange={e => setSearchTerms({...searchTerms, subCategory: e.target.value})}
+                                            />
                                         </div>
                                         <div className="h-[450px] overflow-y-auto p-2 rounded-3xl border space-y-1.5 transition-all bg-gray-50 border-gray-100 scrollbar-thin scrollbar-thumb-gray-200">
                                             {filteredSubCategories.map((item: any) => (
@@ -365,6 +423,16 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         <div className="flex justify-between items-center px-1">
                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">SKUs</p>
                                             <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{formData.selection.skuIds.length}</span>
+                                        </div>
+                                        <div className="relative mb-2 mt-1">
+                                            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search SKU..." 
+                                                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
+                                                value={searchTerms.sku}
+                                                onChange={e => setSearchTerms({...searchTerms, sku: e.target.value})}
+                                            />
                                         </div>
                                         <div className="h-[450px] overflow-y-auto p-2 rounded-3xl border space-y-1.5 transition-all bg-gray-50 border-gray-100 scrollbar-thin scrollbar-thumb-gray-200">
                                             {filteredSkus.map((item: any) => (
@@ -457,10 +525,22 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-8 bg-gray-50 rounded-[32px] border border-gray-100">
                                     {/* Zones */}
                                     <div className="space-y-3">
-                                        <p className="text-[10px] font-black text-gray-400 uppercase ml-1">Zones</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {masterData.geography.zones.map((z: string, idx: number) => (
-                                                <button key={`${z}-${idx}`} type="button" onClick={() => toggleGeo('zones', z)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.geoScope.zones.includes(z) ? 'bg-red-500 text-white' : 'bg-white text-gray-500'}`}>
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase ml-1">Zones</p>
+                                        </div>
+                                        <div className="relative mb-2">
+                                            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search Zone..." 
+                                                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
+                                                value={searchTerms.zone}
+                                                onChange={e => setSearchTerms({...searchTerms, zone: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto p-2 bg-white rounded-2xl border border-gray-100">
+                                            {filteredZones.map((z: string, idx: number) => (
+                                                <button key={`${z}-${idx}`} type="button" onClick={() => toggleGeo('zones', z)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.geoScope.zones.includes(z) ? 'bg-red-500 text-white shadow-md' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
                                                     {z}
                                                 </button>
                                             ))}
@@ -468,12 +548,22 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     </div>
                                     {/* States */}
                                     <div className="space-y-3">
-                                        <p className="text-[10px] font-black text-gray-400 uppercase ml-1">States</p>
-                                        <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto">
-                                            {masterData.geography.states
-                                                .filter((s: any) => formData.geoScope.zones.length === 0 || formData.geoScope.zones.includes(s.zone))
-                                                .map((s: any, idx: number) => (
-                                                <button key={`${s.name}-${idx}`} type="button" onClick={() => toggleGeo('states', s.name)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.geoScope.states.includes(s.name) ? 'bg-red-500 text-white' : 'bg-white text-gray-500'}`}>
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase ml-1">States</p>
+                                        </div>
+                                        <div className="relative mb-2">
+                                            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search State..." 
+                                                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
+                                                value={searchTerms.state}
+                                                onChange={e => setSearchTerms({...searchTerms, state: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto p-2 bg-white rounded-2xl border border-gray-100">
+                                            {filteredStates.map((s: any, idx: number) => (
+                                                <button key={`${s.name}-${idx}`} type="button" onClick={() => toggleGeo('states', s.name)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.geoScope.states.includes(s.name) ? 'bg-red-500 text-white shadow-md' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
                                                     {s.name}
                                                 </button>
                                             ))}
@@ -481,12 +571,22 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     </div>
                                     {/* Cities */}
                                     <div className="space-y-3">
-                                        <p className="text-[10px] font-black text-gray-400 uppercase ml-1">Cities</p>
-                                        <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto">
-                                            {masterData.geography.cities
-                                                .filter((c: any) => formData.geoScope.states.length === 0 || formData.geoScope.states.includes(c.state))
-                                                .map((c: any, idx: number) => (
-                                                <button key={`${c.name}-${idx}`} type="button" onClick={() => toggleGeo('cities', c.name)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.geoScope.cities.includes(c.name) ? 'bg-red-500 text-white' : 'bg-white text-gray-500'}`}>
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase ml-1">Cities</p>
+                                        </div>
+                                        <div className="relative mb-2">
+                                            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search City..." 
+                                                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
+                                                value={searchTerms.city}
+                                                onChange={e => setSearchTerms({...searchTerms, city: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto p-2 bg-white rounded-2xl border border-gray-100">
+                                            {filteredCities.map((c: any, idx: number) => (
+                                                <button key={`${c.name}-${idx}`} type="button" onClick={() => toggleGeo('cities', c.name)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.geoScope.cities.includes(c.name) ? 'bg-red-500 text-white shadow-md' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
                                                     {c.name}
                                                 </button>
                                             ))}
