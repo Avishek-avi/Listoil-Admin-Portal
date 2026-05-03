@@ -42,7 +42,7 @@ export async function getDashboardDataAction(filters?: {
         if (!session?.user?.id) throw new Error("Unauthorized");
         const userId = Number(session.user.id);
         const userScope = await getUserScope(userId);
-        const isAdmin = ADMIN_ROLES.includes(Number(session.user.roleId)) || userScope.permissions.includes('all');
+        const isAdmin = ADMIN_ROLES.includes(Number((session.user as any).roleId || session.user.role)) || userScope.permissions.includes('all');
 
         // Apply overrides if Admin
         let currentScopeType = userScope.type;
@@ -227,21 +227,21 @@ export async function getDashboardDataAction(filters?: {
         const kycPending = Number(kycPendingCount?.count) || 0;
 
         // Segment Specific Stats - Scoped
-        const retActiveQuery = db.select({ count: count() }).from(retailers).leftJoin(users, eq(retailers.userId, users.id)).where(eq(users.isSuspended, false));
-        const retKycQuery = db.select({ count: count() }).from(retailers).where(eq(retailers.isKycVerified, true));
-        const retTotalQuery = db.select({ count: count() }).from(retailers);
+        let retActiveQueryBuilder = db.select({ count: count() }).from(retailers).leftJoin(users, eq(retailers.userId, users.id)).$dynamic();
+        let retKycQueryBuilder = db.select({ count: count() }).from(retailers).$dynamic();
+        let retTotalQueryBuilder = db.select({ count: count() }).from(retailers).$dynamic();
 
-        const mechActiveQuery = db.select({ count: count() }).from(mechanics).leftJoin(users, eq(mechanics.userId, users.id)).where(eq(users.isSuspended, false));
-        const mechKycQuery = db.select({ count: count() }).from(mechanics).where(eq(mechanics.isKycVerified, true));
-        const mechTotalQuery = db.select({ count: count() }).from(mechanics);
+        const [retActive] = await retActiveQueryBuilder.where(and(getScopeCondition(retailers), eq(users.isSuspended, false)));
+        const [retKyc] = await retKycQueryBuilder.where(and(getScopeCondition(retailers), eq(retailers.isKycVerified, true)));
+        const [retTotal] = await retTotalQueryBuilder.where(getScopeCondition(retailers));
 
-        const [retActive] = await retActiveQuery.where(and(getScopeCondition(retailers), eq(users.isSuspended, false)));
-        const [retKyc] = await retKycQuery.where(and(getScopeCondition(retailers), eq(retailers.isKycVerified, true)));
-        const [retTotal] = await retTotalQuery.where(getScopeCondition(retailers));
+        let mechActiveQueryBuilder = db.select({ count: count() }).from(mechanics).leftJoin(users, eq(mechanics.userId, users.id)).$dynamic();
+        let mechKycQueryBuilder = db.select({ count: count() }).from(mechanics).$dynamic();
+        let mechTotalQueryBuilder = db.select({ count: count() }).from(mechanics).$dynamic();
 
-        const [mechActive] = await mechActiveQuery.where(and(getScopeCondition(mechanics), eq(users.isSuspended, false)));
-        const [mechKyc] = await mechKycQuery.where(and(getScopeCondition(mechanics), eq(mechanics.isKycVerified, true)));
-        const [mechTotal] = await mechTotalQuery.where(getScopeCondition(mechanics));
+        const [mechActive] = await mechActiveQueryBuilder.where(and(getScopeCondition(mechanics), eq(users.isSuspended, false)));
+        const [mechKyc] = await mechKycQueryBuilder.where(and(getScopeCondition(mechanics), eq(mechanics.isKycVerified, true)));
+        const [mechTotal] = await mechTotalQueryBuilder.where(getScopeCondition(mechanics));
 
         // Rename for consistency with return object
         const retPointsVal = retPoints;
@@ -699,7 +699,7 @@ export async function getDashboardDataAction(filters?: {
                 gte(mechanicTransactionLogs.createdAt, sql`now() - interval '30 days'`)
             ));
 
-        return {
+        const rawResult = {
             stats: {
                 totalMembers: Number(userCount?.count) || 0,
                 activeMembers: Number(activeUserCount?.count) || 0,
@@ -767,6 +767,8 @@ export async function getDashboardDataAction(filters?: {
             }
         }
 
+        return JSON.parse(JSON.stringify(rawResult));
+
     } catch (error) {
         console.error("Dashboard error:", error);
         return {
@@ -798,19 +800,24 @@ export async function getDashboardLocationsAction() {
             .where(sql`${pincodeMaster.state} IS NOT NULL`)
             .orderBy(pincodeMaster.state);
         
+        const states = statesResult.map(s => s.state);
+        
         const citiesResult = await db.selectDistinct({ city: pincodeMaster.city, state: pincodeMaster.state })
             .from(pincodeMaster)
             .where(sql`${pincodeMaster.city} IS NOT NULL`)
             .orderBy(pincodeMaster.city);
+        
+        const citiesByState: Record<string, string[]> = {};
+        citiesResult.forEach(c => {
+            if (c.state && c.city) {
+                if (!citiesByState[c.state]) citiesByState[c.state] = [];
+                citiesByState[c.state].push(c.city);
+            }
+        });
 
-        return {
-            states: statesResult.map(s => s.state).filter(Boolean) as string[],
-            cities: citiesResult.map(c => ({ city: c.city, state: c.state })).filter(c => c.city && c.state) as { city: string, state: string }[]
-        };
+        return JSON.parse(JSON.stringify({ states, citiesByState }));
     } catch (error) {
-        console.error("Locations fetch error:", error);
-        return { states: [], cities: [] };
+        console.error("Error fetching dashboard locations:", error);
+        return { states: [], citiesByState: {} };
     }
 }
-
-

@@ -36,11 +36,18 @@ export async function getMisAnalyticsAction() {
         const lowerEntities = lowerNames.map(n => `'${n}'`).join(',');
 
         // --- 1. EXECUTIVE DASHBOARD DATA ---
-        let memberCountQuery = db.select({ value: count() }).from(users);
-        let rPointsQuery = db.select({ value: sum(retailerTransactionLogs.points) }).from(retailerTransactionLogs).where(eq(retailerTransactionLogs.status, 'SUCCESS'));
-        let mechPointsQuery = db.select({ value: sum(mechanicTransactionLogs.points) }).from(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.status, 'SUCCESS'));
-        let csPointsQuery = db.select({ value: sum(counterSalesTransactionLogs.points) }).from(counterSalesTransactionLogs).where(eq(counterSalesTransactionLogs.status, 'SUCCESS'));
-        let redeemSumQuery = db.select({ value: sum(redemptions.pointsRedeemed) }).from(redemptions);
+        let memberCountQuery = db.select({ value: count() }).from(users).$dynamic();
+        let rPointsQuery = db.select({ value: sum(retailerTransactionLogs.points) }).from(retailerTransactionLogs).$dynamic();
+        let mechPointsQuery = db.select({ value: sum(mechanicTransactionLogs.points) }).from(mechanicTransactionLogs).$dynamic();
+        let csPointsQuery = db.select({ value: sum(counterSalesTransactionLogs.points) }).from(counterSalesTransactionLogs).$dynamic();
+        let redeemSumQuery = db.select({ value: sum(redemptions.pointsRedeemed) }).from(redemptions).$dynamic();
+
+        // Default conditions
+        const rPointsConditions = [eq(retailerTransactionLogs.status, 'SUCCESS')];
+        const mechPointsConditions = [eq(mechanicTransactionLogs.status, 'SUCCESS')];
+        const csPointsConditions = [eq(counterSalesTransactionLogs.status, 'SUCCESS')];
+        const memberCountConditions = [];
+        const redeemSumConditions = [];
 
         if (scope.type !== 'Global') {
             const scopeFilter = or(
@@ -54,23 +61,29 @@ export async function getMisAnalyticsAction() {
 
             memberCountQuery.leftJoin(retailers, eq(users.id, retailers.userId))
                 .leftJoin(mechanics, eq(users.id, mechanics.userId))
-                .leftJoin(counterSales, eq(users.id, counterSales.userId))
-                .where(scopeFilter);
+                .leftJoin(counterSales, eq(users.id, counterSales.userId));
+            if (scopeFilter) memberCountConditions.push(scopeFilter);
 
-            rPointsQuery.leftJoin(retailers, eq(retailerTransactionLogs.userId, retailers.userId))
-                .where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
+            rPointsQuery.leftJoin(retailers, eq(retailerTransactionLogs.userId, retailers.userId));
+            rPointsConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
             
-            mechPointsQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
-                .where(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
+            mechPointsQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId));
+            mechPointsConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
 
-            csPointsQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
-                .where(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
+            csPointsQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId));
+            csPointsConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
 
             redeemSumQuery.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
                 .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
-                .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
-                .where(scopeFilter);
+                .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId));
+            if (scopeFilter) redeemSumConditions.push(scopeFilter);
         }
+
+        memberCountQuery = memberCountQuery.where(and(...memberCountConditions));
+        rPointsQuery = rPointsQuery.where(and(...rPointsConditions));
+        mechPointsQuery = mechPointsQuery.where(and(...mechPointsConditions));
+        csPointsQuery = csPointsQuery.where(and(...csPointsConditions));
+        redeemSumQuery = redeemSumQuery.where(and(...redeemSumConditions));
 
         const [memberCount] = await memberCountQuery;
         const [rSum] = await rPointsQuery;
@@ -352,7 +365,7 @@ export async function getMisAnalyticsAction() {
         const [totalSpend] = await db.select({ value: sum(campaigns.spentBudget) }).from(campaigns);
         const topCampaignsList = await db.select().from(campaigns).orderBy(desc(campaigns.spentBudget)).limit(3);
 
-        return {
+        const rawResult = {
             executive: {
                 totalPoints: totalPointsAllotted,
                 activeMembers: totalUsers,
@@ -447,7 +460,10 @@ export async function getMisAnalyticsAction() {
                     val: `₹${(Number(r.total_earnings) / 100).toLocaleString()}`
                 }))
             }
-        }
+        };
+
+        return JSON.parse(JSON.stringify(rawResult));
+
     } catch (error) {
         console.error("Error fetching MIS analytics:", error);
         return null;

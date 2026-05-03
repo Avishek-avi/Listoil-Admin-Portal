@@ -7,9 +7,11 @@ import { usePathname } from "next/navigation";
 
 type Props = {
   children: React.ReactNode;
+  title?: string;
+  subtitle?: string;
 };
 
-export default function PageWithTopBar({ children }: Props) {
+export default function PageWithTopBar({ children, title, subtitle }: Props) {
   const pathname = usePathname();
   const cfg = TOPBAR_CONFIG[pathname] ?? {
     title: "Untitled",
@@ -18,7 +20,7 @@ export default function PageWithTopBar({ children }: Props) {
 
   return (
     <>
-      <TopBar title={cfg.title} subtitle={cfg.subtitle} actions={cfg.actions} />
+      <TopBar title={title ?? cfg.title} subtitle={subtitle ?? cfg.subtitle} actions={cfg.actions} />
       {children}
     </>
   );

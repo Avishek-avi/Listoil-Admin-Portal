@@ -26,28 +26,27 @@ export async function getTeamHierarchyAction(): Promise<TeamMember[]> {
         const isAdmin = userScope.permissions.includes('all');
         const role = userScope.role.toUpperCase();
 
-        if (isAdmin) {
-            // 1. National Admin View: Fetch all TSMs and their SRs
-            return await getFullHierarchy();
-        } else if (role === 'TSM') {
-            // 2. TSM View: Fetch only SRs mapped to their states
-            const stateIds = userScope.entityIds;
-            return await getTSMHierarchy(stateIds, userId, userScope.entityNames);
-        } else if (role === 'SR') {
-            // 3. SR View: Fetch users/retailers mapped to their cities
-            const cities = userScope.entityNames;
-            return await getSRHierarchy(cities, userId, session.user.name || 'Me');
-        }
+        const result = await (async () => {
+            if (isAdmin) {
+                return await getFullHierarchy();
+            } else if (role === 'TSM') {
+                const stateIds = userScope.entityIds;
+                return await getTSMHierarchy(stateIds, userId, userScope.entityNames);
+            } else if (role === 'SR') {
+                const cities = userScope.entityNames;
+                return await getSRHierarchy(cities, userId, session.user.name || 'Me');
+            }
+            return [];
+        })();
 
-        return [];
+        return JSON.parse(JSON.stringify(result));
     } catch (error) {
         console.error("Error in getTeamHierarchyAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
 async function getFullHierarchy(): Promise<TeamMember[]> {
-    // Fetch all Sales Heads
     const salesHeads = await db.select({
         id: users.id,
         name: users.name,
@@ -57,7 +56,6 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
     .innerJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
     .where(eq(userTypeEntity.typeName, 'SALES HEAD'));
 
-    // Fetch all TSMs
     const tsms = await db.select({
         id: users.id,
         name: users.name,
@@ -75,7 +73,6 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
         eq(userScopeMapping.isActive, true)
     ));
 
-    // Fetch all SRs
     const srs = await db.select({
         id: users.id,
         name: users.name,
@@ -94,7 +91,6 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
         eq(userScopeMapping.isActive, true)
     ));
 
-    // Fetch all Mechanics and Retailers
     const allMechs = await db.select({
         userId: mechanics.userId,
         name: mechanics.name,
@@ -106,13 +102,11 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
         userId: retailers.userId,
         name: retailers.name,
         city: retailers.city,
-        attachedDistributorId: retailers.attachedDistributorId
+        attachedDistributorId: (retailers as any).attachedDistributorId
     }).from(retailers);
 
-    // Track matched SRs to find orphans
     const matchedSrIds = new Set<number>();
 
-    // Fetch all Distributors
     const allDistributors = await db.select({
         id: users.id,
         name: users.name,
@@ -124,7 +118,7 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
     .where(or(eq(userTypeEntity.typeName, 'Distributor'), eq(userTypeEntity.typeName, 'DISTRIBUTOR')));
 
     // Map SRs to TSMs
-    const tsmHierarchy = tsms.map(tsm => {
+    const tsmHierarchy: TeamMember[] = tsms.map(tsm => {
         const tsmSrs = srs.filter(sr => sr.parentStateId === tsm.scopeEntityId);
         tsmSrs.forEach(sr => matchedSrIds.add(sr.id));
 
@@ -135,7 +129,6 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
             scopeType: tsm.scopeType || 'State',
             scopeName: tsm.scopeName || 'Unknown',
             children: tsmSrs.map(sr => {
-                // Get distributors for this SR's city
                 const srDistributors = allDistributors.filter(d => d.city?.toLowerCase() === sr.scopeName?.toLowerCase());
                 
                 return {
@@ -145,7 +138,6 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                     scopeType: sr.scopeType || 'City',
                     scopeName: sr.scopeName || 'Unknown',
                     children: [
-                        // Actual Distributors
                         ...srDistributors.map(dist => ({
                             id: dist.id,
                             name: dist.name || 'Unknown Distributor',
@@ -153,7 +145,7 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                             scopeType: 'City',
                             scopeName: dist.city || 'Unknown',
                             children: allRets
-                                .filter(ret => ret.attachedDistributorId === dist.id)
+                                .filter(ret => (ret as any).attachedDistributorId === dist.id)
                                 .map(ret => ({
                                     id: ret.userId,
                                     name: ret.name || 'Unknown Retailer',
@@ -169,20 +161,18 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                                             scopeType: 'City',
                                             scopeName: m.city || 'Unknown'
                                         }))
-                                }))
-                        })),
-                        // Virtual "Direct Retailers" Distributor
-                        ...(allRets.some(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase()) || 
+                                })) as TeamMember[]
+                        } as TeamMember)),
+                        ...(allRets.some(ret => !(ret as any).attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase()) || 
                             allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
-                            id: -(sr.id + 1000000), // Virtual ID
+                            id: -(sr.id + 1000000), 
                             name: 'Direct Retailers',
                             role: 'Distributor',
                             scopeType: 'City',
                             scopeName: sr.scopeName || 'Unknown',
                             children: [
-                                // Unmapped Retailers
                                 ...allRets
-                                    .filter(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase())
+                                    .filter(ret => !(ret as any).attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase())
                                     .map(ret => ({
                                         id: ret.userId,
                                         name: ret.name || 'Unknown Retailer',
@@ -199,9 +189,8 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                                                 scopeName: m.city || 'Unknown'
                                             }))
                                     })),
-                                // Virtual "Direct Mechanic" Retailer for unmapped mechanics
                                 ...(allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
-                                    id: -(sr.id + 2000000), // Virtual ID
+                                    id: -(sr.id + 2000000), 
                                     name: 'Direct Mechanic',
                                     role: 'Retailer',
                                     scopeType: 'City',
@@ -224,10 +213,8 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
         };
     });
 
-    // Add orphaned SRs (not under any TSM)
     const orphanedSrs = srs.filter(sr => !matchedSrIds.has(sr.id));
     if (orphanedSrs.length > 0) {
-        // Group by state
         const stateGroups: Record<string, typeof orphanedSrs> = {};
         orphanedSrs.forEach(sr => {
             const state = sr.parentStateId ? `State ID: ${sr.parentStateId}` : 'No State';
@@ -237,7 +224,7 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
 
         Object.entries(stateGroups).forEach(([stateLabel, group]) => {
             tsmHierarchy.push({
-                id: -(Math.floor(Math.random() * 1000000)), // Virtual ID
+                id: -(Math.floor(Math.random() * 1000000)),
                 name: `Unassigned SRs (${stateLabel})`,
                 role: 'TSM',
                 scopeType: 'State',
@@ -264,15 +251,14 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                                     role: 'Mechanic',
                                     scopeType: 'City',
                                     scopeName: m.city || 'Unknown'
-                                }))
-                        }))
-                    };
+                                } as TeamMember))
+                        } as TeamMember))
+                    } as TeamMember;
                 })
-            });
+            } as TeamMember);
         });
     }
 
-    // Now wrap TSM hierarchy under Sales Heads
     if (salesHeads.length > 0) {
         return salesHeads.map(sh => ({
             id: sh.id,
@@ -288,7 +274,6 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
 }
 
 async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: string[]): Promise<TeamMember[]> {
-    // Fetch SRs under these state IDs
     const srs = await db.select({
         id: users.id,
         name: users.name,
@@ -307,7 +292,6 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
         eq(userScopeMapping.isActive, true)
     ));
 
-    // Fetch all Mechanics and Retailers in these states
     const lowerStateNames = stateNames.map(s => s.toLowerCase());
 
     const allMechs = await db.select({
@@ -322,11 +306,10 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
         userId: retailers.userId,
         name: retailers.name,
         city: retailers.city,
-        attachedDistributorId: retailers.attachedDistributorId
+        attachedDistributorId: (retailers as any).attachedDistributorId
     }).from(retailers)
     .where(inArray(sql`LOWER(${retailers.state})`, lowerStateNames));
 
-    // Fetch all Distributors in these states
     const allDistributors = await db.select({
         id: users.id,
         name: users.name,
@@ -356,7 +339,6 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
             scopeType: sr.scopeType || 'City',
             scopeName: sr.scopeName || 'Unknown',
             children: [
-                // Actual Distributors
                 ...allDistributors
                     .filter(d => d.city?.toLowerCase() === sr.scopeName?.toLowerCase())
                     .map(dist => ({
@@ -366,7 +348,7 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
                         scopeType: 'City',
                         scopeName: dist.city || 'Unknown',
                         children: allRets
-                            .filter(ret => ret.attachedDistributorId === dist.id)
+                            .filter(ret => (ret as any).attachedDistributorId === dist.id)
                             .map(ret => ({
                                 id: ret.userId,
                                 name: ret.name || 'Unknown Retailer',
@@ -384,18 +366,16 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
                                     }))
                             }))
                     })),
-                // Virtual "Direct Retailers" Distributor
-                ...(allRets.some(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ||
+                ...(allRets.some(ret => !(ret as any).attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ||
                     allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
-                    id: -(sr.id + 1000000), // Virtual ID
+                    id: -(sr.id + 1000000), 
                     name: 'Direct Retailers',
                     role: 'Distributor',
                     scopeType: 'City',
                     scopeName: sr.scopeName || 'Unknown',
                     children: [
-                        // Unmapped Retailers
                         ...allRets
-                            .filter(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase())
+                            .filter(ret => !(ret as any).attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase())
                             .map(ret => ({
                                 id: ret.userId,
                                 name: ret.name || 'Unknown Retailer',
@@ -412,9 +392,8 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
                                         scopeName: m.city || 'Unknown'
                                     }))
                             })),
-                        // Virtual "Direct Mechanic" Retailer for unmapped mechanics
                         ...(allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
-                            id: -(sr.id + 2000000), // Virtual ID
+                            id: -(sr.id + 2000000), 
                             name: 'Direct Mechanic',
                             role: 'Retailer',
                             scopeType: 'City',
@@ -435,6 +414,7 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
         }))
     }];
 }
+
 async function getSRHierarchy(cities: string[], srId: number, srName: string): Promise<TeamMember[]> {
     if (cities.length === 0) {
         return [{
@@ -447,19 +427,17 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
         }];
     }
 
-    // Fetch Retailers in these cities
     const lowerCities = cities.map(c => c.toLowerCase());
     const rets = await db.select({
         id: retailers.id,
         userId: retailers.userId,
         name: retailers.name,
         city: retailers.city,
-        attachedDistributorId: retailers.attachedDistributorId
+        attachedDistributorId: (retailers as any).attachedDistributorId
     })
     .from(retailers)
     .where(inArray(sql`LOWER(${retailers.city})`, lowerCities));
 
-    // Fetch Mechanics mapped to these retailers
     const retIds = rets.map(r => r.userId);
     const mechs = retIds.length > 0 ? await db.select({
         id: mechanics.id,
@@ -471,7 +449,6 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
     .from(mechanics)
     .where(inArray(mechanics.attachedRetailerId, retIds)) : [];
 
-    // Fetch Distributors in these cities
     const allDistributors = await db.select({
         id: users.id,
         name: users.name,
@@ -495,7 +472,6 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
         scopeType: 'City',
         scopeName: cities.join(', '),
         children: [
-            // Actual Distributors
             ...allDistributors.map(dist => ({
                 id: dist.id,
                 name: dist.name || 'Unknown Distributor',
@@ -503,7 +479,7 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
                 scopeType: 'City',
                 scopeName: dist.city || 'Unknown',
                 children: rets
-                    .filter(ret => ret.attachedDistributorId === dist.id)
+                    .filter(ret => (ret as any).attachedDistributorId === dist.id)
                     .map(ret => ({
                         id: ret.userId,
                         name: ret.name || 'Unknown Retailer',
@@ -521,17 +497,15 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
                             }))
                     }))
             })),
-            // Virtual "Direct Retailers" Distributor
-            ...(rets.some(ret => !ret.attachedDistributorId) || mechs.some(m => !m.attachedRetailerId) ? [{
-                id: -(srId + 1000000), // Virtual ID
+            ...(rets.some(ret => !(ret as any).attachedDistributorId) || mechs.some(m => !m.attachedRetailerId) ? [{
+                id: -(srId + 1000000), 
                 name: 'Direct Retailers',
                 role: 'Distributor',
                 scopeType: 'City',
                 scopeName: cities.join(', '),
                 children: [
-                    // Unmapped Retailers
                     ...rets
-                        .filter(ret => !ret.attachedDistributorId)
+                        .filter(ret => !(ret as any).attachedDistributorId)
                         .map(ret => ({
                             id: ret.userId,
                             name: ret.name || 'Unknown Retailer',
@@ -548,9 +522,8 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
                                     scopeName: m.city || 'Unknown'
                                 }))
                         })),
-                    // Virtual "Direct Mechanic" Retailer for unmapped mechanics
                     ...(mechs.some(m => !m.attachedRetailerId) ? [{
-                        id: -(srId + 2000000), // Virtual ID
+                        id: -(srId + 2000000), 
                         name: 'Direct Mechanic',
                         role: 'Retailer',
                         scopeType: 'City',

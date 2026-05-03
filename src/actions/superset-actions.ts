@@ -30,7 +30,7 @@ export async function getSupersetAdminToken() {
         return { accessToken: loginData.access_token };
     } catch (error) {
         console.error('Error fetching Superset Admin token:', error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -108,7 +108,7 @@ export async function getSupersetGuestToken(dashboardId: string) {
 
     } catch (error) {
         console.error('Error fetching Superset token:', error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 

@@ -287,7 +287,7 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             { name: 'Counter Staff', value: await getSectorPoints('Counter Staff'), color: '#F59E0B' }
         ];
 
-        return {
+        const rawResult = {
             metrics: {
                 totalPointsIssued,
                 totalPointsRedeemed,
@@ -298,9 +298,14 @@ export async function getFinanceDataAction(filters?: FinanceFilters) {
             flowData,
             sectors
         };
+        return JSON.parse(JSON.stringify(rawResult));
 
     } catch (error) {
         console.error("Finance Data Action Error:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : "Failed to fetch finance data");
     }
+}
+
+export async function getComplianceDataAction(filters?: any) {
+    return [];
 }

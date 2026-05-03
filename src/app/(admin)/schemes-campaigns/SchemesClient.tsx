@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getSchemesDataAction } from '@/actions/schemes-actions';
+import { getSchemesAction } from '@/actions/schemes-actions';
 
 export default function SchemesClient() {
     const { data, isLoading, error } = useQuery({
         queryKey: ['schemes-data'],
-        queryFn: getSchemesDataAction
+        queryFn: getSchemesAction
     });
 
     const activeCampaigns = data?.activeCampaigns || [];

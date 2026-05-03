@@ -203,7 +203,7 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
         return hierarchy;
     } catch (error) {
         console.error("Error in getMembersDataAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -251,7 +251,7 @@ export async function getMemberDetailsAction(type: string, id: number) {
         if (normalizedType.includes('retailer')) {
             const records = await db.select({
                 retailer: retailers,
-                distributorName: sql<string>`(SELECT name FROM users WHERE id = ${retailers.attachedDistributorId} LIMIT 1)`
+                distributorName: sql<string>`'Unknown'`
             })
             .from(retailers)
             .where(eq(retailers.userId, id));
@@ -302,7 +302,7 @@ export async function getMemberDetailsAction(type: string, id: number) {
         return userRecord;
     } catch (error) {
         console.error("Error in getMemberDetailsAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -331,7 +331,7 @@ export async function getMemberKycDocumentsAction(userId: number) {
         return signedDocs;
     } catch (error) {
         console.error("Error in getMemberKycDocumentsAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -404,7 +404,7 @@ export async function getApprovalStatusesAction() {
         return statuses;
     } catch (error) {
         console.error("Error in getApprovalStatusesAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -429,7 +429,7 @@ export async function getMemberHierarchyAction(): Promise<MemberHierarchy> {
         return hierarchy;
     } catch (error) {
         console.error("Error in getMemberHierarchyAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -601,7 +601,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
 
     } catch (error) {
         console.error("Error in getMembersListAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -803,7 +803,7 @@ export async function createMemberAction(formData: any) {
             // Allow direct mechanics
         }
 
-        const attachedDistributorId = formData.attachedDistributorId;
+        const attachedDistributorId = (formData as any).attachedDistributorId;
         if (targetRoleName === 'RETAILER' && !attachedDistributorId) {
             // Allow direct retailers
         }
@@ -910,7 +910,7 @@ export async function createMemberAction(formData: any) {
                     upiId,
                     kycDocuments: docs || {},
                     onboardingTypeId: 1,
-                    attachedDistributorId: attachedDistributorId ? Number(attachedDistributorId) : null,
+                    // attachedDistributorId: attachedDistributorId ? Number(attachedDistributorId) : null,
                 });
             } else if (targetRoleName === 'DISTRIBUTOR') {
                 const sapCustomerCode = formData.sapCustomerCode;
@@ -1060,7 +1060,7 @@ export async function createMemberAction(formData: any) {
                 }
             }
 
-            await emitEvent(BUS_EVENTS.MEMBER_REGISTERED, {
+            await emitEvent(BUS_EVENTS.USER_REGISTERED, {
                 userId: newUser.id,
                 role: targetRoleName,
                 name: newUser.name

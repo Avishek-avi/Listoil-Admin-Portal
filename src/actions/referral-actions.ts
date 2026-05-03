@@ -50,7 +50,7 @@ export async function updateReferralGlobalConfigAction(value: any) {
         return { success: true };
     } catch (error) {
         console.error("Error updating global referral config:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -68,7 +68,7 @@ export async function getUserTypeReferralConfigAction(userTypeId: number) {
         return result;
     } catch (error) {
         console.error("Error fetching user type referral config:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -87,7 +87,7 @@ export async function updateUserTypeReferralConfigAction(userTypeId: number, dat
         return { success: true };
     } catch (error) {
         console.error("Error updating user type referral config:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -102,6 +102,6 @@ export async function getAllUserTypesAction() {
         });
     } catch (error) {
         console.error("Error fetching user types:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }

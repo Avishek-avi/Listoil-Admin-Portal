@@ -890,6 +890,7 @@ function TransactionsTab() {
                             <TableCell>User Type</TableCell>
                             <TableCell>Transaction Type</TableCell>
                             <TableCell>Reference (QR / Invoice)</TableCell>
+                            <TableCell>Remarks</TableCell>
                             <TableCell align="right">Points</TableCell>
                         </TableRow>
                     </TableHead>
@@ -907,7 +908,7 @@ function TransactionsTab() {
                                     <Chip label={t.userType} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
                                 </TableCell>
                                 <TableCell>
-                                    <Typography variant="body2" sx={{ color: t.transactionType === 'Scan' ? 'primary.main' : 'secondary.main', fontWeight: 500 }}>
+                                    <Typography variant="body2" sx={{ color: t.transactionType === 'Booster' ? 'secondary.main' : 'primary.main', fontWeight: 500 }}>
                                         {t.transactionType}
                                     </Typography>
                                 </TableCell>
@@ -925,6 +926,11 @@ function TransactionsTab() {
                                         </Box>
                                     )}
                                     {!t.qrCode && !t.invoiceNo && <Typography variant="caption" color="text.disabled">—</Typography>}
+                                </TableCell>
+                                <TableCell>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                        {t.remarks || '—'}
+                                    </Typography>
                                 </TableCell>
                                 <TableCell align="right">
                                     <Typography variant="body2" fontWeight={700} color="success.main">
@@ -1018,15 +1024,15 @@ function ManualEntryTab() {
         setQrStatus({ loading: true });
         const result = await getQrCodeDetailsAction(formData.serialNumber);
         
-        if (result.error) {
-            setQrStatus({ loading: false, error: result.error });
+        if ((result as any).error) {
+            setQrStatus({ loading: false, error: (result as any).error });
             setFormData(prev => ({ ...prev, points: '' }));
         } else {
             setQrStatus({ 
                 loading: false, 
-                success: `Valid QR: ${result.variantName || 'Unknown SKU'}` 
+                success: `Valid QR: ${(result as any).variantName || 'Unknown SKU'}` 
             });
-            setFormData(prev => ({ ...prev, points: result.points?.toString() || '0' }));
+            setFormData(prev => ({ ...prev, points: (result as any).points?.toString() || '0' }));
         }
     };
 
@@ -1068,7 +1074,7 @@ function ManualEntryTab() {
         } else {
             setNotification({
                 open: true,
-                message: result.error || 'Failed to submit manual entry.',
+                message: (result as any).error || 'Failed to submit manual entry.',
                 severity: 'error'
             });
         }

@@ -185,7 +185,7 @@ export default function TeamHierarchyClient() {
             ) : (
                 <Grid container spacing={3}>
                     {filteredMembers.map((member) => (
-                        <Grid item xs={12} sm={6} lg={4} key={member.id}>
+                        <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={member.id}>
                             <MemberDrillCard 
                                 member={member} 
                                 onDrillDown={() => handleDrillDown(member)}

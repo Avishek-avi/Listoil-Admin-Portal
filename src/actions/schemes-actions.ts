@@ -1,139 +1,144 @@
 'use server'
 
-export interface Campaign {
-    id: string;
+import { db } from '@/db';
+import { schemes, schemeTypes, skuEntity, skuVariant, userTypeEntity, pincodeMaster } from '@/db/schema';
+import { eq, and, sql, desc, ilike } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
+
+export interface Scheme {
+    id: number;
     name: string;
-    type: string;
-    start: string;
-    end: string;
-    participants: number;
-    status: string;
+    schemeType: string;
+    description: string | null;
+    startDate: string;
+    endDate: string;
+    isActive: boolean;
+    config: any;
+    createdAt: string;
 }
 
-export interface Sku {
-    skuCode: string;
-    brand: string;
-    model: string;
-    description: string;
-    mrp: string;
-    points: string;
-    totalPoints: string;
-}
+export async function getSchemesAction() {
+    try {
+        const result = await db.select({
+            id: schemes.id,
+            name: schemes.name,
+            schemeType: schemeTypes.name,
+            description: schemes.description,
+            startDate: schemes.startDate,
+            endDate: schemes.endDate,
+            isActive: schemes.isActive,
+            config: schemes.config,
+            createdAt: schemes.createdAt
+        })
+        .from(schemes)
+        .leftJoin(schemeTypes, eq(schemes.schemeType, schemeTypes.id))
+        .orderBy(desc(schemes.createdAt));
 
-export interface ProductHierarchy {
-    [key: string]: {
-        name: string;
-        subcategories: {
-            [key: string]: {
-                name: string;
-                skus: { [key: string]: string }
-            }
-        }
+        return JSON.parse(JSON.stringify(result));
+    } catch (error) {
+        console.error("Error fetching schemes:", error);
+        return [];
     }
 }
 
-const activeCampaigns = [
-    { id: '#CMP-001', name: 'Monsoon Fan Special', type: 'Booster', start: '2023-06-01', end: '2023-06-30', participants: 342, status: 'Active' },
-    { id: '#CMP-002', name: 'Summer LED Campaign', type: 'Slab Based', start: '2023-05-15', end: '2023-07-15', participants: 278, status: 'Active' },
-    { id: '#CMP-003', name: 'Festive Lighting Sale', type: 'Cross-Sell', start: '2023-06-10', end: '2023-08-10', participants: 156, status: 'Active' },
-    { id: '#CMP-004', name: 'New Mechanic Onboarding', type: 'Booster', start: '2023-06-01', end: '2023-07-31', participants: 89, status: 'Active' },
-    { id: '#CMP-005', name: 'Switch & Socket Special', type: 'Slab Based', start: '2023-06-05', end: '2023-07-05', participants: 234, status: 'Active' },
-];
+export async function getSchemeMasterDataAction() {
+    try {
+        // 1. Fetch SKU Hierarchy (Categories, Subcategories)
+        const categories = await db.select({ id: skuEntity.id, name: skuEntity.name })
+            .from(skuEntity)
+            .where(eq(skuEntity.levelId, 11)); // L3 = Category
 
-const skuData = [
-    { skuCode: 'STL-FAN-001', brand: 'STURLITE', model: 'CEILING FAN 1200MM', description: 'CEILING FAN WITH REMOTE', mrp: '2899', points: '57.98', totalPoints: '60' },
-    { skuCode: 'STL-FAN-002', brand: 'STURLITE', model: 'CEILING FAN 1400MM', description: 'CEILING FAN WITH REMOTE', mrp: '3299', points: '65.98', totalPoints: '70' },
-    { skuCode: 'STL-LGT-001', brand: 'STURLITE', model: 'LED BULB 9W', description: 'LED BULB COOL WHITE', mrp: '199', points: '3.98', totalPoints: '5' },
-    { skuCode: 'STL-LGT-002', brand: 'STURLITE', model: 'LED BULB 12W', description: 'LED BULB WARM WHITE', mrp: '249', points: '4.98', totalPoints: '5' },
-    { skuCode: 'STL-SWT-001', brand: 'STURLITE', model: 'SWITCH 2 MODULE', description: 'MODULAR SWITCH 2 MODULE', mrp: '399', points: '7.98', totalPoints: '10' },
-    { skuCode: 'STL-SWT-002', brand: 'STURLITE', model: 'SWITCH 4 MODULE', description: 'MODULAR SWITCH 4 MODULE', mrp: '599', points: '11.98', totalPoints: '15' },
-    { skuCode: 'STL-MCB-001', brand: 'STURLITE', model: 'MCB 16A', description: 'MINIATURE CIRCUIT BREAKER', mrp: '299', points: '5.98', totalPoints: '10' },
-    { skuCode: 'STL-MCB-002', brand: 'STURLITE', model: 'MCB 32A', description: 'MINIATURE CIRCUIT BREAKER', mrp: '399', points: '7.98', totalPoints: '10' },
-    { skuCode: 'STL-WIR-001', brand: 'STURLITE', model: 'WIRE 1.5SQMM', description: 'COPPER WIRE 90MTRS', mrp: '1899', points: '37.98', totalPoints: '40' },
-    { skuCode: 'STL-WIR-002', brand: 'STURLITE', model: 'WIRE 2.5SQMM', description: 'COPPER WIRE 90MTRS', mrp: '2899', points: '57.98', totalPoints: '60' },
-];
+        const subCategories = await db.select({ id: skuEntity.id, name: skuEntity.name, parentId: skuEntity.parentEntityId })
+            .from(skuEntity)
+            .where(eq(skuEntity.levelId, 12)); // L4 = Subcategory
 
-const productHierarchy = {
-    fans: {
-        name: "Fans",
-        subcategories: {
-            "ceiling-fans": {
-                name: "Ceiling Fans",
-                skus: {
-                    "STL-FAN-001": "STL-FAN-001 - STURLITE CEILING FAN 1200MM",
-                    "STL-FAN-002": "STL-FAN-002 - STURLITE CEILING FAN 1400MM"
-                }
-            },
-            "table-fans": {
-                name: "Table Fans",
-                skus: {}
-            },
-            "pedestal-fans": {
-                name: "Pedestal Fans",
-                skus: {}
+        // 2. Fetch SKUs
+        const skus = await db.select({ id: skuVariant.id, name: skuVariant.variantName, entityId: skuVariant.skuEntityId })
+            .from(skuVariant);
+
+        // 3. Fetch User Types
+        const userTypes = await db.select({ id: userTypeEntity.id, name: userTypeEntity.typeName })
+            .from(userTypeEntity)
+            .where(eq(userTypeEntity.isActive, true));
+
+        // 4. Fetch Geographical Data
+        const zones = await db.select({ name: pincodeMaster.zone }).from(pincodeMaster).groupBy(pincodeMaster.zone);
+        const states = await db.select({ name: pincodeMaster.state, zone: pincodeMaster.zone }).from(pincodeMaster).groupBy(pincodeMaster.state, pincodeMaster.zone);
+        const cities = await db.select({ name: pincodeMaster.city, state: pincodeMaster.state }).from(pincodeMaster).groupBy(pincodeMaster.city, pincodeMaster.state);
+
+        const rawResult = {
+            categories,
+            subCategories,
+            skus,
+            userTypes,
+            geography: {
+                zones: zones.map(z => z.name).filter(Boolean),
+                states: states.map(s => ({ name: s.name, zone: s.zone })).filter(s => s.name),
+                cities: cities.map(c => ({ name: c.name, state: c.state })).filter(c => c.name)
             }
-        }
-    },
-    lighting: {
-        name: "Lighting",
-        subcategories: {
-            "led-bulbs": {
-                name: "LED Bulbs",
-                skus: {
-                    "STL-LGT-001": "STL-LGT-001 - STURLITE LED BULB 9W",
-                    "STL-LGT-002": "STL-LGT-002 - STURLITE LED BULB 12W"
-                }
-            },
-            "led-tubes": {
-                name: "LED Tubes",
-                skus: {}
-            }
-        }
-    },
-    switches: {
-        name: "Switches",
-        subcategories: {
-            "modular-switches": {
-                name: "Modular Switches",
-                skus: {
-                    "STL-SWT-001": "STL-SWT-001 - STURLITE SWITCH 2 MODULE",
-                    "STL-SWT-002": "STL-SWT-002 - STURLITE SWITCH 4 MODULE"
-                }
-            }
-        }
-    },
-    wires: {
-        name: "Wires",
-        subcategories: {
-            "copper-wires": {
-                name: "Copper Wires",
-                skus: {
-                    "STL-WIR-001": "STL-WIR-001 - STURLITE WIRE 1.5SQMM",
-                    "STL-WIR-002": "STL-WIR-002 - STURLITE WIRE 2.5SQMM"
-                }
-            }
-        }
-    },
-    mcbs: {
-        name: "MCBs",
-        subcategories: {
-            "miniature-breakers": {
-                name: "Miniature Circuit Breakers",
-                skus: {
-                    "STL-MCB-001": "STL-MCB-001 - STURLITE MCB 16A",
-                    "STL-MCB-002": "STL-MCB-002 - STURLITE MCB 32A"
-                }
-            }
-        }
+        };
+        return JSON.parse(JSON.stringify(rawResult));
+    } catch (error) {
+        console.error("Error fetching scheme master data:", error);
+        return {
+            categories: [],
+            subCategories: [],
+            skus: [],
+            userTypes: [],
+            geography: { zones: [], states: [], cities: [] }
+        };
     }
-};
+}
 
-export async function getSchemesDataAction() {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return {
-        activeCampaigns,
-        skuData,
-        productHierarchy
+export async function createBoosterSchemeAction(data: {
+    name: string;
+    description?: string;
+    startDate: string;
+    endDate: string;
+    targetType: 'Category' | 'SubCategory' | 'SKU';
+    targetIds: number[];
+    rewardType: 'Fixed' | 'Percentage';
+    rewardValue: number;
+    audienceIds: number[];
+    geoScope: {
+        zones: string[];
+        states: string[];
+        cities: string[];
     };
+}) {
+    try {
+        const session = await auth();
+        if (!session) throw new Error("Unauthorized");
+
+        // Get or create "Booster" scheme type
+        let [type] = await db.select().from(schemeTypes).where(ilike(schemeTypes.name, 'Booster'));
+        if (!type) {
+            [type] = await db.insert(schemeTypes).values({ name: 'Booster', description: 'Points Top-up Scheme' }).returning();
+        }
+
+        const result = await db.insert(schemes).values({
+            name: data.name,
+            schemeType: type.id,
+            description: data.description,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            config: {
+                booster: {
+                    targetType: data.targetType,
+                    targetIds: data.targetIds,
+                    rewardType: data.rewardType,
+                    rewardValue: data.rewardValue,
+                    audienceIds: data.audienceIds,
+                    geoScope: data.geoScope
+                }
+            }
+        }).returning();
+
+        revalidatePath('/schemes');
+        return { success: true, id: result[0].id };
+    } catch (error: any) {
+        console.error("Error creating booster scheme:", error);
+        return { success: false, error: error.message };
+    }
 }
