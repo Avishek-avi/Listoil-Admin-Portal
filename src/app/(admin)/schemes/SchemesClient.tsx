@@ -23,6 +23,11 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         endDate: '',
         targetType: 'Category' as 'Category' | 'SubCategory' | 'SKU',
         targetIds: [] as number[],
+        selection: {
+            categoryIds: [] as number[],
+            subCategoryIds: [] as number[],
+            skuIds: [] as number[]
+        },
         rewardType: 'Fixed' as 'Fixed' | 'Percentage',
         rewardValue: 0,
         audienceIds: [] as number[],
@@ -39,7 +44,26 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await createBoosterSchemeAction(formData);
+            // Determine the target level based on depth of selection
+            const targetType = formData.selection.skuIds.length > 0 ? 'SKU' :
+                              formData.selection.subCategoryIds.length > 0 ? 'SubCategory' :
+                              'Category';
+            
+            const targetIds = targetType === 'SKU' ? formData.selection.skuIds :
+                             targetType === 'SubCategory' ? formData.selection.subCategoryIds :
+                             formData.selection.categoryIds;
+
+            if (targetIds.length === 0) {
+                toast.error("Please select at least one Category, Sub-Category, or SKU");
+                setLoading(false);
+                return;
+            }
+
+            const res = await createBoosterSchemeAction({
+                ...formData,
+                targetType,
+                targetIds
+            });
             if (res.success) {
                 toast.success("Booster Scheme created successfully!");
                 setIsCreateModalOpen(false);
@@ -54,13 +78,55 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         }
     };
 
-    const toggleTargetId = (id: number) => {
-        setFormData(prev => ({
-            ...prev,
-            targetIds: prev.targetIds.includes(id) 
-                ? prev.targetIds.filter(i => i !== id) 
-                : [...prev.targetIds, id]
-        }));
+    const filteredSubCategories = useMemo(() => {
+        return masterData.subCategories.filter((sc: any) => 
+            formData.selection.categoryIds.length === 0 || 
+            formData.selection.categoryIds.some(cid => Number(cid) === Number(sc.parentId))
+        );
+    }, [masterData.subCategories, formData.selection.categoryIds]);
+
+    const filteredSkus = useMemo(() => {
+        return masterData.skus.filter((sku: any) => 
+            formData.selection.subCategoryIds.length === 0 || 
+            formData.selection.subCategoryIds.some(sid => Number(sid) === Number(sku.subCategoryId))
+        );
+    }, [masterData.skus, formData.selection.subCategoryIds]);
+
+    const toggleSelection = (type: 'category' | 'subCategory' | 'sku', id: number) => {
+        setFormData(prev => {
+            const selectionKey = `${type}Ids` as keyof typeof prev.selection;
+            const current = [...prev.selection[selectionKey]];
+            const updated = current.includes(id) ? current.filter(i => i !== id) : [...current, id];
+            
+            const newSelection = { ...prev.selection, [selectionKey]: updated };
+            
+            // Auto-clear children if parent is de-selected
+            if (type === 'category' && !updated.includes(id)) {
+                const subToClear = masterData.subCategories
+                    .filter((sc: any) => Number(sc.parentId) === Number(id))
+                    .map((sc: any) => sc.id);
+                newSelection.subCategoryIds = newSelection.subCategoryIds.filter(sid => 
+                    !subToClear.some(scid => Number(scid) === Number(sid))
+                );
+                
+                const skusToClear = masterData.skus
+                    .filter((sku: any) => subToClear.some(scid => Number(scid) === Number(sku.subCategoryId)))
+                    .map((sku: any) => sku.id);
+                newSelection.skuIds = newSelection.skuIds.filter(skid => 
+                    !skusToClear.some(sckid => Number(sckid) === Number(skid))
+                );
+            }
+            if (type === 'subCategory' && !updated.includes(id)) {
+                const skusToClear = masterData.skus
+                    .filter((sku: any) => Number(sku.subCategoryId) === Number(id))
+                    .map((sku: any) => sku.id);
+                newSelection.skuIds = newSelection.skuIds.filter(skid => 
+                    !skusToClear.some(sckid => Number(sckid) === Number(skid))
+                );
+            }
+            
+            return { ...prev, selection: newSelection };
+        });
     };
 
     const toggleAudienceId = (id: number) => {
@@ -182,7 +248,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
             {/* Create Modal */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-                    <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
                         {/* Header */}
                         <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <div className="flex items-center gap-4">
@@ -240,42 +306,84 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
 
                             {/* Section 2: Target Selection */}
                             <div className="space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
-                                        <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
-                                        1. Select Targets
-                                    </label>
-                                    <div className="flex bg-gray-100 p-1 rounded-xl">
-                                        {['Category', 'SubCategory', 'SKU'].map(t => (
-                                            <button 
-                                                key={t}
-                                                type="button"
-                                                onClick={() => setFormData({...formData, targetType: t as any, targetIds: []})}
-                                                className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.targetType === t ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500'}`}
-                                            >
-                                                {t}
-                                            </button>
-                                        ))}
+                                <label className="text-xs font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
+                                    1. Target Selection (Category &gt; Sub-Category &gt; SKU)
+                                </label>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Categories */}
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Categories</p>
+                                            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{formData.selection.categoryIds.length}</span>
+                                        </div>
+                                        <div className="h-[450px] overflow-y-auto p-2 bg-gray-50 rounded-3xl border border-gray-100 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-200">
+                                            {masterData.categories.map((item: any) => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => toggleSelection('category', item.id)}
+                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${
+                                                        formData.selection.categoryIds.includes(item.id)
+                                                        ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
+                                                        : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
+                                                    }`}
+                                                >
+                                                    <p className="text-[10px] font-black uppercase truncate">{item.name}</p>
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-[200px] overflow-y-auto p-2 bg-gray-50 rounded-3xl border border-gray-100">
-                                    {(formData.targetType === 'Category' ? masterData.categories : 
-                                      formData.targetType === 'SubCategory' ? masterData.subCategories : 
-                                      masterData.skus).map((item: any) => (
-                                        <button
-                                            key={item.id}
-                                            type="button"
-                                            onClick={() => toggleTargetId(item.id)}
-                                            className={`p-4 rounded-2xl text-left transition-all duration-300 border-2 ${
-                                                formData.targetIds.includes(item.id)
-                                                ? 'bg-red-50 border-red-500 text-red-700 shadow-md shadow-red-100 scale-[0.98]'
-                                                : 'bg-white border-transparent text-gray-600 hover:border-gray-200 shadow-sm'
-                                            }`}
-                                        >
-                                            <p className="text-[10px] font-black uppercase truncate">{item.name}</p>
-                                            {item.skuCode && <p className="text-[8px] opacity-60 mt-0.5">{item.skuCode}</p>}
-                                        </button>
-                                    ))}
+
+                                    {/* Sub-Categories */}
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Sub-Categories</p>
+                                            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{formData.selection.subCategoryIds.length}</span>
+                                        </div>
+                                        <div className="h-[450px] overflow-y-auto p-2 rounded-3xl border space-y-1.5 transition-all bg-gray-50 border-gray-100 scrollbar-thin scrollbar-thumb-gray-200">
+                                            {filteredSubCategories.map((item: any) => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => toggleSelection('subCategory', item.id)}
+                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${
+                                                        formData.selection.subCategoryIds.includes(item.id)
+                                                        ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
+                                                        : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
+                                                    }`}
+                                                >
+                                                    <p className="text-[10px] font-black uppercase truncate">{item.name}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* SKUs */}
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center px-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">SKUs</p>
+                                            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{formData.selection.skuIds.length}</span>
+                                        </div>
+                                        <div className="h-[450px] overflow-y-auto p-2 rounded-3xl border space-y-1.5 transition-all bg-gray-50 border-gray-100 scrollbar-thin scrollbar-thumb-gray-200">
+                                            {filteredSkus.map((item: any) => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => toggleSelection('sku', item.id)}
+                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${
+                                                        formData.selection.skuIds.includes(item.id)
+                                                        ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
+                                                        : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
+                                                    }`}
+                                                >
+                                                    <p className="text-[10px] font-black uppercase truncate">{item.name}</p>
+                                                    {item.skuCode && <p className="text-[8px] opacity-60 mt-0.5">{item.skuCode}</p>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

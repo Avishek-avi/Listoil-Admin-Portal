@@ -3,6 +3,7 @@
 import { db } from '@/db';
 import { schemes, schemeTypes, skuEntity, skuVariant, userTypeEntity, pincodeMaster } from '@/db/schema';
 import { eq, and, sql, desc, ilike } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
@@ -53,9 +54,22 @@ export async function getSchemeMasterDataAction() {
             .from(skuEntity)
             .where(eq(skuEntity.levelId, 12)); // L4 = Subcategory
 
-        // 2. Fetch SKUs
-        const skus = await db.select({ id: skuVariant.id, name: skuVariant.variantName, entityId: skuVariant.skuEntityId })
-            .from(skuVariant);
+        // 2. Fetch SKUs with hierarchy (L6 -> L5 -> L4)
+        const l6 = alias(skuEntity, 'l6');
+        const l5 = alias(skuEntity, 'l5');
+        const l4 = alias(skuEntity, 'l4');
+
+        const skus = await db.select({ 
+            id: skuVariant.id, 
+            name: skuVariant.variantName, 
+            entityId: skuVariant.skuEntityId, // L6 ID
+            subCategoryId: l5.parentEntityId, // L4 ID (Sub-category)
+            categoryId: l4.parentEntityId     // L3 ID (Category)
+        })
+        .from(skuVariant)
+        .leftJoin(l6, eq(skuVariant.skuEntityId, l6.id))
+        .leftJoin(l5, eq(l6.parentEntityId, l5.id))
+        .leftJoin(l4, eq(l5.parentEntityId, l4.id));
 
         // 3. Fetch User Types
         const userTypes = await db.select({ id: userTypeEntity.id, name: userTypeEntity.typeName })
