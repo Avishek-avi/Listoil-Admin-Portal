@@ -429,11 +429,11 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
                     phone: t.phone || 'N/A',
                     userType: t.userType,
                     createdAt: t.createdAt || '',
-                    transactionType: (t as any).category === 'SCHEME_BOOSTER' ? 'Booster' : t.transactionType,
+                    transactionType: t.category === 'SCHEME_BOOSTER' ? 'Booster' : (t.category === 'SCHEME_SLAB' ? 'Slab' : t.transactionType),
                     qrCode: t.qrCode || metadata?.qrCode || metadata?.scannedCode,
                     invoiceNo: metadata?.invoiceNumber || metadata?.invoiceNo || metadata?.billNumber,
                     points: Number(t.points),
-                    remarks: (t as any).remarks
+                    remarks: t.remarks
                 };
             });
 
@@ -581,12 +581,8 @@ export async function getQrCodeDetailsAction(serialNumber: string) {
     }
 }
 
-export async function submitManualScanAdjustmentAction(data: {
-    userId: number;
-    serialNumber: string;
-    points: number;
-    reason: string;
-}) {
+export async function submitManualScanAdjustmentAction(data: { userId: number; serialNumber: string; points: number; reason: string }) {
+    console.log(`[ProcessAction] submitManualScanAdjustmentAction called for user ${data.userId}, serial ${data.serialNumber}`);
     try {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
@@ -656,6 +652,7 @@ export async function submitManualScanAdjustmentAction(data: {
                 }
             }
 
+            console.log(`[ProcessAction] QR Source identified: ${qrSource}, SKU: ${sku}`);
             if (!qrSource) throw new Error("Invalid serial number.");
 
             // 2. Check user
@@ -664,6 +661,7 @@ export async function submitManualScanAdjustmentAction(data: {
                 .where(and(eq(users.id, data.userId), eq(users.roleId, 3)))
                 .limit(1);
             
+            console.log(`[ProcessAction] User 1025 found and active.`);
             if (!user) throw new Error("Invalid mechanic selected.");
             if (user.isSuspended) throw new Error("Mechanic is suspended.");
 
@@ -734,10 +732,19 @@ export async function submitManualScanAdjustmentAction(data: {
                 }
             });
 
-            // --- SCALABLE QUEUE-BASED PROCESSING ---
+            // --- SYNCHRONOUS SCHEME PROCESSING ---
+            // For reliable real-time updates (especially in dev), we process schemes within the transaction.
             try {
-                // 1. Emit Scan Event for Background Processing
-                // This offloads booster logic, balance updates, and point calculations
+                console.log(`[ProcessAction] Processing schemes for serial ${data.serialNumber}`);
+                await processBoosterSchemes(tx, {
+                    userId: data.userId,
+                    points: data.points,
+                    serialNumber: data.serialNumber,
+                    sku: sku,
+                    baseTransactionId: newLog.id
+                });
+                
+                // Also emit event for other side effects if needed
                 await emitEvent(EVENT_KEYS.EARNING_SCAN, {
                     userId: data.userId,
                     points: data.points,
@@ -747,21 +754,99 @@ export async function submitManualScanAdjustmentAction(data: {
                     action: 'MANUAL_SCAN_PROCESS'
                 });
             } catch (err) {
-                console.error("Error queueing booster/points processing:", err);
-                // Fallback to sync if queue fails (safer for critical points)
-                await processBoosterSchemes(tx, {
-                    userId: data.userId,
-                    points: data.points,
-                    serialNumber: data.serialNumber,
-                    sku: sku,
-                    baseTransactionId: newLog.id
-                });
+                console.error("[ProcessAction] Error in scheme processing:", err);
+                // We don't fail the whole transaction if schemes fail, but we log it
             }
 
+            console.log(`[ProcessAction] Transaction committed successfully for serial ${data.serialNumber}`);
             return { success: true, message: "Scan processed. Points will be credited shortly." };
         });
     } catch (error: any) {
-        console.error("Error in submitManualScanAdjustmentAction:", error);
+        console.error("[ProcessAction] Error in submitManualScanAdjustmentAction:", error);
         return { success: false, error: error.message || "Failed to submit manual entry." };
+    }
+}
+
+export async function rollbackTransactionAction(transactionId: number, transactionType: string) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        return await db.transaction(async (tx) => {
+            // 1. Get the transaction details
+            let log;
+            if (transactionType === 'Scan') {
+                [log] = await tx.select().from(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.id, transactionId)).limit(1);
+            } else if (transactionType === 'Booster' || transactionType === 'Slab') {
+                [log] = await tx.select().from(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.id, transactionId)).limit(1);
+            }
+
+            if (!log) throw new Error("Transaction not found.");
+
+            // 2. Find and delete all related bonus logs (if this was a base scan)
+            if (log.category === 'QR_SCAN') {
+                const relatedLogs = await tx.select().from(mechanicTransactionLogs).where(
+                    sql`metadata->>'baseTransactionId' = ${transactionId.toString()}`
+                );
+
+                for (const rLog of relatedLogs) {
+                    // Revert balance for each bonus
+                    const points = Number(rLog.points || 0);
+                    await tx.update(mechanics)
+                        .set({
+                            pointsBalance: sql`${mechanics.pointsBalance} - ${points}`,
+                            totalEarnings: sql`${mechanics.totalEarnings} - ${points}`,
+                            redeemablePoints: sql`${mechanics.redeemablePoints} - ${points}`
+                        })
+                        .where(eq(mechanics.userId, log.userId));
+                    
+                    // Update scheme spent budget if applicable
+                    if (rLog.schemeId) {
+                        await tx.update(schemes)
+                            .set({ spentBudget: sql`${schemes.spentBudget} - ${points}` })
+                            .where(eq(schemes.id, rLog.schemeId));
+                    }
+
+                    await tx.delete(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.id, rLog.id));
+                }
+
+                // Reset QR status
+                if (log.qrCode) {
+                    await tx.update(qrCodes).set({ isScanned: false, scannedBy: null }).where(eq(qrCodes.code, log.qrCode));
+                    await tx.update(tblInventory).set({ isQrScanned: false }).where(eq(tblInventory.serialNumber, log.qrCode));
+                }
+            }
+
+            // 3. Revert balance for the main log
+            const points = Number(log.points || 0);
+            await tx.update(mechanics)
+                .set({
+                    pointsBalance: sql`${mechanics.pointsBalance} - ${points}`,
+                    totalEarnings: sql`${mechanics.totalEarnings} - ${points}`,
+                    redeemablePoints: sql`${mechanics.redeemablePoints} - ${points}`
+                })
+                .where(eq(mechanics.userId, log.userId));
+
+            // 4. Delete the main log
+            await tx.delete(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.id, transactionId));
+
+            // 5. Audit Log
+            await tx.insert(auditLogs).values({
+                tableName: 'mechanic_transaction_logs',
+                recordId: transactionId,
+                operation: 'DELETE',
+                action: 'TRANSACTION_ROLLBACK',
+                changedBy: Number(session.user.id),
+                newState: {
+                    originalLog: log,
+                    reason: "Admin Rollback"
+                }
+            });
+
+            return { success: true, message: "Transaction rolled back successfully." };
+        });
+    } catch (error: any) {
+        console.error("Error in rollbackTransactionAction:", error);
+        return { success: false, error: error.message || "Failed to rollback transaction." };
     }
 }

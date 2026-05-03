@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
-import { createBoosterSchemeAction, updateBoosterSchemeAction, getSchemeAuditLogsAction } from "@/actions/schemes-actions";
+import { createSchemeAction, updateSchemeAction, getSchemeAuditLogsAction } from "@/actions/schemes-actions";
 import { toast } from "react-hot-toast";
 
 interface SchemesClientProps {
@@ -65,7 +65,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
             cities: [] as string[]
         },
         maxBudget: 0,
-        maxUsers: 0
+        maxUsers: 0,
+        slabConfig: {
+            basis: 'SCAN_COUNT' as 'SCAN_COUNT' | 'POINTS_EARNED',
+            disbursalType: 'REALTIME' as 'REALTIME' | 'SCHEME_END',
+            slabs: [{ min: 0, max: 0, rewardValue: 0 }]
+        }
     });
 
     const [searchTerms, setSearchTerms] = useState({
@@ -98,14 +103,20 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                 return;
             }
 
+            const typeMap: Record<string, string> = {
+                'Booster Scheme': 'Booster',
+                'Slab Based': 'Slab'
+            };
+            const currentType = typeMap[activeTab] || 'Booster';
+
             if (editingSchemeId) {
-                const res = await updateBoosterSchemeAction(editingSchemeId, {
+                const res = await updateSchemeAction(editingSchemeId, currentType, {
                     ...formData,
                     targetType,
                     targetIds
                 });
                 if (res.success) {
-                    toast.success("Booster Scheme updated successfully!");
+                    toast.success(`${currentType} Scheme updated successfully!`);
                     setIsCreateModalOpen(false);
                     setEditingSchemeId(null);
                     fetchLogs();
@@ -113,21 +124,22 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                     toast.error(res.error || "Failed to update scheme");
                 }
             } else {
-                const res = await createBoosterSchemeAction({
+                const res = await createSchemeAction(currentType, {
                     ...formData,
                     targetType,
                     targetIds
                 });
                 if (res.success) {
-                    toast.success("Booster Scheme created successfully!");
+                    toast.success(`${currentType} Scheme created successfully!`);
                     setIsCreateModalOpen(false);
                     fetchLogs();
                 } else {
                     toast.error(res.error || "Failed to create scheme");
                 }
             }
-        } catch (err) {
-            toast.error("An unexpected error occurred");
+        } catch (err: any) {
+            console.error("[SchemesClient] handleCreate error:", err);
+            toast.error(err.message || "An unexpected error occurred");
         } finally {
             setLoading(false);
         }
@@ -235,8 +247,16 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
     };
 
     const handleEdit = (scheme: any) => {
-        const config = scheme.config?.booster;
+        const isSlab = scheme.schemeType === 'Slab' || (scheme.config && 'slab' in scheme.config);
+        const config = isSlab ? scheme.config?.slab : scheme.config?.booster;
+        
         if (!config) return;
+
+        if (isSlab) {
+            setActiveTab('Slab Based');
+        } else {
+            setActiveTab('Booster Scheme');
+        }
 
         // Ensure targetIds are numbers for correct comparison with masterData
         const targetIds = (config.targetIds || []).map((id: any) => Number(id));
@@ -253,15 +273,54 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                 subCategoryIds: config.targetType === 'SubCategory' ? targetIds : [],
                 skuIds: config.targetType === 'SKU' ? targetIds : []
             },
-            rewardType: config.rewardType,
-            rewardValue: config.rewardValue,
+            rewardType: config.rewardType || 'Fixed',
+            rewardValue: config.rewardValue || 0,
             audienceIds: (config.audienceIds || []).map((id: any) => Number(id)),
             geoScope: config.geoScope || { zones: [], states: [], cities: [] },
             maxBudget: scheme.budget || 0,
-            maxUsers: config.maxUsers || 0
+            maxUsers: config.maxUsers || 0,
+            slabConfig: config.slabConfig || {
+                basis: 'SCAN_COUNT',
+                disbursalType: 'REALTIME',
+                slabs: [{ min: 0, max: 0, rewardValue: 0 }]
+            }
         });
         setEditingSchemeId(scheme.id);
         setIsCreateModalOpen(true);
+    };
+
+    const addSlab = () => {
+        setFormData({
+            ...formData,
+            slabConfig: {
+                ...formData.slabConfig,
+                slabs: [...formData.slabConfig.slabs, { min: 0, max: 0, rewardValue: 0 }]
+            }
+        });
+    };
+
+    const removeSlab = (index: number) => {
+        if (formData.slabConfig.slabs.length <= 1) return;
+        const newSlabs = formData.slabConfig.slabs.filter((_, i) => i !== index);
+        setFormData({
+            ...formData,
+            slabConfig: {
+                ...formData.slabConfig,
+                slabs: newSlabs
+            }
+        });
+    };
+
+    const updateSlab = (index: number, field: string, value: any) => {
+        const newSlabs = [...formData.slabConfig.slabs];
+        newSlabs[index] = { ...newSlabs[index], [field]: value };
+        setFormData({
+            ...formData,
+            slabConfig: {
+                ...formData.slabConfig,
+                slabs: newSlabs
+            }
+        });
     };
 
     const getReadableDiff = (oldS: any, newS: any) => {
@@ -374,13 +433,17 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                     </div>
 
                     <div className="p-8">
-                        {activeTab === 'Booster Scheme' ? (
+                        {activeTab === 'Booster Scheme' || activeTab === 'Slab Based' ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {initialSchemes.filter(s => s.schemeType === 'Booster' || !s.schemeType).map((scheme, i) => (
+                                {initialSchemes.filter(s => {
+                                    if (activeTab === 'Booster Scheme') return s.schemeType === 'Booster' || !s.schemeType;
+                                    if (activeTab === 'Slab Based') return s.schemeType === 'Slab';
+                                    return false;
+                                }).map((scheme, i) => (
                                     <div key={scheme.id || i} className="group relative bg-white border border-gray-100 rounded-3xl p-6 hover:shadow-xl hover:shadow-gray-100 transition-all duration-500 border-b-4 border-b-red-500/20">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="p-3 bg-red-50 rounded-2xl text-red-600 group-hover:scale-110 transition-transform">
-                                                <i className="fas fa-rocket text-xl"></i>
+                                                <i className={`fas ${activeTab === 'Slab Based' ? 'fa-layer-group' : 'fa-rocket'} text-xl`}></i>
                                             </div>
                                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${scheme.isActive ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
                                                 {scheme.isActive ? 'Active' : 'Inactive'}
@@ -399,8 +462,16 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                 <i className="fas fa-coins text-red-500 w-4"></i>
                                                 <span className="text-gray-400">Reward:</span>
                                                 <span className="text-red-600 font-bold">
-                                                    {scheme.config?.booster?.rewardValue}
-                                                    {scheme.config?.booster?.rewardType === 'Percentage' ? '%' : ' Pts'} Top-up
+                                                    {activeTab === 'Booster Scheme' ? (
+                                                        <>
+                                                            {scheme.config?.booster?.rewardValue}
+                                                            {scheme.config?.booster?.rewardType === 'Percentage' ? '%' : ' Pts'} Top-up
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {scheme.config?.slab?.slabConfig?.slabs?.length || 0} Tiers ({scheme.config?.slab?.slabConfig?.basis?.replace('_', ' ')})
+                                                        </>
+                                                    )}
                                                 </span>
                                             </div>
                                         </div>
@@ -416,10 +487,14 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     </div>
                                 ))}
 
-                                {initialSchemes.length === 0 && (
+                                {initialSchemes.filter(s => {
+                                    if (activeTab === 'Booster Scheme') return s.schemeType === 'Booster' || !s.schemeType;
+                                    if (activeTab === 'Slab Based') return s.schemeType === 'Slab';
+                                    return false;
+                                }).length === 0 && (
                                     <div className="col-span-full flex flex-col items-center justify-center py-20 opacity-40">
                                         <i className="fas fa-gift text-6xl text-gray-300 mb-4"></i>
-                                        <p className="text-gray-500 font-medium italic">No schemes found. Start by creating one!</p>
+                                        <p className="text-gray-500 font-medium italic">No {activeTab.toLowerCase()} programs found.</p>
                                     </div>
                                 )}
                             </div>
@@ -522,14 +597,18 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                         {/* Header */}
                         <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-red-200">
-                                    <i className="fas fa-rocket text-xl"></i>
+                                <div className={`w-12 h-12 ${activeTab === 'Slab Based' ? 'bg-gray-800' : 'bg-red-600'} rounded-2xl flex items-center justify-center text-white shadow-lg shadow-red-200`}>
+                                    <i className={`fas ${activeTab === 'Slab Based' ? 'fa-layer-group' : 'fa-rocket'} text-xl`}></i>
                                 </div>
                                 <div>
                                     <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">
-                                        {editingSchemeId ? 'Edit Booster Scheme' : 'Create Booster Scheme'}
+                                        {editingSchemeId ? `Edit ${activeTab}` : `Create ${activeTab}`}
                                     </h2>
-                                    <p className="text-sm text-gray-500 font-medium">Configure top-up rewards for specific targets</p>
+                                    <p className="text-sm text-gray-500 font-medium">
+                                        {activeTab === 'Slab Based' 
+                                            ? 'Configure tiered rewards based on volume or points' 
+                                            : 'Configure top-up rewards for specific targets'}
+                                    </p>
                                 </div>
                             </div>
                             <button 
@@ -695,40 +774,141 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                 </div>
                             </div>
 
-                            {/* Section 3: Reward Configuration */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 items-end">
-                                <div className="md:col-span-2 p-8 bg-gradient-to-br from-red-600 to-red-700 rounded-[32px] text-white shadow-xl shadow-red-200">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-sm font-black uppercase tracking-widest">2. Reward Config</h3>
-                                        <div className="flex bg-white/20 p-1 rounded-xl">
-                                            {['Fixed', 'Percentage'].map(r => (
-                                                <button 
-                                                    key={r}
-                                                    type="button"
-                                                    onClick={() => setFormData({...formData, rewardType: r as any})}
-                                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.rewardType === r ? 'bg-white text-red-600' : 'text-white/80'}`}
-                                                >
-                                                    {r === 'Fixed' ? 'Direct Amount' : '% of Base'}
-                                                </button>
+                            {/* Section 3 & 4: Reward & Limits */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 items-start">
+                                {activeTab === 'Booster Scheme' ? (
+                                    <div className="md:col-span-2 p-8 bg-gradient-to-br from-red-600 to-red-700 rounded-[32px] text-white shadow-xl shadow-red-200">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-sm font-black uppercase tracking-widest text-white/90">2. Reward Config</h3>
+                                            <div className="flex bg-white/20 p-1 rounded-xl">
+                                                {['Fixed', 'Percentage'].map(r => (
+                                                    <button 
+                                                        key={r}
+                                                        type="button"
+                                                        onClick={() => setFormData({...formData, rewardType: r as any})}
+                                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.rewardType === r ? 'bg-white text-red-600 shadow-md' : 'text-white/80'}`}
+                                                    >
+                                                        {r === 'Fixed' ? 'Direct Amount' : '% of Base'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-6">
+                                            <div className="flex-1">
+                                                <input 
+                                                    type="number" 
+                                                    className="w-full bg-white/10 border-2 border-white/20 rounded-2xl px-6 py-4 text-3xl font-black text-white focus:ring-0 focus:border-white transition-all placeholder:text-white/30"
+                                                    placeholder="0.00"
+                                                    value={formData.rewardValue || ''}
+                                                    onChange={e => setFormData({...formData, rewardValue: parseFloat(e.target.value) || 0})}
+                                                />
+                                            </div>
+                                            <div className="text-4xl font-black opacity-40 text-white">
+                                                {formData.rewardType === 'Percentage' ? '%' : 'PTS'}
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] font-bold mt-4 text-white/70 italic">* This reward will be added as a top-up on top of the base points.</p>
+                                    </div>
+                                ) : (
+                                    <div className="md:col-span-2 space-y-8 bg-gray-900 rounded-[32px] p-8 shadow-xl shadow-gray-200 text-white">
+                                        <div className="flex justify-between items-center">
+                                            <h3 className="text-sm font-black uppercase tracking-widest text-white/90">2. Slab Config</h3>
+                                            <button 
+                                                type="button"
+                                                onClick={addSlab}
+                                                className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-300"
+                                            >
+                                                + Add Tier
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Slab Basis</label>
+                                                <div className="flex gap-4 p-1 bg-white/5 rounded-2xl border border-white/10">
+                                                    {[
+                                                        { id: 'SCAN_COUNT', label: 'No of Scans' },
+                                                        { id: 'POINTS_EARNED', label: 'Points Earned' }
+                                                    ].map(basis => (
+                                                        <button
+                                                            key={basis.id}
+                                                            type="button"
+                                                            onClick={() => setFormData({...formData, slabConfig: { ...formData.slabConfig, basis: basis.id as any }})}
+                                                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                                formData.slabConfig.basis === basis.id ? 'bg-white text-gray-900 shadow-lg' : 'text-white/40 hover:text-white'
+                                                            }`}
+                                                        >
+                                                            {basis.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Disbursal</label>
+                                                <div className="flex gap-4 p-1 bg-white/5 rounded-2xl border border-white/10">
+                                                    {[
+                                                        { id: 'REALTIME', label: 'Realtime' },
+                                                        { id: 'SCHEME_END', label: 'At End' }
+                                                    ].map(type => (
+                                                        <button
+                                                            key={type.id}
+                                                            type="button"
+                                                            onClick={() => setFormData({...formData, slabConfig: { ...formData.slabConfig, disbursalType: type.id as any }})}
+                                                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                                formData.slabConfig.disbursalType === type.id ? 'bg-red-600 text-white shadow-lg' : 'text-white/40 hover:text-white'
+                                                            }`}
+                                                        >
+                                                            {type.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {formData.slabConfig.slabs.map((slab, index) => (
+                                                <div key={index} className="grid grid-cols-4 gap-4 p-5 bg-white/5 rounded-2xl border border-white/10 group animate-in slide-in-from-right-2">
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] font-black text-white/30 uppercase ml-1">Min {formData.slabConfig.basis === 'SCAN_COUNT' ? 'Scans' : 'Points'}</p>
+                                                        <input 
+                                                            type="number"
+                                                            value={slab.min}
+                                                            onChange={e => updateSlab(index, 'min', Number(e.target.value))}
+                                                            className="w-full px-4 py-2 bg-white/10 border-none rounded-xl text-xs font-bold text-white focus:ring-1 focus:ring-red-500"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] font-black text-white/30 uppercase ml-1">Max {formData.slabConfig.basis === 'SCAN_COUNT' ? 'Scans' : 'Points'}</p>
+                                                        <input 
+                                                            type="number"
+                                                            value={slab.max}
+                                                            onChange={e => updateSlab(index, 'max', Number(e.target.value))}
+                                                            className="w-full px-4 py-2 bg-white/10 border-none rounded-xl text-xs font-bold text-white focus:ring-1 focus:ring-red-500"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] font-black text-white/30 uppercase ml-1">Bonus</p>
+                                                        <input 
+                                                            type="number"
+                                                            value={slab.rewardValue}
+                                                            onChange={e => updateSlab(index, 'rewardValue', Number(e.target.value))}
+                                                            className="w-full px-4 py-2 bg-white/10 border-none rounded-xl text-xs font-bold text-white focus:ring-1 focus:ring-red-500"
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-end justify-center pb-1">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => removeSlab(index)}
+                                                            className="w-8 h-8 rounded-lg bg-white/5 text-white/20 hover:bg-red-500/20 hover:text-red-500 transition-colors"
+                                                        >
+                                                            <i className="fas fa-trash-alt text-[10px]"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-6">
-                                        <div className="flex-1">
-                                            <input 
-                                                type="number" 
-                                                className="w-full bg-white/10 border-2 border-white/20 rounded-2xl px-6 py-4 text-3xl font-black text-white focus:ring-0 focus:border-white transition-all placeholder:text-white/30"
-                                                placeholder="0.00"
-                                                value={formData.rewardValue || ''}
-                                                onChange={e => setFormData({...formData, rewardValue: parseFloat(e.target.value) || 0})}
-                                            />
-                                        </div>
-                                        <div className="text-4xl font-black opacity-40">
-                                            {formData.rewardType === 'Percentage' ? '%' : 'PTS'}
-                                        </div>
-                                    </div>
-                                    <p className="text-[10px] font-bold mt-4 opacity-70 italic">* This reward will be added as a top-up on top of the base points.</p>
-                                </div>
+                                )}
 
                                 <div className="space-y-6">
                                     <div className="space-y-4">
@@ -758,38 +938,34 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
 
                                     <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Max Points Budget</label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="Unlimited"
-                                                    className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
-                                                    value={formData.maxBudget || ''}
-                                                    onChange={e => setFormData({...formData, maxBudget: parseInt(e.target.value) || 0})}
-                                                />
-                                            </div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Points Budget</label>
+                                            <input 
+                                                type="number" 
+                                                placeholder="Unlimited"
+                                                className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
+                                                value={formData.maxBudget || ''}
+                                                onChange={e => setFormData({...formData, maxBudget: parseInt(e.target.value) || 0})}
+                                            />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Max Users</label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="Unlimited"
-                                                    className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
-                                                    value={formData.maxUsers || ''}
-                                                    onChange={e => setFormData({...formData, maxUsers: parseInt(e.target.value) || 0})}
-                                                />
-                                            </div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">User Limit</label>
+                                            <input 
+                                                type="number" 
+                                                placeholder="Unlimited"
+                                                className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
+                                                value={formData.maxUsers || ''}
+                                                onChange={e => setFormData({...formData, maxUsers: parseInt(e.target.value) || 0})}
+                                            />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Section 4: Geography */}
+                            {/* Section 5: Geography */}
                             <div className="space-y-6">
                                 <label className="text-xs font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                                     <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
-                                    4. Geographical Scope
+                                    5. Geographical Scope
                                 </label>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-8 bg-gray-50 rounded-[32px] border border-gray-100">
                                     {/* Zones */}

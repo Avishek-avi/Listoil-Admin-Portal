@@ -8,7 +8,8 @@ import {
     type TransactionRecord,
     getMechanicsForManualEntryAction,
     getQrCodeDetailsAction,
-    submitManualScanAdjustmentAction
+    submitManualScanAdjustmentAction,
+    rollbackTransactionAction
 } from '@/actions/process-actions'
 import {
     getAdminOrdersAction, updateAdminOrderStatusAction,
@@ -870,8 +871,26 @@ function TransactionsTab() {
     const { data: transactions, isLoading } = useQuery({
         queryKey: ['all-transactions'],
         queryFn: () => getAllTransactionsAction(),
-        staleTime: 30 * 1000
     });
+    const queryClient = useQueryClient();
+    const [rollbackLoading, setRollbackLoading] = useState<number | null>(null);
+    const [alert, setAlert] = useState<{ open: boolean; msg: string; type: 'success' | 'error' }>({ open: false, msg: '', type: 'success' });
+
+    const handleRollback = async (id: number, type: string) => {
+        if (!confirm('Are you sure you want to rollback this transaction? This will also revert user balance and reset QR status if applicable.')) return;
+        
+        setRollbackLoading(id);
+        const res = await rollbackTransactionAction(id, type);
+        setRollbackLoading(null);
+
+        if (res.success) {
+            setAlert({ open: true, msg: res.message || 'Rollback successful', type: 'success' });
+            queryClient.invalidateQueries({ queryKey: ['all-transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['process-data'] });
+        } else {
+            setAlert({ open: true, msg: res.error || 'Rollback failed', type: 'error' });
+        }
+    };
 
     if (isLoading) return <Box display="flex" justifyContent="center" py={8}><CircularProgress /></Box>;
 
@@ -933,9 +952,20 @@ function TransactionsTab() {
                                     </Typography>
                                 </TableCell>
                                 <TableCell align="right">
-                                    <Typography variant="body2" fontWeight={700} color="success.main">
-                                        +{t.points}
-                                    </Typography>
+                                    <Box display="flex" flexDirection="column" alignItems="flex-end">
+                                        <Typography variant="body2" fontWeight={700} color="success.main">
+                                            +{t.points}
+                                        </Typography>
+                                        <Button 
+                                            size="small" 
+                                            color="error" 
+                                            onClick={() => handleRollback(t.id, t.transactionType)}
+                                            disabled={rollbackLoading === t.id}
+                                            sx={{ textTransform: 'none', fontSize: '0.65rem', p: 0, mt: 0.5, minWidth: 0 }}
+                                        >
+                                            {rollbackLoading === t.id ? 'Wait...' : 'Rollback'}
+                                        </Button>
+                                    </Box>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -949,6 +979,17 @@ function TransactionsTab() {
                     </TableBody>
                 </Table>
             </TableContainer>
+
+            <Snackbar 
+                open={alert.open} 
+                autoHideDuration={4000} 
+                onClose={() => setAlert(p => ({ ...p, open: false }))}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert severity={alert.type} variant="filled" onClose={() => setAlert(p => ({ ...p, open: false }))}>
+                    {alert.msg}
+                </Alert>
+            </Snackbar>
         </div>
     );
 }
@@ -1047,12 +1088,14 @@ function ManualEntryTab() {
         }
 
         setLoading(true);
+        console.log('[ProcessClient] Submitting manual scan adjustment:', formData);
         const result = await submitManualScanAdjustmentAction({
             userId: Number(formData.userId),
             serialNumber: formData.serialNumber,
             points: Number(formData.points),
             reason: formData.reason
         });
+        console.log('[ProcessClient] Result from server:', result);
 
         setLoading(false);
         if (result.success) {

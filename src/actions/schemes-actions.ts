@@ -105,52 +105,45 @@ export async function getSchemeMasterDataAction() {
     }
 }
 
-export async function createBoosterSchemeAction(data: {
-    name: string;
-    description?: string;
-    startDate: string;
-    endDate: string;
-    targetType: 'Category' | 'SubCategory' | 'SKU';
-    targetIds: number[];
-    rewardType: 'Fixed' | 'Percentage';
-    rewardValue: number;
-    audienceIds: number[];
-    geoScope: {
-        zones: string[];
-        states: string[];
-        cities: string[];
-    };
-    maxBudget?: number;
-    maxUsers?: number;
-}) {
+export async function createSchemeAction(type: string, data: any) {
     try {
         const session = await auth();
         if (!session) throw new Error("Unauthorized");
 
-        // Get or create "Booster" scheme type
-        let [type] = await db.select().from(schemeTypes).where(ilike(schemeTypes.name, 'Booster'));
-        if (!type) {
-            [type] = await db.insert(schemeTypes).values({ name: 'Booster', description: 'Points Top-up Scheme' }).returning();
+        // Get scheme type
+        const [schemeType] = await db.select().from(schemeTypes).where(ilike(schemeTypes.name, type)).limit(1);
+        if (!schemeType) throw new Error(`Invalid scheme type: ${type}`);
+
+        const config: any = {};
+        if (type === 'Booster') {
+            config.booster = {
+                targetType: data.targetType,
+                targetIds: data.targetIds,
+                rewardType: data.rewardType,
+                rewardValue: data.rewardValue,
+                audienceIds: data.audienceIds,
+                geoScope: data.geoScope,
+                maxUsers: data.maxUsers || 0
+            };
+        } else if (type === 'Slab') {
+            config.slab = {
+                targetType: data.targetType,
+                targetIds: data.targetIds,
+                slabConfig: data.slabConfig,
+                audienceIds: data.audienceIds,
+                geoScope: data.geoScope,
+                maxUsers: data.maxUsers || 0
+            };
         }
 
         const [result] = await db.insert(schemes).values({
             name: data.name,
-            schemeType: type.id,
+            schemeType: schemeType.id,
             description: data.description,
             startDate: data.startDate,
             endDate: data.endDate,
             budget: data.maxBudget || 0,
-            config: {
-                booster: {
-                    targetType: data.targetType,
-                    targetIds: data.targetIds,
-                    rewardType: data.rewardType,
-                    rewardValue: data.rewardValue,
-                    audienceIds: data.audienceIds,
-                    geoScope: data.geoScope,
-                    maxUsers: data.maxUsers || 0
-                }
-            }
+            config: config
         }).returning();
 
         // Add Audit Log
@@ -158,20 +151,21 @@ export async function createBoosterSchemeAction(data: {
             tableName: 'schemes',
             recordId: result.id,
             operation: 'INSERT',
-            action: 'CREATE_BOOSTER_SCHEME',
+            action: `CREATE_${type.toUpperCase()}_SCHEME`,
             changedBy: Number(session.user.id),
-            newState: data
+            newState: data,
+            changeSource: 'ADMIN_PORTAL'
         });
 
         revalidatePath('/schemes');
         return { success: true, id: result.id };
     } catch (error: any) {
-        console.error("Error creating booster scheme:", error);
+        console.error(`Error creating ${type} scheme:`, error);
         return { success: false, error: error.message };
     }
 }
 
-export async function updateBoosterSchemeAction(id: number, data: any) {
+export async function updateSchemeAction(id: number, type: string, data: any) {
     try {
         const session = await auth();
         if (!session) throw new Error("Unauthorized");
@@ -180,23 +174,35 @@ export async function updateBoosterSchemeAction(id: number, data: any) {
             const [oldScheme] = await tx.select().from(schemes).where(eq(schemes.id, id)).limit(1);
             if (!oldScheme) throw new Error("Scheme not found");
 
+            const config: any = {};
+            if (type === 'Booster') {
+                config.booster = {
+                    targetType: data.targetType,
+                    targetIds: data.targetIds,
+                    rewardType: data.rewardType,
+                    rewardValue: data.rewardValue,
+                    audienceIds: data.audienceIds,
+                    geoScope: data.geoScope,
+                    maxUsers: data.maxUsers || 0
+                };
+            } else if (type === 'Slab') {
+                config.slab = {
+                    targetType: data.targetType,
+                    targetIds: data.targetIds,
+                    slabConfig: data.slabConfig,
+                    audienceIds: data.audienceIds,
+                    geoScope: data.geoScope,
+                    maxUsers: data.maxUsers || 0
+                };
+            }
+
             await tx.update(schemes).set({
                 name: data.name,
                 description: data.description,
                 startDate: data.startDate,
                 endDate: data.endDate,
                 budget: data.maxBudget || 0,
-                config: {
-                    booster: {
-                        targetType: data.targetType,
-                        targetIds: data.targetIds,
-                        rewardType: data.rewardType,
-                        rewardValue: data.rewardValue,
-                        audienceIds: data.audienceIds,
-                        geoScope: data.geoScope,
-                        maxUsers: data.maxUsers || 0
-                    }
-                }
+                config: config
             }).where(eq(schemes.id, id));
 
             // Add Audit Log
@@ -204,7 +210,7 @@ export async function updateBoosterSchemeAction(id: number, data: any) {
                 tableName: 'schemes',
                 recordId: Number(id),
                 operation: 'UPDATE',
-                action: 'UPDATE_BOOSTER_SCHEME',
+                action: `UPDATE_${type.toUpperCase()}_SCHEME`,
                 changedBy: Number(session.user.id),
                 oldState: oldScheme,
                 newState: data,
@@ -219,7 +225,7 @@ export async function updateBoosterSchemeAction(id: number, data: any) {
             return { success: true };
         });
     } catch (error: any) {
-        console.error("[SchemesAction] Error updating booster scheme:", error);
+        console.error(`[SchemesAction] Error updating ${type} scheme:`, error);
         return { success: false, error: error.message };
     }
 }

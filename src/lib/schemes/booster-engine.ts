@@ -9,7 +9,7 @@ import {
     skuEntity, 
     skuVariant 
 } from "@/db/schema";
-import { eq, and, ilike, sql } from "drizzle-orm";
+import { eq, and, ilike, sql, inArray, or } from "drizzle-orm";
 
 /**
  * Central engine to process Booster Schemes for a given transaction.
@@ -59,6 +59,11 @@ export async function processBoosterSchemes(
 
     if (!entityInfo) return;
 
+    let metadata: any = { 
+        baseTransactionId: data.baseTransactionId,
+        processedAt: new Date().toISOString()
+    };
+
     let parentInfo = null;
     if (entityInfo.parentId) {
         [parentInfo] = await tx.select({
@@ -81,45 +86,63 @@ export async function processBoosterSchemes(
     const [skuVar] = await tx.select({id: skuVariant.id}).from(skuVariant).where(eq(skuVariant.skuEntityId, entityInfo.id)).limit(1);
     const skuVariantId = skuVar?.id;
 
-    // 3. Find Active Booster Schemes
-    const activeBoosterSchemes = await tx.select({
+    // 3. Find ALL Active Schemes (Booster & Slab)
+    const activeSchemes = await tx.select({
         id: schemes.id,
         name: schemes.name,
         config: schemes.config,
         budget: schemes.budget,
-        spentBudget: schemes.spentBudget
+        spentBudget: schemes.spentBudget,
+        startDate: schemes.startDate,
+        endDate: schemes.endDate,
+        typeName: schemeTypes.name
     })
     .from(schemes)
     .innerJoin(schemeTypes, eq(schemes.schemeType, schemeTypes.id))
     .where(and(
-        ilike(schemeTypes.name, 'Booster'),
+        inArray(schemeTypes.name, ['Booster', 'Slab']),
         eq(schemes.isActive, true),
-        sql`${schemes.startDate} <= ${now}`,
-        sql`${schemes.endDate} >= ${now}`
+        sql`${schemes.startDate} <= NOW()`,
+        sql`${schemes.endDate} >= NOW()`
     ));
 
-    for (const scheme of activeBoosterSchemes) {
-        const config = (scheme.config as any)?.booster;
-        if (!config) continue;
+    console.log(`[BoosterEngine] Found ${activeSchemes.length} active schemes for processing`);
+
+    for (const scheme of activeSchemes) {
+        const type = scheme.typeName;
+        const config = (scheme.config as any)?.[type === 'Booster' ? 'booster' : 'slab'];
+        if (!config) {
+            console.log(`[BoosterEngine] No config found for scheme ${scheme.id} type ${type}`);
+            continue;
+        }
+
+        console.log(`[BoosterEngine] Processing scheme: ${scheme.name} (${type})`);
 
         // Eligibility Check
         // a) Audience
-        if (config.audienceIds && config.audienceIds.length > 0 && !config.audienceIds.includes(userMeta.roleId)) continue;
+        const audienceMatch = !config.audienceIds?.length || (userMeta.roleId && config.audienceIds.includes(userMeta.roleId));
+        console.log(`[BoosterEngine] Audience Match: ${audienceMatch} (User: ${userMeta.roleId}, Allowed: ${config.audienceIds})`);
+        if (!audienceMatch) continue;
 
         // b) Geography
         const geo = config.geoScope;
         if (geo) {
-            const zoneMatch = !geo.zones?.length || (userZone && geo.zones.includes(userZone));
-            const stateMatch = !geo.states?.length || (userMeta.state && geo.states.includes(userMeta.state));
-            const cityMatch = !geo.cities?.length || (userMeta.city && geo.cities.includes(userMeta.city));
-            if (!zoneMatch || !stateMatch || !cityMatch) continue;
+            const zMatch = !geo.zones?.length || geo.zones.some((z: string) => z.toLowerCase().trim() === userZone.toLowerCase().trim());
+            const sMatch = !geo.states?.length || geo.states.some((s: string) => s.toLowerCase().trim() === (userMeta.state || '').toLowerCase().trim());
+            const cMatch = !geo.cities?.length || geo.cities.some((c: string) => c.toLowerCase().trim() === (userMeta.city || '').toLowerCase().trim());
+            
+            console.log(`[BoosterEngine] Geo Match: Zone=${zMatch}, State=${sMatch}, City=${cMatch} (User: ${userZone}, ${userMeta.state}, ${userMeta.city})`);
+            if (!zMatch || !sMatch || !cMatch) continue;
         }
 
         // c) Product Target
         let targetMatch = false;
-        if (config.targetType === 'Category' && categoryId && config.targetIds.includes(categoryId)) targetMatch = true;
-        else if (config.targetType === 'SubCategory' && subCategoryId && config.targetIds.includes(subCategoryId)) targetMatch = true;
-        else if (config.targetType === 'SKU' && skuVariantId && config.targetIds.includes(skuVariantId)) targetMatch = true;
+        if (config.targetType === 'ALL') targetMatch = true;
+        else if (config.targetType === 'Category' && categoryId && config.targetIds.map(String).includes(String(categoryId))) targetMatch = true;
+        else if (config.targetType === 'SubCategory' && subCategoryId && config.targetIds.map(String).includes(String(subCategoryId))) targetMatch = true;
+        else if (config.targetType === 'SKU' && skuVariantId && config.targetIds.map(String).includes(String(skuVariantId))) targetMatch = true;
+        
+        console.log(`[BoosterEngine] Target Match: ${targetMatch} (Type: ${config.targetType}, ID: ${skuVariantId}, TargetIDs: ${JSON.stringify(config.targetIds)})`);
 
         if (!targetMatch) continue;
 
@@ -130,7 +153,7 @@ export async function processBoosterSchemes(
                 .from(mechanicTransactionLogs)
                 .where(and(
                     eq(mechanicTransactionLogs.schemeId, scheme.id),
-                    eq(mechanicTransactionLogs.category, 'SCHEME_BOOSTER')
+                    inArray(mechanicTransactionLogs.category, ['SCHEME_BOOSTER', 'SCHEME_SLAB'])
                 ));
             const userCount = Number(userCountRes?.count || 0);
 
@@ -139,7 +162,7 @@ export async function processBoosterSchemes(
                 .where(and(
                     eq(mechanicTransactionLogs.schemeId, scheme.id),
                     eq(mechanicTransactionLogs.userId, data.userId),
-                    eq(mechanicTransactionLogs.category, 'SCHEME_BOOSTER')
+                    inArray(mechanicTransactionLogs.category, ['SCHEME_BOOSTER', 'SCHEME_SLAB'])
                 ))
                 .limit(1);
 
@@ -147,45 +170,108 @@ export async function processBoosterSchemes(
         }
 
         // 4. Calculate Points
-        let boosterPoints = 0;
-        if (config.rewardType === 'Fixed') {
-            boosterPoints = Number(config.rewardValue);
-        } else if (config.rewardType === 'Percentage') {
-            boosterPoints = Math.round((Number(config.rewardValue) / 100) * data.points);
+        let bonusPoints = 0;
+        let remarks = '';
+        let category = '';
+
+        if (type === 'Booster') {
+            category = 'SCHEME_BOOSTER';
+            if (config.rewardType === 'Fixed') {
+                bonusPoints = Number(config.rewardValue);
+            } else if (config.rewardType === 'Percentage') {
+                bonusPoints = Math.round((Number(config.rewardValue) / 100) * data.points);
+            }
+            remarks = `Booster Reward: ${scheme.name} (${config.rewardValue}${config.rewardType === 'Percentage' ? '%' : ' Pts'})`;
+        } 
+        else if (type === 'Slab') {
+            category = 'SCHEME_SLAB';
+            const slabConfig = config.slabConfig;
+            if (!slabConfig || slabConfig.disbursalType !== 'REALTIME') continue;
+
+            // Get current progress
+            const [progressRes] = await tx.select({
+                totalPoints: sql<number>`sum(cast(points as integer))`,
+                scanCount: sql<number>`count(*)`
+            })
+            .from(mechanicTransactionLogs)
+            .where(and(
+                eq(mechanicTransactionLogs.userId, data.userId),
+                eq(mechanicTransactionLogs.category, 'QR_SCAN'),
+                // We should ideally filter by scheme date range but the query above already does that for active schemes
+                // For slab progress, we count ALL scans during the scheme's validity
+                sql`${mechanicTransactionLogs.createdAt} >= ${scheme.startDate}`, 
+                sql`${mechanicTransactionLogs.createdAt} <= ${scheme.endDate}`
+            ));
+
+            const currentBasisValue = slabConfig.basis === 'SCAN_COUNT' 
+                ? Number(progressRes?.scanCount || 0)
+                : Number(progressRes?.totalPoints || 0);
+
+            console.log(`[BoosterEngine] Slab Progress for ${scheme.id}: Basis=${slabConfig.basis}, CurrentValue=${currentBasisValue} (Scans: ${progressRes?.scanCount}, Points: ${progressRes?.totalPoints})`);
+
+            // Find matching slab - Only trigger if the user has REACHED the max of a slab
+            const matchingSlab = slabConfig.slabs.find((s: any) => 
+                currentBasisValue === Number(s.max)
+            );
+
+            if (matchingSlab) {
+                // Double check if this slab was already rewarded to prevent duplicates
+                const [alreadyRewarded] = await tx.select({ id: mechanicTransactionLogs.id })
+                    .from(mechanicTransactionLogs)
+                    .where(and(
+                        eq(mechanicTransactionLogs.userId, data.userId),
+                        eq(mechanicTransactionLogs.schemeId, scheme.id),
+                        eq(mechanicTransactionLogs.category, 'SCHEME_SLAB'),
+                        sql`metadata->>'slabMax' = ${matchingSlab.max.toString()}`
+                    ))
+                    .limit(1);
+
+                if (!alreadyRewarded) {
+                    bonusPoints = Number(matchingSlab.rewardValue);
+                    remarks = `Slab Reward Completion: ${scheme.name} (Milestone: ${matchingSlab.max} ${slabConfig.basis === 'SCAN_COUNT' ? 'Scans' : 'Pts'})`;
+                    // Store the milestone in metadata so we don't repeat it
+                    metadata = { 
+                        ...metadata, 
+                        slabMax: matchingSlab.max,
+                        basisValue: currentBasisValue
+                    };
+                } else {
+                    console.log(`[BoosterEngine] Slab milestone ${matchingSlab.max} already rewarded for user ${data.userId}`);
+                }
+            }
         }
 
-        if (boosterPoints > 0) {
-            // e) Budget Limit Check (Point Leakage Prevention)
+        if (bonusPoints > 0) {
+            // e) Budget Limit Check
             const maxBudget = Number(scheme.budget || 0);
             const spentBudget = Number(scheme.spentBudget || 0);
-            if (maxBudget > 0 && (spentBudget + boosterPoints) > maxBudget) {
+            if (maxBudget > 0 && (spentBudget + bonusPoints) > maxBudget) {
                 console.log(`[BoosterEngine] Budget exhausted for scheme ${scheme.name}`);
                 continue;
             }
 
-            // 5. Insert Booster Transaction
+            // 5. Insert Transaction
+            console.log(`[BoosterEngine] Awarding ${bonusPoints} pts for scheme ${scheme.name} (${category})`);
             await tx.insert(mechanicTransactionLogs).values({
                 userId: data.userId,
                 earningType: 9, // QR Scan
-                points: boosterPoints.toString(),
-                category: 'SCHEME_BOOSTER',
+                points: bonusPoints.toString(),
+                category: category,
                 status: 'approved',
                 qrCode: data.serialNumber,
                 sku: data.sku,
                 schemeId: scheme.id,
-                remarks: `Booster Reward: ${scheme.name} (${config.rewardValue}${config.rewardType === 'Percentage' ? '%' : ' Pts'})`,
+                remarks: remarks,
                 metadata: {
-                    baseTransactionId: data.baseTransactionId,
+                    ...metadata,
                     schemeName: scheme.name,
-                    rewardType: config.rewardType,
-                    rewardValue: config.rewardValue,
-                    processedAt: new Date().toISOString()
+                    schemeType: type
                 }
             });
 
-            // 6. Update Spent Budget in Scheme Table
+            // 6. Update Spent Budget
             await tx.update(schemes)
-                .set({ spentBudget: sql`${schemes.spentBudget} + ${boosterPoints}` })
+                .set({ spentBudget: sql`${schemes.spentBudget} + ${bonusPoints}` })
                 .where(eq(schemes.id, scheme.id));
 
             // 7. Update Mechanic Balance
@@ -193,12 +279,13 @@ export async function processBoosterSchemes(
             if (m) {
                 await tx.update(mechanics)
                     .set({
-                        pointsBalance: (Number(m.pointsBalance) + boosterPoints).toString(),
-                        totalEarnings: (Number(m.totalEarnings) + boosterPoints).toString(),
-                        redeemablePoints: (Number(m.redeemablePoints) + boosterPoints).toString()
+                        pointsBalance: (Number(m.pointsBalance) + bonusPoints).toString(),
+                        totalEarnings: (Number(m.totalEarnings) + bonusPoints).toString(),
+                        redeemablePoints: (Number(m.redeemablePoints) + bonusPoints).toString()
                     })
                     .where(eq(mechanics.userId, data.userId));
             }
+            console.log(`[BoosterEngine] Credited ${bonusPoints} pts for scheme ${scheme.name} to user ${data.userId}`);
         }
     }
 }
