@@ -1,6 +1,7 @@
 'use server'
 
 import { hashPassword } from '@/lib/auth';
+import { withAudit, writeAuditLog } from '@/lib/audit';
 
 export interface User {
     id: string;
@@ -35,69 +36,6 @@ export interface AccessLog {
     status: 'success' | 'failed';
 }
 
-const usersData: User[] = [
-    {
-        id: 'USR001',
-        name: 'John Doe',
-        email: 'john.doe@sturlite.com',
-        role: 'Admin',
-        department: 'IT',
-        lastLogin: 'Oct 25, 2023 10:30 AM',
-        status: 'active',
-        avatar: '',
-        initials: 'JD',
-        color: 'primary.main'
-    },
-    {
-        id: 'USR002',
-        name: 'Alice Smith',
-        email: 'alice.smith@sturlite.com',
-        role: 'Manager',
-        department: 'Sales',
-        lastLogin: 'Oct 25, 2023 09:15 AM',
-        status: 'active',
-        avatar: '',
-        initials: 'AS',
-        color: 'success.main'
-    },
-    {
-        id: 'USR003',
-        name: 'Robert Johnson',
-        email: 'robert.johnson@sturlite.com',
-        role: 'Operator',
-        department: 'Operations',
-        lastLogin: 'Oct 24, 2023 04:45 PM',
-        status: 'active',
-        avatar: '',
-        initials: 'RJ',
-        color: 'secondary.main'
-    },
-    {
-        id: 'USR004',
-        name: 'Emma Wilson',
-        email: 'emma.wilson@sturlite.com',
-        role: 'Viewer',
-        department: 'Marketing',
-        lastLogin: 'Oct 23, 2023 02:30 PM',
-        status: 'pending',
-        avatar: '',
-        initials: 'EW',
-        color: 'warning.main'
-    },
-    {
-        id: 'USR005',
-        name: 'Michael Brown',
-        email: 'michael.brown@sturlite.com',
-        role: 'Manager',
-        department: 'Finance',
-        lastLogin: 'Oct 22, 2023 11:20 AM',
-        status: 'inactive',
-        avatar: '',
-        initials: 'MB',
-        color: 'error.main'
-    }
-];
-
 const rolesData: Role[] = [
     {
         id: 'admin',
@@ -126,42 +64,6 @@ const rolesData: Role[] = [
         description: 'Read-only access to reports and dashboards',
         type: 'system',
         permissions: ['View Reports', 'View Dashboard']
-    }
-];
-
-const accessLogsData: AccessLog[] = [
-    {
-        id: 'LOG001',
-        user: 'John Doe',
-        initials: 'JD',
-        color: 'primary.main',
-        action: 'Login',
-        module: 'Authentication',
-        ip: '192.168.1.1',
-        dateTime: 'Oct 25, 2023 10:30 AM',
-        status: 'success'
-    },
-    {
-        id: 'LOG002',
-        user: 'Alice Smith',
-        initials: 'AS',
-        color: 'success.main',
-        action: 'View Report',
-        module: 'Reports',
-        ip: '192.168.1.2',
-        dateTime: 'Oct 25, 2023 09:45 AM',
-        status: 'success'
-    },
-    {
-        id: 'LOG003',
-        user: 'Robert Johnson',
-        initials: 'RJ',
-        color: 'secondary.main',
-        action: 'Failed Login',
-        module: 'Authentication',
-        ip: '192.168.1.3',
-        dateTime: 'Oct 25, 2023 09:15 AM',
-        status: 'failed'
     }
 ];
 
@@ -377,6 +279,14 @@ export async function createPortalUserAction(userData: {
             await db.insert(userScopeMapping).values(scopeValues);
         }
 
+        await writeAuditLog({
+            tableName: 'users',
+            recordId: newUser.id,
+            operation: 'INSERT',
+            action: 'portal_user.create',
+            newState: { name: userData.name, email: userData.email, roleId: userData.roleId, scopes: userData.scopes },
+        });
+
         return { success: true, userId: newUser.id };
     } catch (error) {
         console.error("Error creating portal user:", error);
@@ -393,6 +303,8 @@ export async function updatePortalUserAction(userId: number, userData: {
 }) {
     try {
         const { scopes, ...baseData } = userData;
+
+        const [previous] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
         await db.update(users)
             .set({
@@ -442,6 +354,15 @@ export async function updatePortalUserAction(userId: number, userData: {
             }
         }
 
+        await writeAuditLog({
+            tableName: 'users',
+            recordId: userId,
+            operation: 'UPDATE',
+            action: 'portal_user.update',
+            oldState: previous ? { name: previous.name, email: previous.email, phone: previous.phone, roleId: previous.roleId } : undefined,
+            newState: userData,
+        });
+
         return { success: true };
     } catch (error) {
         console.error("Error updating portal user:", error);
@@ -459,6 +380,13 @@ export async function resetUserPasswordAction(userId: number, newPassword: strin
             })
             .where(eq(users.id, userId));
 
+        await writeAuditLog({
+            tableName: 'users',
+            recordId: userId,
+            operation: 'UPDATE',
+            action: 'portal_user.password_reset',
+        });
+
         return { success: true };
     } catch (error) {
         console.error("Error resetting password:", error);
@@ -474,6 +402,14 @@ export async function toggleUserStatusAction(userId: number, isSuspended: boolea
                 updatedAt: sql`CURRENT_TIMESTAMP`
             })
             .where(eq(users.id, userId));
+
+        await writeAuditLog({
+            tableName: 'users',
+            recordId: userId,
+            operation: 'UPDATE',
+            action: isSuspended ? 'portal_user.suspend' : 'portal_user.activate',
+            newState: { isSuspended },
+        });
 
         return { success: true };
     } catch (error) {

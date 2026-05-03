@@ -121,7 +121,10 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
             counterSalesKyc: counterSales.isKycVerified,
             distributorKyc: distributors.isKycVerified,
             approvalStatus: approvalStatuses.name,
-            retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`
+            retailerName: sql<string>`COALESCE(
+                (SELECT name FROM users WHERE id = ${mechanics.attachedRetailerId} LIMIT 1),
+                (SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)
+            )`
         })
             .from(users)
             .leftJoin(retailers, eq(users.id, retailers.userId))
@@ -144,19 +147,14 @@ export async function getMembersDataAction(filters?: MemberFilters): Promise<Mem
             ));
         }
 
-        if (scope.type !== 'Global') {
-            const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
-            conditions.push(or(
-                inArray(sql`LOWER(${retailers.state})`, lowerNames),
-                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
-                inArray(sql`LOWER(${counterSales.state})`, lowerNames),
-                inArray(sql`LOWER(${distributors.state})`, lowerNames),
-                inArray(sql`LOWER(${retailers.city})`, lowerNames),
-                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
-                inArray(sql`LOWER(${counterSales.city})`, lowerNames),
-                inArray(sql`LOWER(${distributors.city})`, lowerNames)
-            ));
-        }
+        const { applyLocationScope } = await import("@/lib/scope-utils");
+        const scopeFilter = applyLocationScope(scope, [
+            { state: retailers.state, city: retailers.city },
+            { state: mechanics.state, city: mechanics.city },
+            { state: counterSales.state, city: counterSales.city },
+            { state: distributors.state, city: distributors.city }
+        ]);
+        if (scopeFilter) conditions.push(scopeFilter);
 
         if (conditions.length > 0) {
             usersQuery = usersQuery.where(and(...conditions));
@@ -453,24 +451,14 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             ));
         }
 
-        if (scope.type !== 'Global') {
-            const lowerNames = scope.entityNames.map(n => n.toLowerCase());
-            if (scope.type === 'State') {
-                baseConditions.push(or(
-                    inArray(sql`LOWER(${retailers.state})`, lowerNames),
-                    inArray(sql`LOWER(${mechanics.state})`, lowerNames),
-                    inArray(sql`LOWER(${counterSales.state})`, lowerNames),
-                    inArray(sql`LOWER(${distributors.state})`, lowerNames)
-                ));
-            } else {
-                baseConditions.push(or(
-                    inArray(sql`LOWER(${retailers.city})`, lowerNames),
-                    inArray(sql`LOWER(${mechanics.city})`, lowerNames),
-                    inArray(sql`LOWER(${counterSales.city})`, lowerNames),
-                    inArray(sql`LOWER(${distributors.city})`, lowerNames)
-                ));
-            }
-        }
+        const { applyLocationScope } = await import("@/lib/scope-utils");
+        const scopeFilter = applyLocationScope(scope, [
+            { state: retailers.state, city: retailers.city },
+            { state: mechanics.state, city: mechanics.city },
+            { state: counterSales.state, city: counterSales.city },
+            { state: distributors.state, city: distributors.city }
+        ]);
+        if (scopeFilter) baseConditions.push(scopeFilter);
 
         // Functional Hierarchy Approval filtering
         const normalizedKycStatus = (kycStatus || '').toLowerCase();
@@ -508,7 +496,10 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             distributorKyc: distributors.isKycVerified,
             approvalStatus: approvalStatuses.name,
             approvalStatusId: users.approvalStatusId,
-            retailerName: sql<string>`(SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)`,
+            retailerName: sql<string>`COALESCE(
+                (SELECT name FROM users WHERE id = ${mechanics.attachedRetailerId} LIMIT 1),
+                (SELECT name FROM users WHERE id = ${counterSales.attachedRetailerId} LIMIT 1)
+            )`,
             aadhaar: sql<string>`COALESCE(${retailers.aadhaar}, ${mechanics.aadhaar}, ${counterSales.aadhaar}, ${distributors.aadhaar})`,
             pan: sql<string>`COALESCE(${retailers.pan}, ${mechanics.pan}, ${counterSales.pan}, ${distributors.pan})`
         })
@@ -553,6 +544,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             .leftJoin(retailers, eq(users.id, retailers.userId))
             .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .leftJoin(distributors, eq(users.id, distributors.userId))
             .where(and(...baseConditions));
 
         const total = totalResult[0]?.count || 0;
@@ -562,6 +554,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             .leftJoin(retailers, eq(users.id, retailers.userId))
             .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .leftJoin(distributors, eq(users.id, distributors.userId))
             .where(and(
                 ...baseConditions,
                 or(
@@ -588,6 +581,7 @@ export async function getMembersListAction(filters: MemberFilters): Promise<{ li
             .leftJoin(retailers, eq(users.id, retailers.userId))
             .leftJoin(mechanics, eq(users.id, mechanics.userId))
             .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .leftJoin(distributors, eq(users.id, distributors.userId))
             .where(and(...pendingConditions));
 
         const kycPending = kycPendingResult[0]?.count || 0;

@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { userScopeMapping, locationEntity, users, userTypeEntity } from "@/db/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, or, sql, type SQL, type Column } from "drizzle-orm";
 
 export interface UserScope {
     type: 'State' | 'City' | 'Global';
@@ -94,4 +94,30 @@ export async function getUserScope(userId: number): Promise<UserScope> {
         console.error("Error in getUserScope:", error);
         return { type: 'Global', entityIds: [], entityNames: [], role: 'Error', levelId: 99, permissions: [] };
     }
+}
+
+/**
+ * Build a Drizzle WHERE clause that restricts rows to the user's scope by
+ * matching state/city columns (case-insensitive) against the user's
+ * assigned entity names. Returns `undefined` for Global scope (no filter).
+ *
+ * Pass any number of state/city column pairs — the predicate ORs across them
+ * so it works for queries that join multiple member tables (retailer/mechanic/cs).
+ */
+export function applyLocationScope(
+    scope: UserScope,
+    columns: Array<{ state?: Column; city?: Column }>
+): SQL | undefined {
+    if (scope.type === 'Global') return undefined;
+    const names = (scope.entityNames || []).map(n => n.toLowerCase());
+    if (names.length === 0) {
+        // Scoped role with no mappings → match nothing.
+        return sql`false`;
+    }
+    const predicates: SQL[] = [];
+    for (const { state, city } of columns) {
+        if (state) predicates.push(inArray(sql`LOWER(${state})`, names));
+        if (city) predicates.push(inArray(sql`LOWER(${city})`, names));
+    }
+    return predicates.length ? or(...predicates) : undefined;
 }

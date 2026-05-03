@@ -8,6 +8,53 @@ import { revalidatePath } from "next/cache"
 import { NotificationService } from "@/server/services/notification.service"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
+import { withAudit } from "@/lib/audit"
+
+// Allowed status transitions (canonical lowercase status name → next allowed names).
+// Reopen is allowed from resolved/closed.
+const TICKET_TRANSITIONS: Record<string, string[]> = {
+    open: ["in_progress", "resolved", "closed"],
+    in_progress: ["resolved", "closed", "open"],
+    resolved: ["closed", "open"],
+    closed: ["open"],
+}
+
+function normalizeStatus(name: string | null | undefined): string {
+    return (name || "").toLowerCase().replace(/\s+/g, "_").trim()
+}
+
+async function assertValidStatusTransition(ticketId: number, targetStatusId: number) {
+    const [current] = await db
+        .select({
+            currentStatus: ticketStatuses.name,
+            currentStatusId: tickets.statusId,
+        })
+        .from(tickets)
+        .leftJoin(ticketStatuses, eq(tickets.statusId, ticketStatuses.id))
+        .where(eq(tickets.id, ticketId))
+        .limit(1)
+
+    if (!current) throw new Error("Ticket not found")
+
+    const [target] = await db
+        .select({ name: ticketStatuses.name })
+        .from(ticketStatuses)
+        .where(eq(ticketStatuses.id, targetStatusId))
+        .limit(1)
+
+    if (!target) throw new Error("Invalid target status")
+
+    const from = normalizeStatus(current.currentStatus)
+    const to = normalizeStatus(target.name)
+
+    if (from === to) return { from, to } // no-op
+
+    const allowed = TICKET_TRANSITIONS[from]
+    if (!allowed || !allowed.includes(to)) {
+        throw new Error(`Illegal ticket transition: ${from} → ${to}`)
+    }
+    return { from, to }
+}
 
 export interface TicketFilters {
     searchTerm?: string;
@@ -254,18 +301,41 @@ export async function updateTicketAction(ticketId: number, data: {
     resolvedAt?: string
 }) {
     try {
-        const updateData: any = { ...data };
-        if (data.statusId) {
-            // If status is being set to resolved/closed, we might want to set resolvedAt automatically
-            // But let's keep it simple for now and let the caller decide.
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        const [previous] = await db.select().from(tickets).where(eq(tickets.id, ticketId)).limit(1);
+        if (!previous) throw new Error("Ticket not found");
+
+        let transition: { from: string; to: string } | null = null;
+        if (data.statusId && data.statusId !== previous.statusId) {
+            transition = await assertValidStatusTransition(ticketId, data.statusId);
         }
 
-        await db.update(tickets)
-            .set({
-                ...updateData,
-                updatedAt: sql`CURRENT_TIMESTAMP`
-            })
-            .where(eq(tickets.id, ticketId));
+        const updateData: any = { ...data };
+
+        await withAudit(
+            {
+                tableName: "tickets",
+                recordId: ticketId,
+                operation: "UPDATE",
+                action: transition ? `status:${transition.from}->${transition.to}` : "ticket.update",
+                oldState: {
+                    statusId: previous.statusId,
+                    assigneeId: previous.assigneeId,
+                    resolutionNotes: previous.resolutionNotes,
+                },
+                newState: data,
+            },
+            async () => {
+                await db.update(tickets)
+                    .set({
+                        ...updateData,
+                        updatedAt: sql`CURRENT_TIMESTAMP`
+                    })
+                    .where(eq(tickets.id, ticketId));
+            }
+        );
 
         // Trigger Notification
         if (data.statusId || data.assigneeId) {
@@ -283,9 +353,9 @@ export async function updateTicketAction(ticketId: number, data: {
 
         revalidatePath('/tickets');
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating ticket:", error);
-        return { success: false, error: "Failed to update ticket" };
+        return { success: false, error: error?.message || "Failed to update ticket" };
     }
 }
 

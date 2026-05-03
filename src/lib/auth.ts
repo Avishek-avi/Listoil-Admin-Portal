@@ -5,6 +5,7 @@ import { users, userTypeEntity, userTypeLevelMaster } from "../db/schema"
 import { eq, or } from "drizzle-orm"
 import bcrypt from 'bcryptjs'
 import { authConfig } from "./auth.config"
+import { canAccessAdminPortal } from "./admin-access"
 
 const SALT_ROUNDS = 10;
 
@@ -71,9 +72,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
           const { user, role, levelName } = userResult[0]
 
-          const allowedLevels = ['Master Admin', 'Admin', 'System Admin', 'Call Centre', 'Field Management']
-
-          if (!levelName || !allowedLevels.includes(levelName)) {
+          if (!canAccessAdminPortal(levelName)) {
             console.log(`Login attempt rejected for user ${username}: Invalid level ${levelName}`)
             throw new AccessDenied()
           }
@@ -93,7 +92,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             name: user.name,
             email: user.email,
             role: role || 'user',
-            department: 'IT' // Defaulting to IT
           }
         } catch (error) {
           if (error instanceof CredentialsSignin) {
@@ -113,8 +111,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id
         token.role = user.role
-        token.department = user.department
-        
+
         // Fetch scope and permissions on login
         const { getUserScope } = await import("@/lib/scope-utils");
         const scope = await getUserScope(Number(user.id));
@@ -128,7 +125,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token) {
         session.user.id = token.id as string
         session.user.role = token.role as string
-        session.user.department = token.department as string
         session.user.permissions = token.permissions as string[]
         session.user.scopeType = token.scopeType as string
         session.user.entityNames = token.entityNames as string[]
