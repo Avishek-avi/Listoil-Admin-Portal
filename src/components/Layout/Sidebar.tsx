@@ -18,32 +18,32 @@ const navSections: NavSection[] = [
   {
     label: 'Program',
     items: [
-      { text: 'Dashboard',        icon: 'fas fa-tachometer-alt', path: '/dashboard' },
-      { text: 'Team Hierarchy',   icon: 'fas fa-sitemap',         path: '/team-hierarchy' },
-      { text: 'Masters & Config', icon: 'fas fa-cogs',           path: '/masters-config' },
-      { text: 'Members',          icon: 'fas fa-users',          path: '/members' },
+      { text: 'Dashboard', icon: 'fas fa-tachometer-alt', path: '/dashboard' },
+      { text: 'Team Hierarchy', icon: 'fas fa-sitemap', path: '/team-hierarchy' },
+      { text: 'Masters & Config', icon: 'fas fa-cogs', path: '/masters-config' },
+      { text: 'Members', icon: 'fas fa-users', path: '/members' },
     ],
   },
   {
     label: 'Operations',
     items: [
-      { text: 'QR Management',    icon: 'fas fa-qrcode',          path: '/qr-management' },
-      { text: 'Process',          icon: 'fas fa-tasks',           path: '/process' },
-      { text: 'Schemes',          icon: 'fas fa-gift',            path: '/schemes' },
-      { text: 'Tickets',          icon: 'fas fa-ticket-alt',      path: '/tickets' },
+      { text: 'QR Management', icon: 'fas fa-qrcode', path: '/qr-management' },
+      { text: 'Process', icon: 'fas fa-tasks', path: '/process' },
+      { text: 'Schemes', icon: 'fas fa-gift', path: '/schemes' },
+      { text: 'Tickets', icon: 'fas fa-ticket-alt', path: '/tickets' },
     ],
   },
   {
     label: 'Insights',
     items: [
-      { text: 'MIS Reports',  icon: 'fas fa-chart-line',      path: '/mis-analytics' },
+      { text: 'MIS Reports', icon: 'fas fa-chart-line', path: '/mis-analytics' },
     ],
   },
   {
     label: 'System',
     items: [
-      { text: 'Role Management',  icon: 'fas fa-user-shield',     path: '/role-management' },
-      { text: 'Configuration',    icon: 'fas fa-sliders-h',       path: '/configuration' },
+      { text: 'Role Management', icon: 'fas fa-user-shield', path: '/role-management' },
+      { text: 'Configuration', icon: 'fas fa-sliders-h', path: '/configuration' },
     ],
   },
 ]
@@ -72,7 +72,7 @@ export default function Sidebar({ currentPath, onNavigate, expanded = true }: Si
     items: section.items.filter(item => {
       const permissions = session?.user?.permissions || [];
       const isSuperAdmin = permissions.includes('all');
-      
+
       const pathPermissionMap: Record<string, string> = {
         '/dashboard': 'dashboard.view',
         '/team-hierarchy': 'dashboard.view',
@@ -89,13 +89,13 @@ export default function Sidebar({ currentPath, onNavigate, expanded = true }: Si
       };
 
       const requiredPermission = pathPermissionMap[item.path];
-      
+
       // If no permission mapped, allow by default
       if (!requiredPermission) return true;
-      
+
       // If admin only, only allow SuperAdmins
       if (requiredPermission === 'admin.only') return isSuperAdmin;
-      
+
       // Otherwise check for specific permission or 'all'
       return permissions.includes(requiredPermission) || isSuperAdmin;
     })

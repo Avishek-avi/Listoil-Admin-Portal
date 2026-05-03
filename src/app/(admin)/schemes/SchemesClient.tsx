@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useMemo } from 'react';
-import PageWithTopBar from "@/components/PageWithTopBar";
-import { createBoosterSchemeAction } from "@/actions/schemes-actions";
+import { useState, useMemo, useEffect } from 'react';
+import { createBoosterSchemeAction, updateBoosterSchemeAction } from "@/actions/schemes-actions";
 import { toast } from "react-hot-toast";
 
 interface SchemesClientProps {
@@ -14,6 +13,9 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
     const [activeTab, setActiveTab] = useState('Booster Scheme');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [editingSchemeId, setEditingSchemeId] = useState<number | null>(null);
+    const [schemeLogs, setSchemeLogs] = useState<any[]>([]);
+    const [logsLoading, setLogsLoading] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -35,7 +37,9 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
             zones: [] as string[],
             states: [] as string[],
             cities: [] as string[]
-        }
+        },
+        maxBudget: 0,
+        maxUsers: 0
     });
 
     const [searchTerms, setSearchTerms] = useState({
@@ -47,7 +51,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         city: ''
     });
 
-    const tabs = ['Booster Scheme', 'Slab Based', 'Cross-Sell'];
+    const tabs = ['Booster Scheme', 'Slab Based', 'Cross-Sell', 'Scheme Logs'];
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -68,17 +72,31 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                 return;
             }
 
-            const res = await createBoosterSchemeAction({
-                ...formData,
-                targetType,
-                targetIds
-            });
-            if (res.success) {
-                toast.success("Booster Scheme created successfully!");
-                setIsCreateModalOpen(false);
-                // Reset form
+            if (editingSchemeId) {
+                const res = await updateBoosterSchemeAction(editingSchemeId, {
+                    ...formData,
+                    targetType,
+                    targetIds
+                });
+                if (res.success) {
+                    toast.success("Booster Scheme updated successfully!");
+                    setIsCreateModalOpen(false);
+                    setEditingSchemeId(null);
+                } else {
+                    toast.error(res.error || "Failed to update scheme");
+                }
             } else {
-                toast.error(res.error || "Failed to create scheme");
+                const res = await createBoosterSchemeAction({
+                    ...formData,
+                    targetType,
+                    targetIds
+                });
+                if (res.success) {
+                    toast.success("Booster Scheme created successfully!");
+                    setIsCreateModalOpen(false);
+                } else {
+                    toast.error(res.error || "Failed to create scheme");
+                }
             }
         } catch (err) {
             toast.error("An unexpected error occurred");
@@ -188,8 +206,54 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         }));
     };
 
+    const handleEdit = (scheme: any) => {
+        const config = scheme.config?.booster;
+        if (!config) return;
+
+        // Ensure targetIds are numbers for correct comparison with masterData
+        const targetIds = (config.targetIds || []).map((id: any) => Number(id));
+
+        setFormData({
+            name: scheme.name,
+            description: scheme.description || '',
+            startDate: scheme.startDate ? scheme.startDate.substring(0, 10) : '',
+            endDate: scheme.endDate ? scheme.endDate.substring(0, 10) : '',
+            targetType: config.targetType,
+            targetIds: targetIds,
+            selection: {
+                categoryIds: config.targetType === 'Category' ? targetIds : [],
+                subCategoryIds: config.targetType === 'SubCategory' ? targetIds : [],
+                skuIds: config.targetType === 'SKU' ? targetIds : []
+            },
+            rewardType: config.rewardType,
+            rewardValue: config.rewardValue,
+            audienceIds: (config.audienceIds || []).map((id: any) => Number(id)),
+            geoScope: config.geoScope || { zones: [], states: [], cities: [] },
+            maxBudget: scheme.budget || 0,
+            maxUsers: config.maxUsers || 0
+        });
+        setEditingSchemeId(scheme.id);
+        setIsCreateModalOpen(true);
+    };
+
+    const fetchLogs = async () => {
+        setLogsLoading(true);
+        const { getSchemeAuditLogsAction } = await import("@/actions/schemes-actions");
+        const res = await getSchemeAuditLogsAction();
+        if (res.success) {
+            setSchemeLogs(res.data);
+        }
+        setLogsLoading(false);
+    };
+
+    useEffect(() => {
+        if (activeTab === 'Scheme Logs') {
+            fetchLogs();
+        }
+    }, [activeTab]);
+
     return (
-        <PageWithTopBar title="Schemes & Promotions" subtitle="Manage loyalty rewards and booster programs">
+        <>
             <div className="space-y-6">
                 {/* Tabs */}
                 <div className="flex gap-2 p-1 bg-gray-100/50 rounded-2xl w-fit border border-gray-200/50 backdrop-blur-sm">
@@ -256,9 +320,13 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                             </div>
                                         </div>
 
-                                        <button className="w-full mt-6 py-2.5 bg-gray-50 text-gray-600 rounded-xl text-xs font-bold hover:bg-red-50 hover:text-red-600 transition-colors flex items-center justify-center gap-2">
-                                            View Details
-                                            <i className="fas fa-chevron-right text-[10px]"></i>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleEdit(scheme)}
+                                            className="w-full mt-6 py-3 bg-gray-50 text-gray-500 rounded-2xl text-[10px] font-black hover:bg-red-50 hover:text-red-600 transition-all duration-300 uppercase tracking-widest border border-transparent hover:border-red-100 flex items-center justify-center gap-2"
+                                        >
+                                            View Details / Edit
+                                            <i className="fas fa-chevron-right text-[8px]"></i>
                                         </button>
                                     </div>
                                 ))}
@@ -269,6 +337,79 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         <p className="text-gray-500 font-medium italic">No schemes found. Start by creating one!</p>
                                     </div>
                                 )}
+                            </div>
+                        ) : activeTab === 'Scheme Logs' ? (
+                            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+                                <div className="p-8 border-b border-gray-50 flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight">Scheme Audit Logs</h3>
+                                        <p className="text-xs text-gray-400 font-medium mt-1">History of all scheme creations and modifications</p>
+                                    </div>
+                                    <button 
+                                        onClick={fetchLogs}
+                                        disabled={logsLoading}
+                                        className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
+                                    >
+                                        <i className={`fas fa-sync-alt text-gray-400 ${logsLoading ? 'animate-spin' : ''}`}></i>
+                                    </button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-gray-50/50">
+                                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Admin</th>
+                                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Action</th>
+                                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Scheme ID</th>
+                                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</th>
+                                                <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Changes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {schemeLogs.map((log) => (
+                                                <tr key={log.id} className="hover:bg-gray-50/30 transition-colors">
+                                                    <td className="px-8 py-5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-black text-red-600">
+                                                                {log.userName?.substring(0, 2).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-black text-gray-800">{log.userName}</p>
+                                                                <p className="text-[9px] font-bold text-gray-400">{log.userEmail}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                                                            log.operation === 'INSERT' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                                                        }`}>
+                                                            {log.action?.replace(/_/g, ' ') || log.operation}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-5 text-[11px] font-bold text-gray-600">#{log.recordId}</td>
+                                                    <td className="px-8 py-5 text-[11px] font-medium text-gray-400">
+                                                        {new Date(log.createdAt).toLocaleString()}
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <button 
+                                                            className="text-[10px] font-black text-red-600 hover:underline uppercase tracking-widest"
+                                                            onClick={() => {
+                                                                console.log("Details:", { old: log.oldState, new: log.newState });
+                                                            }}
+                                                        >
+                                                            View Diff
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {schemeLogs.length === 0 && !logsLoading && (
+                                        <div className="p-20 text-center">
+                                            <i className="fas fa-history text-4xl text-gray-100 mb-4"></i>
+                                            <p className="text-sm font-bold text-gray-400">No logs found yet</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-40 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
@@ -294,11 +435,19 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     <i className="fas fa-rocket text-xl"></i>
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Create Booster Scheme</h2>
+                                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">
+                                        {editingSchemeId ? 'Edit Booster Scheme' : 'Create Booster Scheme'}
+                                    </h2>
                                     <p className="text-sm text-gray-500 font-medium">Configure top-up rewards for specific targets</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsCreateModalOpen(false)} className="p-2 hover:bg-white rounded-full transition-colors">
+                            <button 
+                                onClick={() => {
+                                    setIsCreateModalOpen(false);
+                                    setEditingSchemeId(null);
+                                }} 
+                                className="p-2 hover:bg-white rounded-full transition-colors"
+                            >
                                 <i className="fas fa-times text-gray-400"></i>
                             </button>
                         </div>
@@ -490,28 +639,57 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     <p className="text-[10px] font-bold mt-4 opacity-70 italic">* This reward will be added as a top-up on top of the base points.</p>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <label className="text-xs font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
-                                        <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
-                                        3. User Audience
-                                    </label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {masterData.userTypes
-                                            .filter((ut: any) => ['retailer', 'mechanic'].includes(ut.name.toLowerCase()))
-                                            .map((ut: any) => (
-                                            <button
-                                                key={ut.id}
-                                                type="button"
-                                                onClick={() => toggleAudienceId(ut.id)}
-                                                className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border-2 ${
-                                                    formData.audienceIds.includes(ut.id)
-                                                    ? 'bg-gray-800 border-gray-800 text-white shadow-lg'
-                                                    : 'bg-white border-gray-100 text-gray-500 hover:border-gray-300'
-                                                }`}
-                                            >
-                                                {ut.name}
-                                            </button>
-                                        ))}
+                                <div className="space-y-6">
+                                    <div className="space-y-4">
+                                        <label className="text-xs font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                                            <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
+                                            3. Audience & Limits
+                                        </label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {masterData.userTypes
+                                                .filter((ut: any) => ['retailer', 'mechanic'].includes(ut.name.toLowerCase()))
+                                                .map((ut: any) => (
+                                                <button
+                                                    key={ut.id}
+                                                    type="button"
+                                                    onClick={() => toggleAudienceId(ut.id)}
+                                                    className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border-2 ${
+                                                        formData.audienceIds.includes(ut.id)
+                                                        ? 'bg-gray-800 border-gray-800 text-white shadow-lg'
+                                                        : 'bg-white border-gray-100 text-gray-500 hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    {ut.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Max Points Budget</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="Unlimited"
+                                                    className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
+                                                    value={formData.maxBudget || ''}
+                                                    onChange={e => setFormData({...formData, maxBudget: parseInt(e.target.value) || 0})}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Max Users</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="Unlimited"
+                                                    className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
+                                                    value={formData.maxUsers || ''}
+                                                    onChange={e => setFormData({...formData, maxUsers: parseInt(e.target.value) || 0})}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -605,18 +783,17 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     Cancel
                                 </button>
                                 <button 
-                                    type="submit" 
+                                    type="submit"
                                     disabled={loading}
-                                    className="px-12 py-4 bg-red-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-red-200 hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50"
+                                    className="w-full py-5 bg-red-600 text-white rounded-3xl text-sm font-black uppercase tracking-widest shadow-xl shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50"
                                 >
-                                    {loading ? <i className="fas fa-spinner fa-spin mr-2"></i> : null}
-                                    Launch Scheme
+                                    {loading ? (editingSchemeId ? 'Updating...' : 'Creating...') : (editingSchemeId ? 'Save Changes' : 'Launch Scheme')}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-        </PageWithTopBar>
+        </>
     );
 }

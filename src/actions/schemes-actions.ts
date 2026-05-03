@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/db';
-import { schemes, schemeTypes, skuEntity, skuVariant, userTypeEntity, pincodeMaster } from '@/db/schema';
+import { schemes, schemeTypes, skuEntity, skuVariant, userTypeEntity, pincodeMaster, auditLogs } from '@/db/schema';
 import { eq, and, sql, desc, ilike } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { auth } from '@/lib/auth';
@@ -120,6 +120,8 @@ export async function createBoosterSchemeAction(data: {
         states: string[];
         cities: string[];
     };
+    maxBudget?: number;
+    maxUsers?: number;
 }) {
     try {
         const session = await auth();
@@ -131,12 +133,13 @@ export async function createBoosterSchemeAction(data: {
             [type] = await db.insert(schemeTypes).values({ name: 'Booster', description: 'Points Top-up Scheme' }).returning();
         }
 
-        const result = await db.insert(schemes).values({
+        const [result] = await db.insert(schemes).values({
             name: data.name,
             schemeType: type.id,
             description: data.description,
             startDate: data.startDate,
             endDate: data.endDate,
+            budget: data.maxBudget || 0,
             config: {
                 booster: {
                     targetType: data.targetType,
@@ -144,15 +147,95 @@ export async function createBoosterSchemeAction(data: {
                     rewardType: data.rewardType,
                     rewardValue: data.rewardValue,
                     audienceIds: data.audienceIds,
-                    geoScope: data.geoScope
+                    geoScope: data.geoScope,
+                    maxUsers: data.maxUsers || 0
                 }
             }
         }).returning();
 
+        // Add Audit Log
+        await db.insert(auditLogs).values({
+            tableName: 'schemes',
+            recordId: result.id,
+            operation: 'INSERT',
+            action: 'CREATE_BOOSTER_SCHEME',
+            changedBy: Number(session.user.id),
+            newState: data
+        });
+
         revalidatePath('/schemes');
-        return { success: true, id: result[0].id };
+        return { success: true, id: result.id };
     } catch (error: any) {
         console.error("Error creating booster scheme:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function updateBoosterSchemeAction(id: number, data: any) {
+    try {
+        const session = await auth();
+        if (!session) throw new Error("Unauthorized");
+
+        const [oldScheme] = await db.select().from(schemes).where(eq(schemes.id, id)).limit(1);
+
+        await db.update(schemes).set({
+            name: data.name,
+            description: data.description,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            budget: data.maxBudget || 0,
+            config: {
+                booster: {
+                    targetType: data.targetType,
+                    targetIds: data.targetIds,
+                    rewardType: data.rewardType,
+                    rewardValue: data.rewardValue,
+                    audienceIds: data.audienceIds,
+                    geoScope: data.geoScope,
+                    maxUsers: data.maxUsers || 0
+                }
+            }
+        }).where(eq(schemes.id, id));
+
+        // Add Audit Log
+        await db.insert(auditLogs).values({
+            tableName: 'schemes',
+            recordId: id,
+            operation: 'UPDATE',
+            action: 'UPDATE_BOOSTER_SCHEME',
+            changedBy: Number(session.user.id),
+            oldState: oldScheme,
+            newState: data
+        });
+
+        revalidatePath('/schemes');
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error updating booster scheme:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function getSchemeAuditLogsAction() {
+    try {
+        const logs = await db.select({
+            id: auditLogs.id,
+            operation: auditLogs.operation,
+            action: auditLogs.action,
+            recordId: auditLogs.recordId,
+            oldState: auditLogs.oldState,
+            newState: auditLogs.newState,
+            createdAt: auditLogs.createdAt,
+            userName: users.name,
+            userEmail: users.email
+        })
+        .from(auditLogs)
+        .leftJoin(users, eq(auditLogs.changedBy, users.id))
+        .where(eq(auditLogs.tableName, 'schemes'))
+        .orderBy(desc(auditLogs.createdAt));
+
+        return { success: true, data: logs };
+    } catch (error: any) {
         return { success: false, error: error.message };
     }
 }

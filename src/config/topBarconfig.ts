@@ -152,4 +152,8 @@ export const TOPBAR_CONFIG: Record<string, PageConfig> = {
     title: "Event Bus",
     subtitle: "Configure event handlers, execution pipelines, and handler bindings",
   },
+  "/schemes": {
+    title: "Schemes & Promotions",
+    subtitle: "Manage loyalty rewards and booster programs",
+  },
 };
