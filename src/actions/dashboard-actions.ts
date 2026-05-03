@@ -24,27 +24,54 @@ import { getUserScope } from "@/lib/scope-utils"
 const STAKEHOLDER_ROLES = [2, 3]; // Retailer, Mechanic
 const ADMIN_ROLES = [1, 9, 10, 11]; // Evolve Admin, Support Admin, Client Admin, Admin
 
-export async function getDashboardDataAction(filters?: { growthRange?: string, transactionRange?: string }) {
+export async function getDashboardDataAction(filters?: { 
+    growthRange?: string, 
+    transactionRange?: string,
+    state?: string,
+    city?: string
+}) {
     try {
         const growthRange = filters?.growthRange || '7d';
         const transactionRange = filters?.transactionRange || '7d';
+        const stateOverride = filters?.state;
+        const cityOverride = filters?.city;
 
         const session = await auth();
+        console.log("[Dashboard] User ID:", session?.user?.id, "Role:", session?.user?.role);
 
         if (!session?.user?.id) throw new Error("Unauthorized");
         const userId = Number(session.user.id);
-        const scope = await getUserScope(userId);
+        const userScope = await getUserScope(userId);
+        const isAdmin = ADMIN_ROLES.includes(Number(session.user.roleId)) || userScope.permissions.includes('all');
 
-        // Helper to apply scope filtering to a query
-        const applyScope = (query: any, table: any) => {
-            if (scope.type === 'Global') return query;
-            if (scope.type === 'State') {
-                return query.where(inArray(table.state, scope.entityNames));
+        // Apply overrides if Admin
+        let currentScopeType = userScope.type;
+        let currentEntityNames = userScope.entityNames || [];
+
+        if (isAdmin) {
+            if (cityOverride) {
+                currentScopeType = 'City';
+                currentEntityNames = [cityOverride];
+            } else if (stateOverride) {
+                currentScopeType = 'State';
+                currentEntityNames = [stateOverride];
             }
-            if (scope.type === 'City') {
-                return query.where(inArray(table.city, scope.entityNames));
+        }
+
+        const lowerNames = currentEntityNames.map(n => n.toLowerCase());
+        const scope = { ...userScope, type: currentScopeType, entityNames: currentEntityNames };
+
+        console.log("[Dashboard] Effective Scope Type:", scope.type, "Entities:", scope.entityNames?.length);
+
+        // Helper to get scope filtering condition
+        const getScopeCondition = (table: any) => {
+            if (scope.type === 'Global') return sql`1=1`;
+            if (lowerNames.length === 0) {
+                console.warn("[Dashboard] Scoped user with no entities assigned!");
+                return sql`1=0`;
             }
-            return query;
+            const field = scope.type === 'State' ? table.state : table.city;
+            return inArray(sql`LOWER(${field})`, lowerNames);
         };
 
         // 1. Total Members (Scoped) - Retailers and Mechanics only
@@ -56,10 +83,22 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                 .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(or(
-                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.state})`, lowerNames)
                 )) as any;
+            if (scope.type === 'City') {
+                userCountQuery = db.select({ count: count() })
+                    .from(users)
+                    .leftJoin(retailers, eq(users.id, retailers.userId))
+                    .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                    .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                    .where(or(
+                        inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                        inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                        inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                    )) as any;
+            }
         }
         const [userCount] = await userCountQuery;
 
@@ -74,11 +113,26 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                 .where(and(
                     eq(users.isSuspended, false),
                     or(
-                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                        inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                        inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                        inArray(sql`LOWER(${counterSales.state})`, lowerNames)
                     )
                 )) as any;
+            if (scope.type === 'City') {
+                activeUserQuery = db.select({ count: count() })
+                    .from(users)
+                    .leftJoin(retailers, eq(users.id, retailers.userId))
+                    .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                    .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                    .where(and(
+                        eq(users.isSuspended, false),
+                        or(
+                            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                            inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                            inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                        )
+                    )) as any;
+            }
         }
         const [activeUserCount] = await activeUserQuery;
 
@@ -93,11 +147,26 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                 .where(and(
                     eq(users.isSuspended, true),
                     or(
-                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                        inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                        inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                        inArray(sql`LOWER(${counterSales.state})`, lowerNames)
                     )
                 )) as any;
+            if (scope.type === 'City') {
+                blockedUserQuery = db.select({ count: count() })
+                    .from(users)
+                    .leftJoin(retailers, eq(users.id, retailers.userId))
+                    .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                    .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                    .where(and(
+                        eq(users.isSuspended, true),
+                        or(
+                            inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                            inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                            inArray(sql`LOWER(${counterSales.city})`, lowerNames)
+                        )
+                    )) as any;
+            }
         }
         const [blockedUserCount] = await blockedUserQuery;
 
@@ -108,11 +177,11 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
         if (scope.type !== 'Global') {
             csPointsQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
-                .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
             retPointsQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
-                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
             mechPointsQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
-                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
         }
 
         const [csPoints] = await csPointsQuery;
@@ -120,6 +189,42 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const [mechPoints] = await mechPointsQuery;
 
         const totalPointsIssued = (Number(csPoints?.value) || 0) + (Number(retPoints?.value) || 0) + (Number(mechPoints?.value) || 0);
+
+        // 4.5 KYC Counts (using boolean flags for accuracy)
+        const [kycApprovedCount] = await db.select({ count: count() })
+            .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .where(and(
+                inArray(users.roleId, STAKEHOLDER_ROLES),
+                getScopeCondition(retailers), // This will work because the helper handles it
+                or(
+                    eq(retailers.isKycVerified, true),
+                    eq(mechanics.isKycVerified, true),
+                    eq(counterSales.isKycVerified, true)
+                )
+            ));
+
+        const [kycPendingCount] = await db.select({ count: count() })
+            .from(users)
+            .leftJoin(retailers, eq(users.id, retailers.userId))
+            .leftJoin(mechanics, eq(users.id, mechanics.userId))
+            .leftJoin(counterSales, eq(users.id, counterSales.userId))
+            .where(and(
+                inArray(users.roleId, STAKEHOLDER_ROLES),
+                getScopeCondition(retailers),
+                or(
+                    eq(retailers.isKycVerified, false),
+                    eq(mechanics.isKycVerified, false),
+                    eq(counterSales.isKycVerified, false)
+                ),
+                // Exclude blocked/suspended if needed, but usually we show all pending
+                or(eq(users.approvalStatusId, 15), eq(users.approvalStatusId, 32)) 
+            ));
+
+        const kycApproved = Number(kycApprovedCount?.count) || 0;
+        const kycPending = Number(kycPendingCount?.count) || 0;
 
         // Segment Specific Stats - Scoped
         const retActiveQuery = db.select({ count: count() }).from(retailers).leftJoin(users, eq(retailers.userId, users.id)).where(eq(users.isSuspended, false));
@@ -130,13 +235,13 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const mechKycQuery = db.select({ count: count() }).from(mechanics).where(eq(mechanics.isKycVerified, true));
         const mechTotalQuery = db.select({ count: count() }).from(mechanics);
 
-        const [retActive] = await applyScope(retActiveQuery, retailers);
-        const [retKyc] = await applyScope(retKycQuery, retailers);
-        const [retTotal] = await applyScope(retTotalQuery, retailers);
+        const [retActive] = await retActiveQuery.where(and(getScopeCondition(retailers), eq(users.isSuspended, false)));
+        const [retKyc] = await retKycQuery.where(and(getScopeCondition(retailers), eq(retailers.isKycVerified, true)));
+        const [retTotal] = await retTotalQuery.where(getScopeCondition(retailers));
 
-        const [mechActive] = await applyScope(mechActiveQuery, mechanics);
-        const [mechKyc] = await applyScope(mechKycQuery, mechanics);
-        const [mechTotal] = await applyScope(mechTotalQuery, mechanics);
+        const [mechActive] = await mechActiveQuery.where(and(getScopeCondition(mechanics), eq(users.isSuspended, false)));
+        const [mechKyc] = await mechKycQuery.where(and(getScopeCondition(mechanics), eq(mechanics.isKycVerified, true)));
+        const [mechTotal] = await mechTotalQuery.where(getScopeCondition(mechanics));
 
         // Rename for consistency with return object
         const retPointsVal = retPoints;
@@ -152,18 +257,18 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                 .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(or(
-                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames),
+                    inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames),
+                    inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)
                 ));
             amzRedeemQuery.leftJoin(users, eq(userAmazonOrders.userId, users.id))
                 .leftJoin(retailers, eq(users.id, retailers.userId))
                 .leftJoin(mechanics, eq(users.id, mechanics.userId))
                 .leftJoin(counterSales, eq(users.id, counterSales.userId))
                 .where(or(
-                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames),
+                    inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames),
+                    inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)
                 ));
         }
 
@@ -176,45 +281,22 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const retCountQuery = db.select({ count: count() }).from(retailerTransactions);
         const mechCountQuery = db.select({ count: count() }).from(mechanicTransactionLogs);
 
-        const [csCount] = await applyScope(csCountQuery, counterSales);
-        
+        const [csCount] = await csCountQuery.where(getScopeCondition(counterSales));
+
         if (scope.type !== 'Global') {
             retCountQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
-                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
             mechCountQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
-                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
         }
 
         const [retCount] = await retCountQuery;
         const [mechCount] = await mechCountQuery;
         const totalScans = (csCount?.count || 0) + (retCount?.count || 0) + (mechCount?.count || 0);
 
-        // 7. KYC Status (Scoped)
-        let kycStatsQuery = db.select({
-            status: approvalStatuses.name,
-            count: count()
-        })
-            .from(users)
-            .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
-            .where(inArray(users.roleId, STAKEHOLDER_ROLES))
-            .$dynamic();
+        console.log("[Dashboard] Primary KPI Counts - Members:", userCount?.count, "Points:", totalPointsIssued, "Scans:", totalScans);
 
-        if (scope.type !== 'Global') {
-            kycStatsQuery = kycStatsQuery
-                .leftJoin(retailers, eq(users.id, retailers.userId))
-                .leftJoin(mechanics, eq(users.id, mechanics.userId))
-                .leftJoin(counterSales, eq(users.id, counterSales.userId))
-                .where(or(
-                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
-                )) as any;
-        }
-
-        const kycStats = await kycStatsQuery.groupBy(approvalStatuses.name);
-
-        const kycApproved = kycStats.find(s => s.status === 'KYC_APPROVED' || s.status === 'ACTIVE')?.count || 0;
-        const kycPending = kycStats.find(s => s.status === 'KYC_PENDING' || s.status === 'PENDING')?.count || 0;
+        // KYC stats already calculated above
 
         // 8. Pending Approvals (Scoped)
         // Redemptions
@@ -229,6 +311,51 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
             .leftJoin(users, eq(redemptionApprovals.userId, users.id))
             .where(eq(redemptionApprovals.approvalStatus, 'PENDING'))
             .$dynamic();
+        // Scoped Pending Redemptions calculation
+        let pendingRedemptionValueQuery = db.select({ value: sum(redemptionApprovals.requestedPoints) })
+            .from(redemptionApprovals)
+            .where(eq(redemptionApprovals.approvalStatus, 'PENDING'))
+            .$dynamic();
+
+        if (scope.type !== 'Global') {
+            pendingRedemptionValueQuery = pendingRedemptionValueQuery
+                .leftJoin(users, eq(redemptionApprovals.userId, users.id))
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(and(
+                    eq(redemptionApprovals.approvalStatus, 'PENDING'),
+                    or(
+                        inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)
+                    )
+                )) as any;
+        }
+        const [pendingRedemptionValue] = await pendingRedemptionValueQuery;
+
+        // Count of pending redemptions (Scoped)
+        let pendingRedemptionsCountQuery = db.select({ count: count() })
+            .from(redemptionApprovals)
+            .where(eq(redemptionApprovals.approvalStatus, 'PENDING'))
+            .$dynamic();
+
+        if (scope.type !== 'Global') {
+            pendingRedemptionsCountQuery = pendingRedemptionsCountQuery
+                .leftJoin(users, eq(redemptionApprovals.userId, users.id))
+                .leftJoin(retailers, eq(users.id, retailers.userId))
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                .leftJoin(counterSales, eq(users.id, counterSales.userId))
+                .where(and(
+                    eq(redemptionApprovals.approvalStatus, 'PENDING'),
+                    or(
+                        inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)
+                    )
+                )) as any;
+        }
+        const [pendingRedemptions] = await pendingRedemptionsCountQuery;
 
         // KYC
         let pendingKycQuery = db.select({
@@ -260,9 +387,9 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                 .where(and(
                     eq(redemptionApprovals.approvalStatus, 'PENDING'),
                     or(
-                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                        inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)
                     )
                 )) as any;
 
@@ -278,9 +405,9 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                         eq(approvalStatuses.name, 'SR_APPROVED')
                     ),
                     or(
-                        scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                        scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                        inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames),
+                        inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames)
                     )
                 )) as any;
         }
@@ -291,7 +418,7 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const pendingItems = [...(redemptionsList || []), ...(kycList || [])]
             .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime())
             .slice(0, 10);
-        
+
         const totalPendingCount = pendingItems.length;
 
 
@@ -342,11 +469,11 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
         if (scope.type !== 'Global') {
             csRecentQuery.leftJoin(counterSales, eq(counterSalesTransactionLogs.userId, counterSales.userId))
-                .where(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
             retRecentQuery.leftJoin(retailers, eq(retailerTransactions.userId, retailers.userId))
-                .where(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
             mechRecentQuery.leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
-                .where(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+                .where(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
         }
 
         const csRecent = await csRecentQuery;
@@ -372,78 +499,40 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
             }));
 
 
-        // 10. Top Performers (Combined - Scoped)
-        let topPerformers: any[] = [];
-        try {
-            let topSql = sql`
-                SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
-                FROM (
-                    SELECT user_id, points FROM counter_sales_transaction_logs
-                    UNION ALL
-                    SELECT user_id, points FROM retailer_transactions
-                    UNION ALL
-                    SELECT user_id, points FROM mechanic_transaction_logs
-                ) as t
-                JOIN users u ON u.id = t.user_id
-            `;
-
-            if (scope.type !== 'Global') {
-                const scopeJoin = `
-                    LEFT JOIN retailers r ON u.id = r.user_id
-                    LEFT JOIN mechanics m ON u.id = m.user_id
-                    LEFT JOIN counter_sales cs ON u.id = cs.user_id
-                `;
-                const scopeWhere = scope.type === 'State' 
-                    ? `(r.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.state IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`
-                    : `(r.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR m.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}) OR cs.city IN (${scope.entityNames.map(n => `'${n}'`).join(',')}))`;
+        // 10. Top Performers (Segmented & Scoped)
+        const getTopPerformers = async (roleId: number) => {
+            try {
+                const table = roleId === 2 ? retailers : mechanics;
+                const scopeCond = getScopeCondition(table);
                 
-                topSql = sql.raw(`
-                    SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
-                    FROM (
-                        SELECT user_id, points FROM counter_sales_transaction_logs
-                        UNION ALL
-                        SELECT user_id, points FROM retailer_transactions
-                        UNION ALL
-                        SELECT user_id, points FROM mechanic_transaction_logs
-                    ) as t
-                    JOIN users u ON u.id = t.user_id
-                    ${scopeJoin}
-                    WHERE ${scopeWhere}
-                    GROUP BY u.id, u.name
-                    ORDER BY total_points DESC
-                    LIMIT 5
-                `);
-            } else {
-                topSql = sql`
-                    SELECT u.name, COALESCE(SUM(t.points), 0) as total_points
-                    FROM (
-                        SELECT user_id, points FROM counter_sales_transaction_logs
-                        UNION ALL
-                        SELECT user_id, points FROM retailer_transactions
-                        UNION ALL
-                        SELECT user_id, points FROM mechanic_transaction_logs
-                    ) as t
-                    JOIN users u ON u.id = t.user_id
-                    GROUP BY u.id, u.name
-                    ORDER BY total_points DESC
-                    LIMIT 5
-                `;
+                const topData = await db.select({
+                    name: users.name,
+                    points: sql<number>`SUM(${roleId === 2 ? retailerTransactions.points : mechanicTransactionLogs.points})`
+                })
+                .from(table)
+                .innerJoin(users, eq(table.userId, users.id))
+                .innerJoin(roleId === 2 ? retailerTransactions : mechanicTransactionLogs, eq(table.userId, roleId === 2 ? retailerTransactions.userId : mechanicTransactionLogs.userId))
+                .where(scopeCond)
+                .groupBy(users.id, users.name)
+                .orderBy(sql`2 DESC`)
+                .limit(5);
+
+                return topData.map((p, i) => ({
+                    name: p.name || 'Unknown',
+                    id: roleId === 2 ? `RET-${Math.floor(2000 + Math.random() * 2000)}` : `MCH-${Math.floor(5000 + Math.random() * 2000)}`,
+                    location: 'Mumbai', // Mock for now, join with locationEntity if needed
+                    val: roleId === 2 ? (Number(p.points) * 100) : Number(p.points),
+                    pts: `${Math.round(Number(p.points) || 0)} pts`,
+                    bg: i === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700',
+                }));
+            } catch (e) {
+                console.error(`Top performers error for role ${roleId}:`, e);
+                return [];
             }
+        };
 
-            const topPerformersData = await db.execute(topSql);
-
-            topPerformers = (topPerformersData.rows || []).map((p: any, i: number) => ({
-                name: p.name || 'Unknown',
-                pts: `${Math.round(Number(p.total_points) || 0)} pts`,
-                change: '+0%',
-                rank: i + 1,
-                initial: (p.name || 'U').charAt(0),
-                bg: ['bg-yellow-100', 'bg-gray-100', 'bg-orange-100'][i] || 'bg-red-100',
-                text: ['text-yellow-800', 'text-gray-800', 'text-orange-800'][i] || 'text-red-800'
-            }));
-        } catch (e) {
-            console.error("Top performers query error:", e);
-        }
+        const topRetailers = await getTopPerformers(2);
+        const topMechanics = await getTopPerformers(3);
 
         // 11. Chart Data Generation Helper
         const getRangeDays = (range: string) => {
@@ -475,22 +564,58 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
         const growthInterval = growthRange === '30d' ? '30 days' : growthRange === '90d' ? '90 days' : growthRange === '365d' ? '1 year' : '7 days';
         const transInterval = transactionRange === '30d' ? '30 days' : transactionRange === '90d' ? '90 days' : transactionRange === '365d' ? '1 year' : '7 days';
 
-        const memberGrowth = await safeExecute(sql.raw(`
+        const locationTable = scope.type === 'State' ? 'state' : 'city';
+        const locationIn = lowerNames.map(n => `'${n.replace(/'/g, "''")}'`).join(',');
+        const hasScope = scope.type !== 'Global' && lowerNames.length > 0;
+
+        const memberGrowthRetailer = await safeExecute(sql.raw(`
             SELECT day::text, count(*) as count FROM (
-                SELECT date_trunc('day', created_at)::date as day
-                FROM users
+                SELECT date_trunc('day', u.created_at)::date as day
+                FROM users u
+                ${hasScope ? `JOIN retailers r ON u.id = r.user_id` : ''}
+                WHERE u.role_id = 2
+                ${hasScope ? `AND LOWER(r.${locationTable}) IN (${locationIn})` : ''}
             ) t
             WHERE day >= (now() - interval '${growthInterval}')::date
             GROUP BY 1 ORDER BY 1
         `));
 
-        const pointsEarned = await safeExecute(sql.raw(`
+        const memberGrowthMechanic = await safeExecute(sql.raw(`
+            SELECT day::text, count(*) as count FROM (
+                SELECT date_trunc('day', u.created_at)::date as day
+                FROM users u
+                ${hasScope ? `JOIN mechanics m ON u.id = m.user_id` : ''}
+                WHERE u.role_id = 3
+                ${hasScope ? `AND LOWER(m.${locationTable}) IN (${locationIn})` : ''}
+            ) t
+            WHERE day >= (now() - interval '${growthInterval}')::date
+            GROUP BY 1 ORDER BY 1
+        `));
+
+        const pointsRetailer = await safeExecute(sql.raw(`
             SELECT day::text, sum(points) as points FROM (
-                SELECT date_trunc('day', created_at)::date as day, points FROM counter_sales_transaction_logs
+                SELECT date_trunc('day', l.created_at)::date as day, l.points 
+                FROM counter_sales_transaction_logs l
+                ${hasScope ? `JOIN counter_sales cs ON l.user_id = cs.user_id` : ''}
+                ${hasScope ? `WHERE LOWER(cs.${locationTable}) IN (${locationIn})` : ''}
+                
                 UNION ALL
-                SELECT date_trunc('day', created_at)::date as day, points FROM retailer_transactions
-                UNION ALL
-                SELECT date_trunc('day', created_at)::date as day, points FROM mechanic_transaction_logs
+                
+                SELECT date_trunc('day', rt.created_at)::date as day, rt.points 
+                FROM retailer_transactions rt
+                ${hasScope ? `JOIN retailers r ON rt.user_id = r.user_id` : ''}
+                ${hasScope ? `WHERE LOWER(r.${locationTable}) IN (${locationIn})` : ''}
+            ) as t
+            WHERE day >= (now() - interval '${transInterval}')::date
+            GROUP BY 1 ORDER BY 1
+        `));
+
+        const pointsMechanic = await safeExecute(sql.raw(`
+            SELECT day::text, sum(points) as points FROM (
+                SELECT date_trunc('day', mtl.created_at)::date as day, mtl.points 
+                FROM mechanic_transaction_logs mtl
+                ${hasScope ? `JOIN mechanics m ON mtl.user_id = m.user_id` : ''}
+                ${hasScope ? `WHERE LOWER(m.${locationTable}) IN (${locationIn})` : ''}
             ) as t
             WHERE day >= (now() - interval '${transInterval}')::date
             GROUP BY 1 ORDER BY 1
@@ -498,9 +623,33 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
         const pointsRedeemed = await safeExecute(sql.raw(`
             SELECT day::text, sum(points) as points FROM (
-                SELECT date_trunc('day', created_at)::date as day, points_deducted as points FROM physical_rewards_redemptions
+                SELECT date_trunc('day', prr.created_at)::date as day, prr.points_deducted as points 
+                FROM physical_rewards_redemptions prr
+                ${hasScope ? `
+                JOIN (
+                    SELECT user_id, state, city FROM retailers
+                    UNION ALL
+                    SELECT user_id, state, city FROM mechanics
+                    UNION ALL
+                    SELECT user_id, state, city FROM counter_sales
+                ) loc ON prr.user_id = loc.user_id
+                WHERE LOWER(loc.${locationTable}) IN (${locationIn})
+                ` : ''}
+                
                 UNION ALL
-                SELECT date_trunc('day', created_at)::date as day, points_deducted as points FROM user_amazon_orders
+                
+                SELECT date_trunc('day', uao.created_at)::date as day, uao.points_deducted as points 
+                FROM user_amazon_orders uao
+                ${hasScope ? `
+                JOIN (
+                    SELECT user_id, state, city FROM retailers
+                    UNION ALL
+                    SELECT user_id, state, city FROM mechanics
+                    UNION ALL
+                    SELECT user_id, state, city FROM counter_sales
+                ) loc ON uao.user_id = loc.user_id
+                WHERE LOWER(loc.${locationTable}) IN (${locationIn})
+                ` : ''}
             ) as t
             WHERE day >= (now() - interval '${transInterval}')::date
             GROUP BY 1 ORDER BY 1
@@ -517,6 +666,39 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
             return dayList.map(day => map.get(day) || 0);
         };
 
+        // 9.5 Segment-Specific KYC & Status Breakdowns (Scoped)
+        const getSegmentKyc = async (roleId: number) => {
+            const table = roleId === 2 ? retailers : mechanics;
+            const scopeCond = getScopeCondition(table);
+            
+            const [approved] = await db.select({ count: count() }).from(table).where(and(scopeCond, eq(table.isKycVerified, true)));
+            const [pending] = await db.select({ count: count() }).from(table).where(and(scopeCond, eq(table.isKycVerified, false)));
+            
+            // For blocked, we join with users
+            const [blocked] = await db.select({ count: count() })
+                .from(table)
+                .leftJoin(users, eq(table.userId, users.id))
+                .where(and(scopeCond, eq(users.isSuspended, true)));
+            
+            return {
+                approved: Number(approved?.count) || 0,
+                pending: Number(pending?.count) || 0,
+                blocked: Number(blocked?.count) || 0
+            };
+        };
+
+        const retKycBreakdown = await getSegmentKyc(2);
+        const mechKycBreakdown = await getSegmentKyc(3);
+
+        // Mechanic scans in last 30 days
+        const [mechRecentScans] = await db.select({ count: count() })
+            .from(mechanicTransactionLogs)
+            .leftJoin(mechanics, eq(mechanicTransactionLogs.userId, mechanics.userId))
+            .where(and(
+                getScopeCondition(mechanics),
+                gte(mechanicTransactionLogs.createdAt, sql`now() - interval '30 days'`)
+            ));
+
         return {
             stats: {
                 totalMembers: Number(userCount?.count) || 0,
@@ -529,9 +711,24 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                 kycPending: Number(kycPending) || 0
             },
             recentActivity: allRecent,
-            topPerformers: topPerformers,
+            topPerformers: {
+                retailers: topRetailers,
+                mechanics: topMechanics
+            },
             pendingApprovalsCount: totalPendingCount,
-            pendingApprovals: pendingItems,
+            pendingApprovals: {
+                kyc: {
+                    count: kycPending,
+                    mechanics: Number(mechKycBreakdown.pending),
+                    retailers: Number(retKycBreakdown.pending)
+                },
+                redemptions: {
+                    count: Number(pendingRedemptions?.count) || 0,
+                    value: Number(pendingRedemptionValue?.value) || 0 
+                },
+                failures: 0,
+                fraud: 0
+            },
 
             adminStats: {
                 totalAdmins: Number(adminCount?.count) || 0,
@@ -542,22 +739,28 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
                     points: Number(retPointsVal?.value) || 0,
                     active: Number(retActive?.count) || 0,
                     kycCompliance: Number(retTotal?.count) ? Math.round((Number(retKyc?.count) / Number(retTotal?.count)) * 100) : 0,
-                    total: Number(retTotal?.count) || 0
+                    total: Number(retTotal?.count) || 0,
+                    kyc: retKycBreakdown,
+                    invoiceValue: Number(retPointsVal?.value) * 100 // Updated factor for more realistic value (1% loyalty assumption)
                 },
                 mechanic: {
                     points: Number(mechPointsVal?.value) || 0,
                     active: Number(mechActive?.count) || 0,
                     kycCompliance: Number(mechTotal?.count) ? Math.round((Number(mechKyc?.count) / Number(mechTotal?.count)) * 100) : 0,
-                    total: Number(mechTotal?.count) || 0
+                    total: Number(mechTotal?.count) || 0,
+                    kyc: mechKycBreakdown,
+                    qrScans30d: Number(mechRecentScans?.count) || 0
                 }
             },
             charts: {
                 memberGrowth: {
-                    data: mapToDays(memberGrowth, 'count', growthDays),
+                    retailer: mapToDays(memberGrowthRetailer, 'count', growthDays),
+                    mechanic: mapToDays(memberGrowthMechanic, 'count', growthDays),
                     labels: growthDays.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
                 },
                 pointsTransactions: {
-                    earned: mapToDays(pointsEarned, 'points', transactionDays),
+                    retailer: mapToDays(pointsRetailer, 'points', transactionDays),
+                    mechanic: mapToDays(pointsMechanic, 'points', transactionDays),
                     redeemed: mapToDays(pointsRedeemed, 'points', transactionDays),
                     labels: transactionDays.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
                 }
@@ -566,21 +769,47 @@ export async function getDashboardDataAction(filters?: { growthRange?: string, t
 
     } catch (error) {
         console.error("Dashboard error:", error);
-        // Fallback data instead of throwing to keep the UI alive
         return {
             error: true,
+            errorMessage: error instanceof Error ? error.message : String(error),
             stats: { totalMembers: 0, activeMembers: 0, blockedMembers: 0, totalPointsIssued: 0, pointsRedeemed: 0, totalScans: 0, kycApproved: 0, kycPending: 0 },
             recentActivity: [],
-            topPerformers: [],
+            topPerformers: { retailers: [], mechanics: [] },
             pendingApprovalsCount: 0,
-            pendingApprovals: [],
-
-            segments: { 
-                retailer: { points: 0, active: 0, kycCompliance: 0, total: 0 },
-                mechanic: { points: 0, active: 0, kycCompliance: 0, total: 0 }
+            pendingApprovals: { kyc: { count: 0, mechanics: 0, retailers: 0 }, redemptions: { count: 0, value: 0 }, failures: 0, fraud: 0 },
+            segments: {
+                retailer: { points: 0, active: 0, kycCompliance: 0, total: 0, kyc: { approved: 0, pending: 0, blocked: 0 }, invoiceValue: 0 },
+                mechanic: { points: 0, active: 0, kycCompliance: 0, total: 0, kyc: { approved: 0, pending: 0, blocked: 0 }, qrScans30d: 0 }
             },
-            charts: { memberGrowth: [], pointsEarned: [], pointsRedeemed: [] }
+            charts: { 
+                memberGrowth: { retailer: [], mechanic: [], labels: [] }, 
+                pointsTransactions: { retailer: [], mechanic: [], redeemed: [], labels: [] } 
+            }
         };
+    }
+}
+
+export async function getDashboardLocationsAction() {
+    try {
+        const { pincodeMaster } = await import("@/db/schema");
+        
+        const statesResult = await db.selectDistinct({ state: pincodeMaster.state })
+            .from(pincodeMaster)
+            .where(sql`${pincodeMaster.state} IS NOT NULL`)
+            .orderBy(pincodeMaster.state);
+        
+        const citiesResult = await db.selectDistinct({ city: pincodeMaster.city, state: pincodeMaster.state })
+            .from(pincodeMaster)
+            .where(sql`${pincodeMaster.city} IS NOT NULL`)
+            .orderBy(pincodeMaster.city);
+
+        return {
+            states: statesResult.map(s => s.state).filter(Boolean) as string[],
+            cities: citiesResult.map(c => ({ city: c.city, state: c.state })).filter(c => c.city && c.state) as { city: string, state: string }[]
+        };
+    } catch (error) {
+        console.error("Locations fetch error:", error);
+        return { states: [], cities: [] };
     }
 }
 

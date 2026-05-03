@@ -12,7 +12,7 @@
     <style>
         /* Include the same base styles from the previous pages */
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'RBNo3.1', system-ui, -apple-system, sans-serif, system-ui, -apple-system, sans-serif;
             transition: background-color 0.3s ease;
         }
         
@@ -34,18 +34,18 @@
         }
         
         .light-theme .input-field:focus {
-            border-color: #3b82f6;
+            border-color: #0957C3;
             outline: none;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
         }
         
         .light-theme .btn-primary {
-            background: linear-gradient(to right, #2563eb, #1d4ed8);
+            background: linear-gradient(to right, #0957C3, #be123c);
             color: #ffffff;
         }
         
         .light-theme .btn-primary:hover {
-            background: linear-gradient(to right, #1d4ed8, #1e40af);
+            background: linear-gradient(to right, #be123c, #1e40af);
         }
         
         .light-theme .text-primary {
@@ -61,11 +61,11 @@
         }
         
         .light-theme .text-accent {
-            color: #2563eb;
+            color: #0957C3;
         }
         
         .light-theme .text-accent:hover {
-            color: #1d4ed8;
+            color: #be123c;
         }
         
         /* Dark theme styles */
@@ -87,12 +87,12 @@
         }
         
         .dark-theme .input-field:focus {
-            border-color: #007aff;
+            border-color: #0957C3;
             outline: none;
         }
         
         .dark-theme .btn-primary {
-            background-color: #007aff;
+            background-color: #0957C3;
             color: #ffffff;
         }
         
@@ -113,7 +113,7 @@
         }
         
         .dark-theme .text-accent {
-            color: #007aff;
+            color: #0957C3;
         }
         
         .dark-theme .text-accent:hover {
@@ -181,21 +181,21 @@
         }
         
         .sidebar-item.active {
-            background-color: #eff6ff;
-            color: #1d4ed8;
+            background-color: #fff1f2;
+            color: #be123c;
         }
         
         .sidebar-item.active i {
-            color: #3b82f6;
+            color: #0957C3;
         }
         
         .dark-theme .sidebar-item.active {
             background-color: #2c2c2e;
-            color: #007aff;
+            color: #0957C3;
         }
         
         .dark-theme .sidebar-item.active i {
-            color: #007aff;
+            color: #0957C3;
         }
         
         /* Notification styles */
@@ -237,12 +237,12 @@
         
         .badge-primary {
             background-color: rgba(59, 130, 246, 0.1);
-            color: #3b82f6;
+            color: #0957C3;
         }
         
         .dark-theme .badge-primary {
             background-color: rgba(0, 122, 255, 0.2);
-            color: #007aff;
+            color: #0957C3;
         }
         
         .badge-success {
@@ -289,12 +289,12 @@
         
         .progress-fill {
             height: 100%;
-            background-color: #3b82f6;
+            background-color: #0957C3;
             border-radius: 4px;
         }
         
         .dark-theme .progress-fill {
-            background-color: #007aff;
+            background-color: #0957C3;
         }
 
         /* Date filter styles */
@@ -321,7 +321,7 @@
         .date-filter button {
             padding: 4px 8px;
             border-radius: 4px;
-            background-color: #3b82f6;
+            background-color: #0957C3;
             color: white;
             border: none;
             font-size: 0.75rem;
@@ -329,11 +329,11 @@
         }
 
         .date-filter button:hover {
-            background-color: #2563eb;
+            background-color: #0957C3;
         }
 
         .dark-theme .date-filter button {
-            background-color: #007aff;
+            background-color: #0957C3;
         }
 
         .dark-theme .date-filter button:hover {
@@ -362,7 +362,7 @@
         }
 
         .status-approved {
-            background-color: #3b82f6;
+            background-color: #0957C3;
         }
 
         /* ─── RBAC Dashboard Elements ────────────────────────────── */
@@ -372,7 +372,7 @@
             padding: 4px 10px;
             border-radius: 20px;
             background: rgba(59,130,246,0.12);
-            color: #2563eb;
+            color: #0957C3;
             font-size: 0.78rem;
             font-weight: 600;
         }
@@ -391,14 +391,14 @@
         .dark-theme .scope-tag { background: rgba(52,199,89,0.15); color: #34c759; }
 
         .segment-border-retailer { border-left: 4px solid #7c3aed !important; }
-        .segment-border-mechanic { border-left: 4px solid #2563eb !important; }
+        .segment-border-mechanic { border-left: 4px solid #0957C3 !important; }
 
         .kpi-micro { cursor: default; }
         .kpi-micro:hover { transform: translateY(-3px); box-shadow: var(--card-shadow-hover); }
 
         .perf-tab { cursor: pointer; transition: all 150ms ease; }
-        .perf-tab.active-retailer { background: #7c3aed !important; color: #fff !important; }
-        .perf-tab.active-mechanic { background: #2563eb !important; color: #fff !important; }
+        .perf-tab.active-red { background: #7c3aed !important; color: #fff !important; }
+        .perf-tab.active-mechanic { background: #0957C3 !important; color: #fff !important; }
 
         .pending-item { transition: filter 150ms ease; cursor: pointer; }
         .pending-item:hover { filter: brightness(0.96); }
@@ -551,9 +551,9 @@
         <div class="flex h-screen">
             <!-- Sidebar -->
             <div class="sidebar w-64 flex flex-col">
-                <div class="p-6 border-b border-custom">
-                    <img src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png" alt="Listoil Logo" class="h-10 sidebar-logo">
-                </div>
+                <div class="p-8 border-b border-gray-100 flex justify-center">
+            <img src="https://listoil.com/wp-content/uploads/2023/05/listoil.com-logo.png" alt="Listoil Logo" class="h-20 object-contain">
+        </div>
                 <div class="flex-1 overflow-y-auto py-4">
                                         <nav class="px-2 space-y-1">
                         <p class="px-4 pt-4 pb-1 text-xs font-semibold text-tertiary uppercase tracking-wider">Program</p>
@@ -609,7 +609,7 @@
                 <div class="p-4 border-t border-custom">
                     <div class="flex items-center">
                         <div class="flex-shrink-0">
-                            <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-opacity-20 flex items-center justify-center">
+                            <div class="h-10 w-10 rounded-full bg-blue-50/30 dark:bg-opacity-20 flex items-center justify-center">
                                 <span class="text-blue-800 dark:text-blue-400 font-medium">A</span>
                             </div>
                         </div>
@@ -788,33 +788,33 @@
                             <div class="widget-card segment-border-retailer rounded-xl p-5">
                                 <div class="flex items-center justify-between mb-4">
                                     <div class="flex items-center">
-                                        <div class="w-9 h-9 bg-violet-100 rounded-lg flex items-center justify-center mr-3">
-                                            <i class="fas fa-store text-violet-600"></i>
+                                        <div class="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center mr-3">
+                                            <i class="fas fa-store text-red-600"></i>
                                         </div>
                                         <div>
                                             <h3 class="text-base font-semibold text-primary">Retailers</h3>
                                             <p class="text-xs text-tertiary">Invoice sync · Points via purchase</p>
                                         </div>
                                     </div>
-                                    <span class="badge" style="background:rgba(124,58,237,0.1);color:#6d28d9;font-size:0.7rem;">Invoice-based</span>
+                                    <span class="badge" style="background:rgba(214,0,28,0.1);color:#D6001C;font-size:0.7rem;">Invoice-based</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 mb-4">
-                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-red-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">Enrolled</p>
                                         <p id="ret-enrolled-val" class="text-lg font-bold text-primary">856</p>
                                         <p id="ret-enrolled-sub" class="text-xs text-green-600">+23 this month</p>
                                     </div>
-                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-red-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">Active (Invoiced)</p>
                                         <p id="ret-active-val" class="text-lg font-bold text-primary">612</p>
                                         <p id="ret-active-sub" class="text-xs text-tertiary">71.5% active rate</p>
                                     </div>
-                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-red-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">Invoice Value</p>
                                         <p id="ret-invoice-val" class="text-lg font-bold text-primary">₹1.2Cr</p>
                                         <p id="ret-invoice-sub" class="text-xs text-green-600">+12% vs last month</p>
                                     </div>
-                                    <div class="bg-violet-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-red-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">Points Issued</p>
                                         <p id="ret-points-val" class="text-lg font-bold text-primary">9.6L</p>
                                         <p id="ret-points-sub" class="text-xs text-tertiary">via invoice sync</p>
@@ -833,7 +833,7 @@
                             <div class="widget-card segment-border-mechanic rounded-xl p-5">
                                 <div class="flex items-center justify-between mb-4">
                                     <div class="flex items-center">
-                                        <div class="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                        <div class="w-9 h-9 bg-blue-50/30 rounded-lg flex items-center justify-center mr-3">
                                             <i class="fas fa-user-hard-hat text-blue-600"></i>
                                         </div>
                                         <div>
@@ -844,22 +844,22 @@
                                     <span class="badge badge-primary" style="font-size:0.7rem;">Scan-based</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 mb-4">
-                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-blue-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">Enrolled</p>
                                         <p id="mec-enrolled-val" class="text-lg font-bold text-primary">12,847</p>
                                         <p id="mec-enrolled-sub" class="text-xs text-green-600">+47 this month</p>
                                     </div>
-                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-blue-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">Active (Scanned)</p>
                                         <p id="mec-active-val" class="text-lg font-bold text-primary">8,309</p>
                                         <p id="mec-active-sub" class="text-xs text-tertiary">64.7% active rate</p>
                                     </div>
-                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-blue-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">QR Scans (30d)</p>
                                         <p id="mec-scans-val" class="text-lg font-bold text-primary">24,832</p>
                                         <p id="mec-scans-sub" class="text-xs text-green-600">+15.2% this period</p>
                                     </div>
-                                    <div class="bg-blue-50 rounded-lg p-3 kpi-micro">
+                                    <div class="bg-blue-50/30 rounded-lg p-3 kpi-micro">
                                         <p class="text-xs text-tertiary mb-1">Points Issued</p>
                                         <p id="mec-points-val" class="text-lg font-bold text-primary">14.8L</p>
                                         <p id="mec-points-sub" class="text-xs text-tertiary">via QR scan</p>
@@ -919,7 +919,7 @@
                                 <div class="flex items-center justify-between mb-4">
                                     <h3 class="text-base font-semibold text-primary">Top Performers</h3>
                                     <div class="flex text-xs border border-gray-200 rounded-lg overflow-hidden">
-                                        <button id="perf-retailer-btn" class="perf-tab active-retailer px-3 py-1" onclick="switchPerformers('retailer')">Retailers</button>
+                                        <button id="perf-retailer-btn" class="perf-tab active-red px-3 py-1" onclick="switchPerformers('retailer')">Retailers</button>
                                         <button id="perf-mechanic-btn" class="perf-tab px-3 py-1 text-gray-600 hover:bg-gray-50" onclick="switchPerformers('mechanic')">Mechanics</button>
                                     </div>
                                 </div>
@@ -931,35 +931,35 @@
                                             <span class="w-6 h-6 rounded-full bg-yellow-100 text-yellow-800 text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
                                             <div><p class="text-sm font-medium text-primary">Sharma Lubricants</p><p class="text-xs text-tertiary">Mumbai · RET-3847</p></div>
                                         </div>
-                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹4.8L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-red-600">₹4.8L</p><p class="text-xs text-tertiary">invoice value</p></div>
                                     </div>
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center gap-2">
                                             <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-700 text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
                                             <div><p class="text-sm font-medium text-primary">Patel Hardware</p><p class="text-xs text-tertiary">Pune · RET-3201</p></div>
                                         </div>
-                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹3.9L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-red-600">₹3.9L</p><p class="text-xs text-tertiary">invoice value</p></div>
                                     </div>
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center gap-2">
                                             <span class="w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center flex-shrink-0">3</span>
                                             <div><p class="text-sm font-medium text-primary">Gupta Auto Parts</p><p class="text-xs text-tertiary">Delhi · RET-2991</p></div>
                                         </div>
-                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹3.2L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-red-600">₹3.2L</p><p class="text-xs text-tertiary">invoice value</p></div>
                                     </div>
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center gap-2">
-                                            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0">4</span>
+                                            <span class="w-6 h-6 rounded-full bg-blue-50/30 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0">4</span>
                                             <div><p class="text-sm font-medium text-primary">Singh Auto Store</p><p class="text-xs text-tertiary">Ahmedabad · RET-2780</p></div>
                                         </div>
-                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹2.7L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-red-600">₹2.7L</p><p class="text-xs text-tertiary">invoice value</p></div>
                                     </div>
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center gap-2">
                                             <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0">5</span>
                                             <div><p class="text-sm font-medium text-primary">Kumar Engines</p><p class="text-xs text-tertiary">Bangalore · RET-2654</p></div>
                                         </div>
-                                        <div class="text-right"><p class="text-sm font-semibold text-violet-600">₹2.1L</p><p class="text-xs text-tertiary">invoice value</p></div>
+                                        <div class="text-right"><p class="text-sm font-semibold text-red-600">₹2.1L</p><p class="text-xs text-tertiary">invoice value</p></div>
                                     </div>
                                 </div>
 
@@ -988,7 +988,7 @@
                                     </div>
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center gap-2">
-                                            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0">4</span>
+                                            <span class="w-6 h-6 rounded-full bg-blue-50/30 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0">4</span>
                                             <div><p class="text-sm font-medium text-primary">Anil Sharma</p><p class="text-xs text-tertiary">Pune · MEC-2634</p></div>
                                         </div>
                                         <div class="text-right"><p class="text-sm font-semibold text-blue-600">1,740 pts</p><p class="text-xs text-tertiary">98 scans</p></div>
@@ -1053,7 +1053,7 @@
                                         <div><p class="text-sm font-medium text-primary">3 new mechanics enrolled</p><p class="text-xs text-tertiary">Mumbai · 12 mins ago</p></div>
                                     </div>
                                     <div class="flex gap-3">
-                                        <div class="activity-dot bg-violet-100 mt-0.5"><i class="fas fa-file-invoice text-violet-600 text-xs"></i></div>
+                                        <div class="activity-dot bg-red-50 mt-0.5"><i class="fas fa-file-invoice text-red-600 text-xs"></i></div>
                                         <div><p class="text-sm font-medium text-primary">Invoice synced — ₹45,200</p><p class="text-xs text-tertiary">Sharma Lubricants · 25 mins ago</p></div>
                                     </div>
                                     <div class="flex gap-3">
@@ -1069,7 +1069,7 @@
                                         <div><p class="text-sm font-medium text-primary">KYC approved — Pooja Gupta</p><p class="text-xs text-tertiary">Retailer · RET-3846 · 2 hrs ago</p></div>
                                     </div>
                                     <div class="flex gap-3">
-                                        <div class="activity-dot bg-blue-100 mt-0.5"><i class="fas fa-bullhorn text-blue-500 text-xs"></i></div>
+                                        <div class="activity-dot bg-blue-50/30 mt-0.5"><i class="fas fa-bullhorn text-blue-500 text-xs"></i></div>
                                         <div><p class="text-sm font-medium text-primary">Campaign "Monsoon Bonus" live</p><p class="text-xs text-tertiary">All mechanics · 3 hrs ago</p></div>
                                     </div>
                                 </div>
@@ -1119,17 +1119,17 @@
             if (segment === 'retailer') {
                 retailerList.classList.remove('hidden');
                 mechanicList.classList.add('hidden');
-                rBtn.classList.add('active-retailer');
+                rBtn.classList.add('active-red');
                 rBtn.classList.remove('active-mechanic');
-                mBtn.classList.remove('active-retailer', 'active-mechanic');
+                mBtn.classList.remove('active-red', 'active-mechanic');
                 mBtn.style.background = '';
                 mBtn.style.color = '';
             } else {
                 mechanicList.classList.remove('hidden');
                 retailerList.classList.add('hidden');
                 mBtn.classList.add('active-mechanic');
-                mBtn.classList.remove('active-retailer');
-                rBtn.classList.remove('active-retailer', 'active-mechanic');
+                mBtn.classList.remove('active-red');
+                rBtn.classList.remove('active-red', 'active-mechanic');
                 rBtn.style.background = '';
                 rBtn.style.color = '';
             }
@@ -1377,7 +1377,7 @@
                                 {
                                     label: 'Retailers',
                                     data: [750, 778, 795, 812, 833, 856],
-                                    borderColor: '#7c3aed',
+                                    borderColor: '#D6001C',
                                     backgroundColor: 'rgba(124,58,237,0.08)',
                                     tension: 0.4,
                                     fill: true,
@@ -1387,7 +1387,7 @@
                                 {
                                     label: 'Mechanics',
                                     data: [10200, 10800, 11200, 11700, 12300, 12847],
-                                    borderColor: '#2563eb',
+                                    borderColor: '#0957C3',
                                     backgroundColor: 'rgba(37,99,235,0.08)',
                                     tension: 0.4,
                                     fill: true,

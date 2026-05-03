@@ -11,7 +11,11 @@ import {
     earningTypes
 } from "@/db/schema"
 import { desc, eq, and, sql, or, ilike, inArray } from "drizzle-orm"
-import { redemptionChannels, retailers, mechanics, counterSales } from "@/db/schema"
+import {
+    redemptionChannels, retailers, mechanics, counterSales,
+    qrCodes, skuVariant, skuPointConfig, auditLogs, skuEntity,
+    tblInventory, tblInventoryBatch, qrTypes, userTypeEntity, approvalStatuses
+} from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
 
@@ -87,6 +91,7 @@ export async function getProcessDataAction() {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
         const scope = await getUserScope(Number(session.user.id));
+        const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
 
         const pendingRetailerConditions = [ilike(retailerTransactionLogs.status, 'pending')];
         const pendingRetailerQuery = db.select({
@@ -102,7 +107,7 @@ export async function getProcessDataAction() {
             .$dynamic();
 
         if (scope.type !== 'Global') {
-            pendingRetailerConditions.push(scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames));
+            pendingRetailerConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? retailers.state : retailers.city})`, lowerNames));
         }
 
         const pendingRetailer = await pendingRetailerQuery.where(and(...pendingRetailerConditions)).limit(20);
@@ -121,7 +126,7 @@ export async function getProcessDataAction() {
             .$dynamic();
 
         if (scope.type !== 'Global') {
-            pendingMechanicConditions.push(scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames));
+            pendingMechanicConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? mechanics.state : mechanics.city})`, lowerNames));
         }
 
         const pendingMechanic = await pendingMechanicQuery.where(and(...pendingMechanicConditions)).limit(20);
@@ -140,7 +145,7 @@ export async function getProcessDataAction() {
             .$dynamic();
 
         if (scope.type !== 'Global') {
-            pendingCounterSalesConditions.push(scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames));
+            pendingCounterSalesConditions.push(inArray(sql`LOWER(${scope.type === 'State' ? counterSales.state : counterSales.city})`, lowerNames));
         }
 
         const pendingCounterSales = await pendingCounterSalesQuery.where(and(...pendingCounterSalesConditions)).limit(20);
@@ -178,9 +183,12 @@ export async function getProcessDataAction() {
 
         if (scope.type !== 'Global') {
             pendingRedemptionQuery.where(or(
-                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
             ));
         }
 
@@ -208,7 +216,7 @@ export async function getProcessDataAction() {
             let q = db.select({ count: sql<number>`count(*)` }).from(table).$dynamic();
             if (scope.type !== 'Global') {
                 q.leftJoin(userTable, eq(table.userId, userTable.userId));
-                conditions.push(scope.type === 'State' ? inArray(userTable.state, scope.entityNames) : inArray(userTable.city, scope.entityNames));
+                conditions.push(inArray(sql`LOWER(${scope.type === 'State' ? userTable.state : userTable.city})`, lowerNames));
             }
             return q.where(and(...conditions));
         };
@@ -223,9 +231,12 @@ export async function getProcessDataAction() {
                 .leftJoin(mechanics, eq(redemptions.userId, mechanics.userId))
                 .leftJoin(counterSales, eq(redemptions.userId, counterSales.userId))
                 .where(or(
-                    scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                    scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                    inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                    inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                    inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                    inArray(sql`LOWER(${counterSales.city})`, lowerNames)
                 ));
         }
         const [redemptionPendingCount] = await redemptionPendingQuery;
@@ -261,9 +272,12 @@ export async function getProcessDataAction() {
 
         if (scope.type !== 'Global') {
             const scopeFilter = or(
-                scope.type === 'State' ? inArray(retailers.state, scope.entityNames) : inArray(retailers.city, scope.entityNames),
-                scope.type === 'State' ? inArray(mechanics.state, scope.entityNames) : inArray(mechanics.city, scope.entityNames),
-                scope.type === 'State' ? inArray(counterSales.state, scope.entityNames) : inArray(counterSales.city, scope.entityNames)
+                inArray(sql`LOWER(${retailers.state})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.state})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.state})`, lowerNames),
+                inArray(sql`LOWER(${retailers.city})`, lowerNames),
+                inArray(sql`LOWER(${mechanics.city})`, lowerNames),
+                inArray(sql`LOWER(${counterSales.city})`, lowerNames)
             );
             [redemptionApprovedTodayQuery, redemptionRejectedTodayQuery, redemptionTotalValueTodayQuery].forEach(q => {
                 q.leftJoin(retailers, eq(redemptions.userId, retailers.userId))
@@ -328,6 +342,7 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
         const session = await auth();
         if (!session?.user?.id) throw new Error("Unauthorized");
         const scope = await getUserScope(Number(session.user.id));
+        const lowerNames = (scope.entityNames || []).map(n => n.toLowerCase());
 
         // 1. Mechanic Transactions
         const mechQuery = db.select({
@@ -381,9 +396,7 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
         .$dynamic();
 
         if (scope.type !== 'Global') {
-            const scopeFilter = (table: any) => scope.type === 'State' 
-                ? inArray(table.state, scope.entityNames) 
-                : inArray(table.city, scope.entityNames);
+            const scopeFilter = (table: any) => inArray(sql`LOWER(${scope.type === 'State' ? table.state : table.city})`, lowerNames);
             
             mechQuery.where(scopeFilter(mechanics));
             retQuery.where(scopeFilter(retailers));
@@ -417,5 +430,303 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
     } catch (error) {
         console.error("Error in getAllTransactionsAction:", error);
         return [];
+    }
+}
+
+export async function getMechanicsForManualEntryAction() {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        const activeMechanics = await db.select({
+            id: users.id,
+            name: users.name,
+            phone: users.phone,
+            uniqueId: mechanics.uniqueId,
+            status: approvalStatuses.name
+        })
+        .from(users)
+        .innerJoin(mechanics, eq(users.id, mechanics.userId))
+        .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
+        .where(and(
+            eq(users.roleId, 3), // Mechanic Role
+            eq(users.isSuspended, false),
+            or(
+                ilike(approvalStatuses.name, '%approved%'),
+                ilike(approvalStatuses.name, '%active%')
+            )
+        ))
+        .orderBy(users.name);
+
+        return activeMechanics;
+    } catch (error) {
+        console.error("Error in getMechanicsForManualEntryAction:", error);
+        return [];
+    }
+}
+
+export async function getQrCodeDetailsAction(serialNumber: string) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        // 1. Check in qrCodes table (Production QRs)
+        let qrData: { 
+            id: number; 
+            code: string; 
+            sku: string; 
+            isScanned: boolean | null; 
+            isActive: boolean;
+            source: 'qrCodes' | 'inventory' 
+        } | null = null;
+
+        const [qr] = await db.select({
+            id: qrCodes.id,
+            code: qrCodes.code,
+            sku: qrCodes.sku,
+            isScanned: qrCodes.isScanned,
+            isActive: qrTypes.isActive
+        })
+        .from(qrCodes)
+        .leftJoin(qrTypes, eq(qrCodes.typeId, qrTypes.id))
+        .where(eq(qrCodes.code, serialNumber))
+        .limit(1);
+
+        if (qr) {
+            qrData = { ...qr, isActive: qr.isActive ?? true, source: 'qrCodes' };
+        } else {
+            // 2. Check in tblInventory (Synced QRs)
+            const [inv] = await db.select({
+                id: tblInventory.inventoryId,
+                code: tblInventory.serialNumber,
+                sku: tblInventoryBatch.skuCode,
+                isScanned: tblInventory.isQrScanned,
+                isActive: tblInventory.isActive,
+                batchActive: tblInventoryBatch.isActive
+            })
+            .from(tblInventory)
+            .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
+            .where(eq(tblInventory.serialNumber, serialNumber))
+            .limit(1);
+
+            if (inv) {
+                qrData = { 
+                    ...inv, 
+                    isActive: (inv.isActive && inv.batchActive), 
+                    source: 'inventory' 
+                };
+            }
+        }
+
+        if (!qrData) return { error: "Serial number not found in system (checked Production & Synced Inventory)." };
+        if (!qrData.isActive) return { error: "This QR code or its batch is currently inactive." };
+        if (qrData.isScanned) return { error: "This QR code has already been scanned." };
+
+        // 3. Find the variant for this SKU code
+        const [variantInfo] = await db.select({
+            variantId: skuVariant.id,
+            variantName: skuVariant.variantName,
+            entityName: skuEntity.name,
+        })
+        .from(skuEntity)
+        .innerJoin(skuVariant, eq(skuVariant.skuEntityId, skuEntity.id))
+        .where(ilike(skuEntity.name, qrData.sku))
+        .limit(1);
+
+        if (!variantInfo) return { 
+            qr: qrData,
+            points: 0,
+            variantName: qrData.sku,
+            message: `Product code "${qrData.sku}" not found in SKU Master. Please add this SKU in Masters > SKU Configuration.`
+        };
+
+        // 4. Find points for this variant for Mechanic user type
+        const [pointInfo] = await db.select({
+            points: skuPointConfig.pointsPerUnit,
+        })
+        .from(skuPointConfig)
+        .innerJoin(userTypeEntity, eq(skuPointConfig.userTypeId, userTypeEntity.id))
+        .where(and(
+            eq(skuPointConfig.skuVariantId, variantInfo.variantId),
+            ilike(userTypeEntity.typeName, '%Mechanic%')
+        ))
+        .limit(1);
+
+        if (!pointInfo) return { 
+            qr: qrData,
+            points: 0,
+            variantName: variantInfo.variantName,
+            message: `SKU "${variantInfo.variantName}" (${qrData.sku}) found but no points configured for Mechanics. Please configure points in Masters > Point Configuration.`
+        };
+
+        return {
+            qr: qrData,
+            points: Number(pointInfo.points),
+            variantName: variantInfo.variantName
+        };
+    } catch (error) {
+        console.error("Error in getQrCodeDetailsAction:", error);
+        return { error: "Failed to fetch QR details." };
+    }
+}
+
+export async function submitManualScanAdjustmentAction(data: {
+    userId: number;
+    serialNumber: string;
+    points: number;
+    reason: string;
+}) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) throw new Error("Unauthorized");
+
+        // Add Admin role gate
+        const isAdmin = session.user.permissions?.includes('all') || session.user.role?.toLowerCase().includes('admin');
+        if (!isAdmin) {
+            throw new Error("Only administrators can perform manual point adjustments.");
+        }
+
+        return await db.transaction(async (tx) => {
+            // 0. Verify user is active and approved
+            const [targetUser] = await tx.select({
+                isSuspended: users.isSuspended,
+                statusName: approvalStatuses.name
+            })
+            .from(users)
+            .leftJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
+            .where(eq(users.id, data.userId))
+            .limit(1);
+
+            if (!targetUser) throw new Error("User not found.");
+            if (targetUser.isSuspended) throw new Error("This user is currently suspended. Points cannot be credited to suspended users.");
+            const statusLower = (targetUser.statusName || '').toLowerCase();
+            if (!statusLower.includes('approved') && !statusLower.includes('active')) {
+                throw new Error(`This user's status is "${targetUser.statusName || 'Unknown'}". Only users with Active/Approved status can receive points.`);
+            }
+
+            // 1. Double check QR status in both tables
+            let qrSource: 'qrCodes' | 'inventory' | null = null;
+            let sku: string = '';
+
+            const [qr] = await tx.select({
+                id: qrCodes.id,
+                code: qrCodes.code,
+                sku: qrCodes.sku,
+                isScanned: qrCodes.isScanned,
+                isActive: qrTypes.isActive
+            })
+            .from(qrCodes)
+            .leftJoin(qrTypes, eq(qrCodes.typeId, qrTypes.id))
+            .where(eq(qrCodes.code, data.serialNumber))
+            .limit(1);
+
+            if (qr) {
+                if (qr.isScanned) throw new Error("QR already scanned (Production).");
+                if (qr.isActive === false) throw new Error("This QR type is currently inactive.");
+                qrSource = 'qrCodes';
+                sku = qr.sku;
+            } else {
+                const [inv] = await tx.select({
+                    isScanned: tblInventory.isQrScanned,
+                    isActive: tblInventory.isActive,
+                    batchActive: tblInventoryBatch.isActive,
+                    sku: tblInventoryBatch.skuCode
+                })
+                .from(tblInventory)
+                .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
+                .where(eq(tblInventory.serialNumber, data.serialNumber))
+                .limit(1);
+                
+                if (inv) {
+                    if (inv.isScanned) throw new Error("QR already scanned (Inventory).");
+                    if (!inv.isActive || !inv.batchActive) throw new Error("This QR code or its batch is currently inactive.");
+                    qrSource = 'inventory';
+                    sku = inv.sku;
+                }
+            }
+
+            if (!qrSource) throw new Error("Invalid serial number.");
+
+            // 2. Check user
+            const [user] = await tx.select()
+                .from(users)
+                .where(and(eq(users.id, data.userId), eq(users.roleId, 3)))
+                .limit(1);
+            
+            if (!user) throw new Error("Invalid mechanic selected.");
+            if (user.isSuspended) throw new Error("Mechanic is suspended.");
+
+            // 3. Create Transaction Entry (mechanicTransactionLogs)
+            const [newLog] = await tx.insert(mechanicTransactionLogs).values({
+                userId: data.userId,
+                earningType: 9, // QR Scan
+                points: data.points.toString(),
+                category: 'QR_SCAN',
+                status: 'approved',
+                qrCode: data.serialNumber,
+                sku: sku,
+                remarks: `Manual Adjustment: ${data.reason}`,
+                metadata: {
+                    adminId: session.user.id,
+                    adminName: session.user.name,
+                    manualEntry: true,
+                    reason: data.reason,
+                    source: qrSource,
+                    scannedAt: new Date().toISOString()
+                }
+            }).returning();
+
+            // 4. Update status in correct table
+            if (qrSource === 'qrCodes') {
+                await tx.update(qrCodes)
+                    .set({
+                        isScanned: true,
+                        scannedBy: data.userId
+                    })
+                    .where(eq(qrCodes.code, data.serialNumber));
+            } else {
+                await tx.update(tblInventory)
+                    .set({
+                        isQrScanned: true
+                    })
+                    .where(eq(tblInventory.serialNumber, data.serialNumber));
+            }
+
+            // 5. Update Mechanic Balance
+            const [mechanic] = await tx.select().from(mechanics).where(eq(mechanics.userId, data.userId)).limit(1);
+            if (mechanic) {
+                const currentBalance = Number(mechanic.pointsBalance || 0);
+                const currentEarnings = Number(mechanic.totalEarnings || 0);
+                const currentRedeemable = Number(mechanic.redeemablePoints || 0);
+
+                await tx.update(mechanics)
+                    .set({
+                        pointsBalance: (currentBalance + data.points).toString(),
+                        totalEarnings: (currentEarnings + data.points).toString(),
+                        redeemablePoints: (currentRedeemable + data.points).toString()
+                    })
+                    .where(eq(mechanics.userId, data.userId));
+            }
+
+            // 6. Log Admin Action (Audit Log)
+            await tx.insert(auditLogs).values({
+                tableName: 'mechanics',
+                recordId: data.userId,
+                operation: 'UPDATE',
+                action: 'MANUAL_POINTS_ENTRY',
+                changedBy: Number(session.user.id),
+                newState: {
+                    points: data.points,
+                    serialNumber: data.serialNumber,
+                    reason: data.reason,
+                    description: `Admin ${session.user.name} added ${data.points} points to mechanic ${user.name} for QR ${data.serialNumber}.`
+                }
+            });
+
+            return { success: true };
+        });
+    } catch (error: any) {
+        console.error("Error in submitManualScanAdjustmentAction:", error);
+        return { success: false, error: error.message || "Failed to submit manual entry." };
     }
 }

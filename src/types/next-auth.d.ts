@@ -5,7 +5,6 @@ declare module "next-auth" {
         user: {
             id: string
             role: string
-            department: string
             permissions: string[]
             scopeType: string
             entityNames: string[]
@@ -15,6 +14,5 @@ declare module "next-auth" {
     interface User {
         id?: string
         role: string
-        department: string
     }
 }

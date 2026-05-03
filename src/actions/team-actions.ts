@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from "@/db"
-import { users, userTypeEntity, userScopeMapping, locationEntity, mechanics, retailers } from "@/db/schema"
+import { users, userTypeEntity, userScopeMapping, locationEntity, mechanics, retailers, distributors } from "@/db/schema"
 import { eq, and, inArray, sql, or } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
@@ -105,11 +105,23 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
     const allRets = await db.select({
         userId: retailers.userId,
         name: retailers.name,
-        city: retailers.city
+        city: retailers.city,
+        attachedDistributorId: retailers.attachedDistributorId
     }).from(retailers);
 
     // Track matched SRs to find orphans
     const matchedSrIds = new Set<number>();
+
+    // Fetch all Distributors
+    const allDistributors = await db.select({
+        id: users.id,
+        name: users.name,
+        city: distributors.city
+    })
+    .from(users)
+    .innerJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
+    .innerJoin(distributors, eq(users.id, distributors.userId))
+    .where(or(eq(userTypeEntity.typeName, 'Distributor'), eq(userTypeEntity.typeName, 'DISTRIBUTOR')));
 
     // Map SRs to TSMs
     const tsmHierarchy = tsms.map(tsm => {
@@ -123,8 +135,8 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
             scopeType: tsm.scopeType || 'State',
             scopeName: tsm.scopeName || 'Unknown',
             children: tsmSrs.map(sr => {
-                // Get retailers for this SR's city
-                const srRetailers = allRets.filter(r => r.city === sr.scopeName);
+                // Get distributors for this SR's city
+                const srDistributors = allDistributors.filter(d => d.city?.toLowerCase() === sr.scopeName?.toLowerCase());
                 
                 return {
                     id: sr.id,
@@ -132,22 +144,81 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                     role: 'SR',
                     scopeType: sr.scopeType || 'City',
                     scopeName: sr.scopeName || 'Unknown',
-                    children: srRetailers.map(ret => ({
-                        id: ret.userId,
-                        name: ret.name || 'Unknown Retailer',
-                        role: 'Retailer',
-                        scopeType: 'City',
-                        scopeName: ret.city || 'Unknown',
-                        children: allMechs
-                            .filter(m => m.attachedRetailerId === ret.userId)
-                            .map(m => ({
-                                id: m.userId,
-                                name: m.name || 'Unknown Mechanic',
-                                role: 'Mechanic',
-                                scopeType: 'City',
-                                scopeName: m.city || 'Unknown'
-                            }))
-                    }))
+                    children: [
+                        // Actual Distributors
+                        ...srDistributors.map(dist => ({
+                            id: dist.id,
+                            name: dist.name || 'Unknown Distributor',
+                            role: 'Distributor',
+                            scopeType: 'City',
+                            scopeName: dist.city || 'Unknown',
+                            children: allRets
+                                .filter(ret => ret.attachedDistributorId === dist.id)
+                                .map(ret => ({
+                                    id: ret.userId,
+                                    name: ret.name || 'Unknown Retailer',
+                                    role: 'Retailer',
+                                    scopeType: 'City',
+                                    scopeName: ret.city || 'Unknown',
+                                    children: allMechs
+                                        .filter(m => m.attachedRetailerId === ret.userId)
+                                        .map(m => ({
+                                            id: m.userId,
+                                            name: m.name || 'Unknown Mechanic',
+                                            role: 'Mechanic',
+                                            scopeType: 'City',
+                                            scopeName: m.city || 'Unknown'
+                                        }))
+                                }))
+                        })),
+                        // Virtual "Direct Retailers" Distributor
+                        ...(allRets.some(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase()) || 
+                            allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
+                            id: -(sr.id + 1000000), // Virtual ID
+                            name: 'Direct Retailers',
+                            role: 'Distributor',
+                            scopeType: 'City',
+                            scopeName: sr.scopeName || 'Unknown',
+                            children: [
+                                // Unmapped Retailers
+                                ...allRets
+                                    .filter(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase())
+                                    .map(ret => ({
+                                        id: ret.userId,
+                                        name: ret.name || 'Unknown Retailer',
+                                        role: 'Retailer',
+                                        scopeType: 'City',
+                                        scopeName: ret.city || 'Unknown',
+                                        children: allMechs
+                                            .filter(m => m.attachedRetailerId === ret.userId)
+                                            .map(m => ({
+                                                id: m.userId,
+                                                name: m.name || 'Unknown Mechanic',
+                                                role: 'Mechanic',
+                                                scopeType: 'City',
+                                                scopeName: m.city || 'Unknown'
+                                            }))
+                                    })),
+                                // Virtual "Direct Mechanic" Retailer for unmapped mechanics
+                                ...(allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
+                                    id: -(sr.id + 2000000), // Virtual ID
+                                    name: 'Direct Mechanic',
+                                    role: 'Retailer',
+                                    scopeType: 'City',
+                                    scopeName: sr.scopeName || 'Unknown',
+                                    children: allMechs
+                                        .filter(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase())
+                                        .map(m => ({
+                                            id: m.userId,
+                                            name: m.name || 'Unknown Mechanic',
+                                            role: 'Mechanic',
+                                            scopeType: 'City',
+                                            scopeName: m.city || 'Unknown'
+                                        }))
+                                }] : [])
+                            ]
+                        }] : [])
+                    ]
                 };
             })
         };
@@ -172,7 +243,7 @@ async function getFullHierarchy(): Promise<TeamMember[]> {
                 scopeType: 'State',
                 scopeName: 'N/A',
                 children: group.map(sr => {
-                    const srRetailers = allRets.filter(r => r.city === sr.scopeName);
+                    const srRetailers = allRets.filter(r => r.city?.toLowerCase() === sr.scopeName?.toLowerCase());
                     return {
                         id: sr.id,
                         name: sr.name || 'Unknown',
@@ -250,9 +321,27 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
     const allRets = await db.select({
         userId: retailers.userId,
         name: retailers.name,
-        city: retailers.city
+        city: retailers.city,
+        attachedDistributorId: retailers.attachedDistributorId
     }).from(retailers)
     .where(inArray(sql`LOWER(${retailers.state})`, lowerStateNames));
+
+    // Fetch all Distributors in these states
+    const allDistributors = await db.select({
+        id: users.id,
+        name: users.name,
+        city: distributors.city
+    })
+    .from(users)
+    .innerJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
+    .innerJoin(userScopeMapping, eq(users.id, userScopeMapping.userId))
+    .innerJoin(locationEntity, eq(userScopeMapping.scopeEntityId, locationEntity.id))
+    .innerJoin(distributors, eq(users.id, distributors.userId))
+    .where(and(
+        or(eq(userTypeEntity.typeName, 'Distributor'), eq(userTypeEntity.typeName, 'DISTRIBUTOR')),
+        inArray(locationEntity.parentEntityId, stateIds),
+        eq(userScopeMapping.isActive, true)
+    ));
 
     return [{
         id: tsmId,
@@ -266,24 +355,83 @@ async function getTSMHierarchy(stateIds: number[], tsmId: number, stateNames: st
             role: 'SR',
             scopeType: sr.scopeType || 'City',
             scopeName: sr.scopeName || 'Unknown',
-            children: allRets
-                .filter(ret => ret.city === sr.scopeName)
-                .map(ret => ({
-                    id: ret.userId,
-                    name: ret.name || 'Unknown Retailer',
-                    role: 'Retailer',
+            children: [
+                // Actual Distributors
+                ...allDistributors
+                    .filter(d => d.city?.toLowerCase() === sr.scopeName?.toLowerCase())
+                    .map(dist => ({
+                        id: dist.id,
+                        name: dist.name || 'Unknown Distributor',
+                        role: 'Distributor',
+                        scopeType: 'City',
+                        scopeName: dist.city || 'Unknown',
+                        children: allRets
+                            .filter(ret => ret.attachedDistributorId === dist.id)
+                            .map(ret => ({
+                                id: ret.userId,
+                                name: ret.name || 'Unknown Retailer',
+                                role: 'Retailer',
+                                scopeType: 'City',
+                                scopeName: ret.city || 'Unknown',
+                                children: allMechs
+                                    .filter(m => m.attachedRetailerId === ret.userId)
+                                    .map(m => ({
+                                        id: m.userId,
+                                        name: m.name || 'Unknown Mechanic',
+                                        role: 'Mechanic',
+                                        scopeType: 'City',
+                                        scopeName: m.city || 'Unknown'
+                                    }))
+                            }))
+                    })),
+                // Virtual "Direct Retailers" Distributor
+                ...(allRets.some(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ||
+                    allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
+                    id: -(sr.id + 1000000), // Virtual ID
+                    name: 'Direct Retailers',
+                    role: 'Distributor',
                     scopeType: 'City',
-                    scopeName: ret.city || 'Unknown',
-                    children: allMechs
-                        .filter(m => m.attachedRetailerId === ret.userId)
-                        .map(m => ({
-                            id: m.userId,
-                            name: m.name || 'Unknown Mechanic',
-                            role: 'Mechanic',
+                    scopeName: sr.scopeName || 'Unknown',
+                    children: [
+                        // Unmapped Retailers
+                        ...allRets
+                            .filter(ret => !ret.attachedDistributorId && ret.city?.toLowerCase() === sr.scopeName?.toLowerCase())
+                            .map(ret => ({
+                                id: ret.userId,
+                                name: ret.name || 'Unknown Retailer',
+                                role: 'Retailer',
+                                scopeType: 'City',
+                                scopeName: ret.city || 'Unknown',
+                                children: allMechs
+                                    .filter(m => m.attachedRetailerId === ret.userId)
+                                    .map(m => ({
+                                        id: m.userId,
+                                        name: m.name || 'Unknown Mechanic',
+                                        role: 'Mechanic',
+                                        scopeType: 'City',
+                                        scopeName: m.city || 'Unknown'
+                                    }))
+                            })),
+                        // Virtual "Direct Mechanic" Retailer for unmapped mechanics
+                        ...(allMechs.some(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase()) ? [{
+                            id: -(sr.id + 2000000), // Virtual ID
+                            name: 'Direct Mechanic',
+                            role: 'Retailer',
                             scopeType: 'City',
-                            scopeName: m.city || 'Unknown'
-                        }))
-                }))
+                            scopeName: sr.scopeName || 'Unknown',
+                            children: allMechs
+                                .filter(m => !m.attachedRetailerId && m.city?.toLowerCase() === sr.scopeName?.toLowerCase())
+                                .map(m => ({
+                                    id: m.userId,
+                                    name: m.name || 'Unknown Mechanic',
+                                    role: 'Mechanic',
+                                    scopeType: 'City',
+                                    scopeName: m.city || 'Unknown'
+                                }))
+                        }] : [])
+                    ]
+                }] : [])
+            ]
         }))
     }];
 }
@@ -305,7 +453,8 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
         id: retailers.id,
         userId: retailers.userId,
         name: retailers.name,
-        city: retailers.city
+        city: retailers.city,
+        attachedDistributorId: retailers.attachedDistributorId
     })
     .from(retailers)
     .where(inArray(sql`LOWER(${retailers.city})`, lowerCities));
@@ -322,27 +471,102 @@ async function getSRHierarchy(cities: string[], srId: number, srName: string): P
     .from(mechanics)
     .where(inArray(mechanics.attachedRetailerId, retIds)) : [];
 
+    // Fetch Distributors in these cities
+    const allDistributors = await db.select({
+        id: users.id,
+        name: users.name,
+        city: distributors.city
+    })
+    .from(users)
+    .innerJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
+    .innerJoin(userScopeMapping, eq(users.id, userScopeMapping.userId))
+    .innerJoin(locationEntity, eq(userScopeMapping.scopeEntityId, locationEntity.id))
+    .innerJoin(distributors, eq(users.id, distributors.userId))
+    .where(and(
+        or(eq(userTypeEntity.typeName, 'Distributor'), eq(userTypeEntity.typeName, 'DISTRIBUTOR')),
+        inArray(sql`LOWER(${locationEntity.name})`, lowerCities),
+        eq(userScopeMapping.isActive, true)
+    ));
+
     return [{
         id: srId,
         name: srName,
         role: 'SR',
         scopeType: 'City',
         scopeName: cities.join(', '),
-        children: rets.map(ret => ({
-            id: ret.userId,
-            name: ret.name || 'Unknown Retailer',
-            role: 'Retailer',
-            scopeType: 'City',
-            scopeName: ret.city || 'Unknown',
-            children: mechs
-                .filter(m => m.attachedRetailerId === ret.userId)
-                .map(m => ({
-                    id: m.userId,
-                    name: m.name || 'Unknown Mechanic',
-                    role: 'Mechanic',
-                    scopeType: 'City',
-                    scopeName: m.city || 'Unknown'
-                }))
-        }))
+        children: [
+            // Actual Distributors
+            ...allDistributors.map(dist => ({
+                id: dist.id,
+                name: dist.name || 'Unknown Distributor',
+                role: 'Distributor',
+                scopeType: 'City',
+                scopeName: dist.city || 'Unknown',
+                children: rets
+                    .filter(ret => ret.attachedDistributorId === dist.id)
+                    .map(ret => ({
+                        id: ret.userId,
+                        name: ret.name || 'Unknown Retailer',
+                        role: 'Retailer',
+                        scopeType: 'City',
+                        scopeName: ret.city || 'Unknown',
+                        children: mechs
+                            .filter(m => m.attachedRetailerId === ret.userId)
+                            .map(m => ({
+                                id: m.userId,
+                                name: m.name || 'Unknown Mechanic',
+                                role: 'Mechanic',
+                                scopeType: 'City',
+                                scopeName: m.city || 'Unknown'
+                            }))
+                    }))
+            })),
+            // Virtual "Direct Retailers" Distributor
+            ...(rets.some(ret => !ret.attachedDistributorId) || mechs.some(m => !m.attachedRetailerId) ? [{
+                id: -(srId + 1000000), // Virtual ID
+                name: 'Direct Retailers',
+                role: 'Distributor',
+                scopeType: 'City',
+                scopeName: cities.join(', '),
+                children: [
+                    // Unmapped Retailers
+                    ...rets
+                        .filter(ret => !ret.attachedDistributorId)
+                        .map(ret => ({
+                            id: ret.userId,
+                            name: ret.name || 'Unknown Retailer',
+                            role: 'Retailer',
+                            scopeType: 'City',
+                            scopeName: ret.city || 'Unknown',
+                            children: mechs
+                                .filter(m => m.attachedRetailerId === ret.userId)
+                                .map(m => ({
+                                    id: m.userId,
+                                    name: m.name || 'Unknown Mechanic',
+                                    role: 'Mechanic',
+                                    scopeType: 'City',
+                                    scopeName: m.city || 'Unknown'
+                                }))
+                        })),
+                    // Virtual "Direct Mechanic" Retailer for unmapped mechanics
+                    ...(mechs.some(m => !m.attachedRetailerId) ? [{
+                        id: -(srId + 2000000), // Virtual ID
+                        name: 'Direct Mechanic',
+                        role: 'Retailer',
+                        scopeType: 'City',
+                        scopeName: cities.join(', '),
+                        children: mechs
+                            .filter(m => !m.attachedRetailerId)
+                            .map(m => ({
+                                id: m.userId,
+                                name: m.name || 'Unknown Mechanic',
+                                role: 'Mechanic',
+                                scopeType: 'City',
+                                scopeName: m.city || 'Unknown'
+                            }))
+                    }] : [])
+                ]
+            }] : [])
+        ]
     }];
 }

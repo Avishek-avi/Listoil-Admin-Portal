@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getLocationByPincodeAction, uploadMemberFileAction, approveMemberAction, rejectMemberAction, getPincodeStatesAction, getPincodeCitiesAction } from '@/actions/member-actions';
+import { getMembersDataAction, getMemberDetailsAction, getMemberKycDocumentsAction, updateKycDocumentStatusAction, getApprovalStatusesAction, updateMemberApprovalStatusAction, getMemberHierarchyAction, getMembersListAction, updateMemberDetailsAction, createMemberAction, getCurrentUserScopeAction, getLocationEntitiesAction, getPincodesAction, getRetailersByCityAction, getDistributorsByCityAction, getLocationByPincodeAction, uploadMemberFileAction, approveMemberAction, rejectMemberAction, getPincodeStatesAction, getPincodeCitiesAction } from '@/actions/member-actions';
 
 
 /* ── Reusable dropdown (click-outside auto-close) ── */
@@ -101,11 +101,12 @@ export default function MembersClient() {
     });
 
     const filteredLevels = useMemo(() => {
-        const levelOrder = ['member', 'support/call centre'];
+        const levelOrder = ['Member'];
         const labelMap: Record<string, string> = {
             member: 'Member',
-            admin: 'Admin',
-            'support/call centre': 'Support/Call Centre',
+            'field management': 'Member',
+            stakeholders: 'Member',
+            distributor: 'Member',
         };
 
         const normalizeLevelName = (name: string) => name
@@ -115,24 +116,43 @@ export default function MembersClient() {
             .replace('center', 'centre')
             .trim();
 
-        return (hierarchyData?.levels || [])
-            .filter((level: any) => levelOrder.includes(normalizeLevelName(level.name)))
-            .map((level: any) => {
-                const normalizedName = normalizeLevelName(level.name);
-                return {
-                    ...level,
-                    displayName: labelMap[normalizedName] || level.name,
-                    entities: (level.entities || []).filter((e: any) => 
-                        !e.name.toLowerCase().includes('counter staff') && 
-                        !e.name.toLowerCase().includes('counter sales')
-                    )
+        const grouped: Record<string, any> = {};
+
+        (hierarchyData?.levels || []).forEach((level: any) => {
+            const normalizedName = normalizeLevelName(level.name);
+            const displayName = labelMap[normalizedName] || (normalizedName === 'admin' ? 'Support/Call Centre' : level.name);
+            
+            if (!grouped[displayName]) {
+                grouped[displayName] = {
+                    name: displayName,
+                    displayName: displayName,
+                    entities: []
                 };
-            })
-            .sort((a: any, b: any) => {
-                const aIndex = levelOrder.indexOf(normalizeLevelName(a.name));
-                const bIndex = levelOrder.indexOf(normalizeLevelName(b.name));
-                return aIndex - bIndex;
+            }
+
+            const validEntities = (level.entities || []).filter((e: any) => 
+                !e.name.toLowerCase().includes('counter staff') && 
+                !e.name.toLowerCase().includes('counter sales')
+            );
+
+            grouped[displayName].entities.push(...validEntities);
+        });
+
+        // Sort entities within the "Member" tab: Distributor > Retailer > Mechanic
+        if (grouped['Member']) {
+            const entityOrder = ['distributor', 'retailer', 'mechanic'];
+            grouped['Member'].entities.sort((a: any, b: any) => {
+                const aName = a.name.toLowerCase();
+                const bName = b.name.toLowerCase();
+                const aIdx = entityOrder.findIndex(o => aName.includes(o));
+                const bIdx = entityOrder.findIndex(o => bName.includes(o));
+                return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
             });
+        }
+
+        return Object.values(grouped)
+            .filter((l: any) => levelOrder.includes(l.displayName))
+            .sort((a: any, b: any) => levelOrder.indexOf(a.displayName) - levelOrder.indexOf(b.displayName));
     }, [hierarchyData]);
     
     // Sync tabs with URL params if they exist
@@ -449,7 +469,7 @@ export default function MembersClient() {
             <div className="tabs mb-4 px-1">
                 {filteredLevels.map((level: any, index: number) => (
                     <button
-                        key={level.id}
+                        key={level.displayName || index}
                         className={`tab ${levelTab === index ? 'active' : ''}`}
                         onClick={() => handleLevelChange(index)}
                         style={{ fontSize: '0.9rem', padding: '8px 24px' }}
@@ -463,7 +483,7 @@ export default function MembersClient() {
             <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide px-1">
                 {currentLevel.entities.map((entity: any, index: number) => (
                     <button
-                        key={entity.id}
+                        key={entity.id || index}
                         onClick={() => { setEntityTab(index); setPage(1); }}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${activeEntityTab === index
                             ? 'bg-red-600 text-white shadow-md'
@@ -496,28 +516,33 @@ export default function MembersClient() {
                                 <span className="text-gray-400 ml-1.5">vs last month</span>
                             </div>
                         </div>
-                        <div className="widget-card rounded-xl shadow p-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <p className="text-sm text-gray-500">KYC Pending</p>
-                                  <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-clock text-white text-xs"></i></div>
-                            </div>
-                            <h3 className="text-2xl font-bold mb-1">{stats.kycPending}</h3>
-                            <div className="flex items-center text-sm">
-                                <span className="text-orange-600 font-medium">{stats.kycPendingTrend}</span>
-                                <span className="text-gray-500 ml-2">today</span>
-                            </div>
-                        </div>
-                        <div className="widget-card rounded-xl shadow p-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <p className="text-sm text-gray-500">KYC Approved</p>
-                                  <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-check-circle text-white text-xs"></i></div>
-                            </div>
-                            <h3 className="text-2xl font-bold mb-1">{stats.kycApproved.toLocaleString()}</h3>
-                            <div className="flex items-center text-sm">
-                                <span className="text-green-600 font-medium">{stats.kycApprovedRate}</span>
-                                <span className="text-gray-500 ml-2">approval rate</span>
-                            </div>
-                        </div>
+
+                        {!currentLevel.displayName?.toLowerCase().includes('support') && (
+                            <>
+                                <div className="widget-card rounded-xl shadow p-6">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-sm text-gray-500">KYC Pending</p>
+                                          <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-clock text-white text-xs"></i></div>
+                                    </div>
+                                    <h3 className="text-2xl font-bold mb-1">{stats.kycPending}</h3>
+                                    <div className="flex items-center text-sm">
+                                        <span className="text-orange-600 font-medium">{stats.kycPendingTrend}</span>
+                                        <span className="text-gray-500 ml-2">today</span>
+                                    </div>
+                                </div>
+                                <div className="widget-card rounded-xl shadow p-6">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-sm text-gray-500">KYC Approved</p>
+                                          <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0"><i className="fas fa-check-circle text-white text-xs"></i></div>
+                                    </div>
+                                    <h3 className="text-2xl font-bold mb-1">{stats.kycApproved.toLocaleString()}</h3>
+                                    <div className="flex items-center text-sm">
+                                        <span className="text-green-600 font-medium">{stats.kycApprovedRate}</span>
+                                        <span className="text-gray-500 ml-2">approval rate</span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                         <div className="widget-card rounded-xl shadow p-6">
                             <div className="flex justify-between items-center mb-2">
                                 <p className="text-sm text-gray-500">Active Today</p>
@@ -592,9 +617,9 @@ export default function MembersClient() {
                                         <th>
                                             {currentEntity.name.toLowerCase().includes('retailer') ? 'Store' :
                                                 currentEntity.name.toLowerCase().includes('counter staff') ? 'Mapped Retailer' :
-                                                    currentLevel.name.toLowerCase().includes('internal') ? 'Role' : 'Region'}
+                                            currentLevel.name.toLowerCase().includes('internal') || currentLevel.displayName?.toLowerCase().includes('support') ? 'Role' : 'Region'}
                                         </th>
-                                        <th>KYC Status</th>
+                                        {!currentLevel.displayName?.toLowerCase().includes('support') && <th>KYC Status</th>}
                                         <th>Approval Status</th>
                                         {currentEntity.name.toLowerCase().includes('mechanic') && <th>Joined</th>}
                                         <th>Actions</th>
@@ -638,18 +663,20 @@ export default function MembersClient() {
                                                     <p className="text-sm">{member.regions || 'N/A'}</p>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-2">
-                                                    {getKycBadge(member.kycStatus, member.approvalStatus)}
-                                                    <button 
-                                                        onClick={() => handleViewKyc(member)}
-                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                        title="View Documents"
-                                                    >
-                                                        <i className="fas fa-file-invoice text-sm"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
+                                            {!currentLevel.displayName?.toLowerCase().includes('support') && (
+                                                <td className="py-3 px-4">
+                                                    <div className="flex items-center gap-2">
+                                                        {getKycBadge(member.kycStatus, member.approvalStatus)}
+                                                        <button 
+                                                            onClick={() => handleViewKyc(member)}
+                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                            title="View Documents"
+                                                        >
+                                                            <i className="fas fa-file-invoice text-sm"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            )}
                                             <td className="py-3 px-4">{getApprovalBadge(member.approvalStatus)}</td>
                                             {currentEntity.name.toLowerCase().includes('mechanic') && (
                                                 <td className="py-3 px-4 text-sm">{member.joinedDate}</td>
@@ -666,36 +693,41 @@ export default function MembersClient() {
                                                     
                                                     <ActionDropdown label="Account" icon="fa-cog" direction="down">
                                                         <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Change Status</div>
-                                                        {['ACTIVE', 'BLOCKED', 'SCAN_BLOCKED', 'REDEMPTION_BLOCKED'].map(statusName => {
-                                                            const status = blockStatuses?.find((s: any) => s.name.toUpperCase() === statusName);
-                                                            if (!status) return null;
-                                                            const isCurrent = member.approvalStatusId === status.id;
-                                                            
-                                                            // Role-specific labeling
-                                                            let label = statusName.replace('_', ' ');
-                                                            const isRetailer = currentEntity?.name.toLowerCase().includes('retailer');
-                                                            
-                                                            if (statusName === 'BLOCKED') {
-                                                                label = isRetailer ? 'Full Block (Invoices + Redemption)' : 'Full Block (Scans + Redemption)';
-                                                            } else if (statusName === 'SCAN_BLOCKED') {
-                                                                label = isRetailer ? 'Invoice Sync Block' : 'Scan Block';
-                                                            } else if (statusName === 'REDEMPTION_BLOCKED') {
-                                                                label = 'Redemption Block';
-                                                            } else if (statusName === 'ACTIVE') {
-                                                                label = 'Active (Unblocked)';
-                                                            }
+                                                        {(() => {
+                                                            const isSupport = currentLevel.displayName?.toLowerCase().includes('support');
+                                                            const allowedStatuses = isSupport ? ['ACTIVE', 'BLOCKED'] : ['ACTIVE', 'BLOCKED', 'SCAN_BLOCKED', 'REDEMPTION_BLOCKED'];
 
-                                                            return (
-                                                                <button
-                                                                    key={status.id}
-                                                                    onClick={() => !isCurrent && handleUpdateBlockStatus(member.dbId, status.id)}
-                                                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isCurrent ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                                >
-                                                                    <i className={`fas ${isCurrent ? 'fa-check-circle' : 'fa-circle text-[8px] opacity-30'} w-4 text-center`}></i>
-                                                                    {label}
-                                                                </button>
-                                                            );
-                                                        })}
+                                                            return allowedStatuses.map(statusName => {
+                                                                const status = blockStatuses?.find((s: any) => s.name.toUpperCase() === statusName);
+                                                                if (!status) return null;
+                                                                const isCurrent = member.approvalStatusId === status.id;
+                                                                
+                                                                // Role-specific labeling
+                                                                let label = statusName.replace('_', ' ');
+                                                                const isRetailer = currentEntity?.name.toLowerCase().includes('retailer');
+                                                                
+                                                                if (statusName === 'BLOCKED') {
+                                                                    label = isRetailer ? 'Full Block (Invoices + Redemption)' : 'Full Block (Scans + Redemption)';
+                                                                } else if (statusName === 'SCAN_BLOCKED') {
+                                                                    label = isRetailer ? 'Invoice Sync Block' : 'Scan Block';
+                                                                } else if (statusName === 'REDEMPTION_BLOCKED') {
+                                                                    label = 'Redemption Block';
+                                                                } else if (statusName === 'ACTIVE') {
+                                                                    label = 'Active (Unblocked)';
+                                                                }
+
+                                                                return (
+                                                                    <button
+                                                                        key={status.id}
+                                                                        onClick={() => !isCurrent && handleUpdateBlockStatus(member.dbId, status.id)}
+                                                                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left ${isCurrent ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                                    >
+                                                                        <i className={`fas ${isCurrent ? 'fa-check-circle' : 'fa-circle text-[8px] opacity-30'} w-4 text-center`}></i>
+                                                                        {label}
+                                                                    </button>
+                                                                );
+                                                            });
+                                                        })()}
                                                         <div className="border-t border-gray-100 my-1"></div>
                                                         <button onClick={() => handleEditMember(member)} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left">
                                                             <i className="fas fa-edit text-gray-400 text-xs w-4"></i> Edit Details
@@ -748,14 +780,18 @@ export default function MembersClient() {
                                     <h3 className="text-xl font-bold">{selectedMember?.member?.name}</h3>
                                     <p className="opacity-90 text-sm">ID: {selectedMember?.member?.id}</p>
                                     <div className="mt-2 flex gap-2 flex-wrap">
-                                        <span className={`text-white text-xs font-bold px-2 py-0.5 rounded-full ${selectedMember?.member?.kycStatus === 'Approved' ? 'bg-green-500' : 'bg-yellow-500'}`}>
-                                            {selectedMember?.member?.kycStatus}
-                                        </span>
-                                        <span className={`text-white text-xs font-bold px-2 py-0.5 rounded-full ${selectedMember?.member?.approvalStatus?.includes('APPROVED') ? 'bg-green-500' :
-                                            selectedMember?.member?.approvalStatus?.includes('BLOCKED') ? 'bg-red-500' :
-                                                selectedMember?.member?.approvalStatus?.includes('REJECTED') ? 'bg-yellow-500' : 'bg-red-500'}`}>
-                                            {selectedMember?.member?.approvalStatus}
-                                        </span>
+                                        {!currentLevel.displayName?.toLowerCase().includes('support') && (
+                                            <>
+                                                <span className={`text-white text-xs font-bold px-2 py-0.5 rounded-full ${selectedMember?.member?.kycStatus === 'Approved' ? 'bg-green-500' : 'bg-yellow-500'}`}>
+                                                    {selectedMember?.member?.kycStatus}
+                                                </span>
+                                                <span className={`text-white text-xs font-bold px-2 py-0.5 rounded-full ${selectedMember?.member?.approvalStatus?.includes('APPROVED') ? 'bg-green-500' :
+                                                    selectedMember?.member?.approvalStatus?.includes('BLOCKED') ? 'bg-red-500' :
+                                                        selectedMember?.member?.approvalStatus?.includes('REJECTED') ? 'bg-yellow-500' : 'bg-red-500'}`}>
+                                                    {selectedMember?.member?.approvalStatus}
+                                                </span>
+                                            </>
+                                        )}
                                         <span className="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">{currentEntity?.name}</span>
                                     </div>
                                 </div>
@@ -814,6 +850,24 @@ export default function MembersClient() {
                                                     <div>
                                                         <p className="text-xs text-gray-500">Mapped Retailer</p>
                                                         <p className="text-sm font-medium">{(memberDetails as any).mappedRetailer || '---'}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {currentEntity.name.toLowerCase().includes('retailer') && (
+                                                <div className="flex items-center gap-3">
+                                                    <i className="fas fa-truck-loading text-gray-400 w-5 text-center"></i>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Mapped Distributor</p>
+                                                        <p className="text-sm font-medium">{(memberDetails as any).mappedDistributor || '---'}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {currentEntity.name.toLowerCase().includes('distributor') && (
+                                                <div className="flex items-center gap-3">
+                                                    <i className="fas fa-barcode text-gray-400 w-5 text-center"></i>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">SAP Code</p>
+                                                        <p className="text-sm font-medium">{(memberDetails as any).sapCustomerCode || '---'}</p>
                                                     </div>
                                                 </div>
                                             )}
@@ -921,7 +975,7 @@ export default function MembersClient() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {kycDocuments.map((doc: any, idx: number) => (
-                                        <div key={idx}>
+                                        <div key={doc.id || idx}>
                                             <p className="text-sm font-medium mb-1">{doc.documentType}</p>
                                             <div
                                                 onClick={() => handleViewDocument(doc.signedUrl, doc.documentType)}
@@ -1165,8 +1219,9 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
         bankAccountName: '',
         upiId: '',
         scopeEntityId: '',
-        attachedRetailerId: '',
         zone: '',
+        sapCustomerCode: '',
+        attachedDistributorId: '',
         kycDocuments: {}
     });
 
@@ -1177,6 +1232,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
     const [pincodes, setPincodes] = useState<any[]>([]);
 
     const [cityRetailers, setCityRetailers] = useState<any[]>([]);
+    const [cityDistributors, setCityDistributors] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [uploading, setUploading] = useState<string | null>(null);
@@ -1232,6 +1288,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                     { id: 17, name: 'Sales Head' },
                     { id: 15, name: 'TSM' },
                     { id: 16, name: 'SR' },
+                    { id: 18, name: 'Distributor' },
                     { id: 3, name: 'Mechanic' },
                     { id: 2, name: 'Retailer' }
                 ];
@@ -1241,6 +1298,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                 roles = [{ id: 16, name: 'SR' }];
             } else if (role === 'SR') {
                 roles = [
+                    { id: 18, name: 'Distributor' },
                     { id: 3, name: 'Mechanic' },
                     { id: 2, name: 'Retailer' }
                 ];
@@ -1270,6 +1328,11 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                 const states = await getPincodeStatesAction();
                 setAllStates(states.map(s => ({ id: s, name: s })));
                 setLocations([]); // Clear cities until state is selected
+            } else if (targetRole === 'DISTRIBUTOR' && isAdmin) {
+                 // Admin creating Distributor, fetch states first
+                 const states = await getPincodeStatesAction();
+                 setAllStates(states.map(s => ({ id: s, name: s })));
+                 setLocations([]);
             }
 
 
@@ -1286,6 +1349,9 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                 if (targetRole === 'SR' && isAdmin) {
                     const cities = await getPincodeCitiesAction(selectedState);
                     setLocations(cities.map(c => ({ id: c, name: c })));
+                } else if (targetRole === 'DISTRIBUTOR' && isAdmin) {
+                    const cities = await getPincodeCitiesAction(selectedState);
+                    setLocations(cities.map(c => ({ id: c, name: c })));
                 } else {
                     const cities = await getLocationEntitiesAction(5, parseInt(selectedState));
                     setLocations(cities);
@@ -1300,7 +1366,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
     useEffect(() => {
         const fetchPincodes = async () => {
             const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
-            if (['MECHANIC', 'RETAILER'].includes(targetRole as string)) {
+            if (['MECHANIC', 'RETAILER', 'DISTRIBUTOR'].includes(targetRole as string)) {
                 let city = formData.city;
                 if (!city && userScope?.role.toUpperCase() === 'SR' && userScope.entityNames.length === 1) {
                     city = userScope.entityNames[0];
@@ -1313,6 +1379,18 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
             }
         };
         fetchPincodes();
+    }, [formData.roleId, formData.city, userScope, allowedRoles]);
+
+    useEffect(() => {
+        const fetchCityDistributors = async () => {
+            const targetRole = allowedRoles.find(r => r.id.toString() === formData.roleId)?.name.toUpperCase();
+            if (targetRole === 'RETAILER' && (formData.city || (userScope?.role.toUpperCase() === 'SR' && userScope.entityNames[0]))) {
+                const city = formData.city || userScope.entityNames[0];
+                const results = await getDistributorsByCityAction(city);
+                setCityDistributors(results);
+            }
+        };
+        fetchCityDistributors();
     }, [formData.roleId, formData.city, userScope, allowedRoles]);
 
     useEffect(() => {
@@ -1483,6 +1561,13 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                     </div>
                                 )}
 
+                                {formData.roleId === '18' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">SAP Customer Code</label>
+                                        <input type="text" value={formData.sapCustomerCode} onChange={e => setFormData({ ...formData, sapCustomerCode: e.target.value })} className={inputClass} required />
+                                    </div>
+                                )}
+
                                 
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Aadhaar Number</label>
@@ -1560,17 +1645,34 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
 
                                 {formData.roleId === '3' && (
                                     <div className="space-y-1">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Retailer</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Retailer (Optional)</label>
                                         <select 
                                             value={formData.attachedRetailerId} 
                                             onChange={e => setFormData({ ...formData, attachedRetailerId: e.target.value })} 
                                             className={selectClass}
-                                            required
                                         >
-                                            <option value="">Select Retailer</option>
+                                            <option value="">{cityRetailers.length === 0 ? "Direct Mechanic (No Retailer)" : "Select Retailer"}</option>
                                             {cityRetailers.map(r => (
                                                 <option key={r.id} value={r.id}>
                                                     {r.name} {r.shopName ? `(${r.shopName})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {formData.roleId === '2' && (
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Map to Distributor (Optional)</label>
+                                        <select 
+                                            value={formData.attachedDistributorId} 
+                                            onChange={e => setFormData({ ...formData, attachedDistributorId: e.target.value })} 
+                                            className={selectClass}
+                                        >
+                                            <option value="">{cityDistributors.length === 0 ? "Direct Retailer (No Distributor)" : "Select Distributor"}</option>
+                                            {cityDistributors.map(d => (
+                                                <option key={d.id} value={d.id}>
+                                                    {d.name} {d.shopName ? `(${d.shopName})` : ''}
                                                 </option>
                                             ))}
                                         </select>
@@ -1587,8 +1689,8 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
                                         { label: 'Aadhaar Front', type: 'aadhaar_front' },
                                         { label: 'Aadhaar Back', type: 'aadhaar_back' },
                                         { label: 'PAN Image', type: 'pan' }
-                                    ].map(doc => (
-                                        <div key={doc.type} className="space-y-2">
+                                    ].map((doc, idx) => (
+                                        <div key={doc.type || idx} className="space-y-2">
                                             <label className="text-[10px] font-bold text-gray-500 uppercase">{doc.label}</label>
                                             <div className="relative group">
                                                 <input 

@@ -7,8 +7,15 @@ import {
 export const dynamic = 'force-dynamic'
 import { getFinanceDataAction } from '@/actions/finance-actions'
 import FinanceClient from './FinanceClient'
+import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 
 export default async function FinancePage() {
+  const session = await auth();
+  if (!session?.user?.permissions?.includes('all') && !session?.user?.permissions?.includes('finance.view')) {
+    redirect('/dashboard');
+  }
+
   const queryClient = new QueryClient()
 
   await queryClient.prefetchQuery({
