@@ -65,20 +65,18 @@ export async function getMastersDataAction() {
             allowedRedemptionChannels: userTypeEntity.allowedRedemptionChannels,
             maxRedemptionLimit: userTypeEntity.maxRedemptionLimit,
             minRedemptionLimit: userTypeEntity.minRedemptionLimit
-
         }).from(userTypeEntity).orderBy(desc(userTypeEntity.id));
 
-        const stakeholderTypes: StakeholderType[] = stakeholders.map(s => ({
+        const stakeholderTypes: StakeholderType[] = (stakeholders || []).map(s => ({
             id: s.id.toString(),
-            name: s.typeName,
-            desc: s.typeName + ' Role',
+            name: s.typeName || 'Unknown',
+            desc: (s.typeName || 'Unknown') + ' Role',
             status: s.isActive ? 'Active' : 'Inactive',
             maxDailyScans: s.maxDailyScans || 50,
             requiredKycLevel: s.requiredKycLevel || 'Basic',
-            allowedRedemptionChannels: (s.allowedRedemptionChannels as number[]) || [],
+            allowedRedemptionChannels: Array.isArray(s.allowedRedemptionChannels) ? (s.allowedRedemptionChannels as number[]) : [],
             maxRedemptionLimit: s.maxRedemptionLimit || 5000,
             minRedemptionLimit: s.minRedemptionLimit || 100
-
         }));
 
         // 2. Fetch Points Config (Base Points)
@@ -113,6 +111,7 @@ export async function getMastersDataAction() {
         }));
 
         // 3. Fetch Points Rules (Override Rules)
+        const parentEntity = alias(skuEntity, 'parent_entity');
         const rules = await db
             .select({
                 id: skuPointRules.id,
@@ -125,13 +124,13 @@ export async function getMastersDataAction() {
                 validFrom: skuPointRules.validFrom,
                 isActive: skuPointRules.isActive,
                 description: skuPointRules.description,
-                parentEntityName: sqlTag.raw('parent_entity.name') as any
+                parentEntityName: parentEntity.name
             })
             .from(skuPointRules)
             .leftJoin(userTypeEntity, eq(skuPointRules.userTypeId, userTypeEntity.id))
             .leftJoin(skuVariant, eq(skuPointRules.skuVariantId, skuVariant.id))
             .leftJoin(skuEntity, eq(skuPointRules.skuEntityId, skuEntity.id))
-            .leftJoin(sqlTag.raw('sku_entity parent_entity') as any, eq(skuEntity.parentEntityId, sqlTag.raw('parent_entity.id')));
+            .leftJoin(parentEntity, eq(skuEntity.parentEntityId, parentEntity.id));
 
         const overrideRules: PointsRule[] = rules.map(r => {
             let header = 'General';
@@ -162,25 +161,21 @@ export async function getMastersDataAction() {
         const pointsMatrix = [...configRules, ...overrideRules];
 
         // 4. Fetch SKU Hierarchy
-        const skuEntities = await db
-            .select({
-                id: skuEntity.id,
-                name: skuEntity.name,
-                code: skuEntity.code,
-                parentEntityId: skuEntity.parentEntityId,
-                levelName: skuLevelMaster.levelName
-            })
-            .from(skuEntity)
-            .leftJoin(skuLevelMaster, eq(skuEntity.levelId, skuLevelMaster.id));
+        const [skuEntities, levels] = await Promise.all([
+            db.select().from(skuEntity),
+            db.select().from(skuLevelMaster)
+        ]);
+
+        const levelMap = Object.fromEntries(levels.map(l => [l.id, l.levelName]));
 
         const buildSkuTree = (items: any[], parentId: number | null = null): SkuNode[] => {
-            return items
+            return (items || [])
                 .filter(item => item.parentEntityId === parentId)
                 .map(item => ({
                     id: item.id.toString(),
                     label: item.name,
                     code: item.code,
-                    levelName: item.levelName || 'Unknown',
+                    levelName: levelMap[item.levelId] || `Level ${item.levelId}`,
                     children: buildSkuTree(items, item.id)
                 }));
         };
@@ -189,7 +184,7 @@ export async function getMastersDataAction() {
 
         // Fetch redemption channels
         const redemptionChannelsRows = await db.select({ id: redemptionChannels.id, name: redemptionChannels.name, isActive: redemptionChannels.isActive }).from(redemptionChannels).orderBy(desc(redemptionChannels.id));
-        const redemptionChannelsList = redemptionChannelsRows.map(r => ({ id: Number(r.id), name: r.name, isActive: Boolean(r.isActive) }));
+        const redemptionChannelsList = (redemptionChannelsRows || []).map(r => ({ id: Number(r.id), name: r.name || 'Unknown', isActive: Boolean(r.isActive) }));
 
         // 5. SKU Performance
         const q1 = db.select({ sku: retailerTransactions.sku }).from(retailerTransactions);
@@ -207,20 +202,19 @@ export async function getMastersDataAction() {
             .orderBy(desc(sqlTag`count(*)`))
             .limit(5);
 
-        const topSkus = await Promise.all(performanceData.map(async (p) => {
+        const topSkus = await Promise.all((performanceData || []).map(async (p) => {
             const entity = await db.select({
                 name: skuEntity.name,
-                category: skuLevelMaster.levelName
+                levelId: skuEntity.levelId
             })
                 .from(skuEntity)
-                .leftJoin(skuLevelMaster, eq(skuEntity.levelId, skuLevelMaster.id))
                 .where(eq(skuEntity.code, p.skuCode))
                 .limit(1);
 
             return {
-                name: entity[0]?.name || p.skuCode,
-                scans: p.count,
-                category: entity[0]?.category || 'General'
+                name: entity[0]?.name || p.skuCode || 'Unknown',
+                scans: Number(p.count || 0),
+                category: levelMap[entity[0]?.levelId] || 'General'
             };
         }));
 
@@ -228,35 +222,35 @@ export async function getMastersDataAction() {
         const statsResult = await db.select({
             roleId: users.roleId,
             typeName: userTypeEntity.typeName,
-            count: sqlTag`count(*)`
+            count: sqlTag`count(*)`.mapWith(Number)
         })
             .from(users)
             .leftJoin(userTypeEntity, eq(users.roleId, userTypeEntity.id))
             .groupBy(users.roleId, userTypeEntity.typeName);
 
-        const totalCount = statsResult.reduce((acc, s) => acc + Number(s.count), 0);
-        const stakeholderStats = statsResult.map(s => ({
-            label: `Total ${s.typeName}s`,
-            value: Number(s.count).toLocaleString(),
-            percent: totalCount > 0 ? Math.round((Number(s.count) / totalCount) * 100) : 0
+        const totalCount = (statsResult || []).reduce((acc, s) => acc + Number(s.count || 0), 0);
+        const stakeholderStats = (statsResult || []).map(s => ({
+            label: `Total ${s.typeName || 'Unknown'}s`,
+            value: Number(s.count || 0).toLocaleString(),
+            percent: totalCount > 0 ? Math.round((Number(s.count || 0) / totalCount) * 100) : 0
         }));
 
         // Growth and Pending Stats
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-        const [newUsersCount] = await db.select({ count: sqlTag`count(*)` }).from(users).where(sqlTag`${users.createdAt} >= ${weekAgo.toISOString()}`);
+        const [newUsersCount] = await db.select({ count: sqlTag`count(*)`.mapWith(Number) }).from(users).where(sqlTag`${users.createdAt} >= ${weekAgo.toISOString()}`);
         
-        const [pendingKycCount] = await db.select({ count: sqlTag`count(*)` })
+        const [pendingKycCount] = await db.select({ count: sqlTag`count(*)`.mapWith(Number) })
             .from(users)
-            .innerJoin(sqlTag.raw('approval_statuses') as any, eq(users.approvalStatusId, sqlTag.raw('approval_statuses.id')))
-            .where(sqlTag.raw("approval_statuses.name = 'KYC_PENDING'"));
+            .innerJoin(approvalStatuses, eq(users.approvalStatusId, approvalStatuses.id))
+            .where(ilike(approvalStatuses.name, '%pending%'));
 
         const dynamicMessages = [
-            `${Number(newUsersCount.count).toLocaleString()} new members added this week`,
-            `${Number(pendingKycCount.count).toLocaleString()} members pending KYC verification`
+            `${Number(newUsersCount?.count || 0).toLocaleString()} new members added this week`,
+            `${Number(pendingKycCount?.count || 0).toLocaleString()} members pending KYC verification`
         ];
 
-        return {
+        const rawResult = {
             stakeholderTypes,
             pointsMatrix,
             skuHierarchy,
@@ -266,13 +260,16 @@ export async function getMastersDataAction() {
             dynamicMessages
         };
 
-    } catch (error) {
+        return JSON.parse(JSON.stringify(rawResult));
+
+    } catch (error: any) {
         console.error("Error fetching masters data:", error);
         return {
             stakeholderTypes: [],
             pointsMatrix: [],
             skuHierarchy: [],
             topSkus: [],
+            redemptionChannels: [],
             stakeholderStats: [],
             dynamicMessages: []
         };
@@ -554,12 +551,13 @@ export async function getPincodeMasterAction(page: number = 1, limit: number = 5
             .offset((page - 1) * limit)
             .orderBy(desc(pincodeMaster.id));
 
-        const [totalResult] = await db.select({ count: sqlTag`count(*)` }).from(pincodeMaster);
+        const [totalResult] = await db.select({ count: sqlTag`count(*)`.mapWith(Number) }).from(pincodeMaster);
         
-        return {
+        const rawResult = {
             list,
             total: Number(totalResult.count)
         };
+        return JSON.parse(JSON.stringify(rawResult));
     } catch (error) {
         console.error("Error fetching pincode master:", error);
         return { list: [], total: 0 };
@@ -621,12 +619,13 @@ export async function getProductMasterAction(page: number = 1, limit: number = 5
             }))
         }));
 
-        const [totalResult] = await db.select({ count: sql`count(*)` }).from(skuVariant);
+        const [totalResult] = await db.select({ count: sql`count(*)`.mapWith(Number) }).from(skuVariant);
         
-        return {
+        const rawResult = {
             list: enrichedList,
             total: Number(totalResult.count)
         };
+        return JSON.parse(JSON.stringify(rawResult));
     } catch (error) {
         console.error("Error fetching product master:", error);
         return { list: [], total: 0 };
@@ -688,15 +687,16 @@ export async function updateProductMasterAction(data: {
 }
 export async function getHierarchyOptionsAction() {
     try {
-        const categories = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 3), sql`name IS NOT NULL`));
-        const subCategories = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 4), sql`name IS NOT NULL`));
-        const ratingTypes = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 5), sql`name IS NOT NULL`));
+        const categories = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 11), sql`name IS NOT NULL`));
+        const subCategories = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 12), sql`name IS NOT NULL`));
+        const ratingTypes = await db.select({ name: skuEntity.name }).from(skuEntity).where(and(eq(skuEntity.levelId, 13), sql`name IS NOT NULL`));
 
-        return {
+        const rawResult = {
             categories: Array.from(new Set(categories.map(c => c.name.trim()))).filter(Boolean).sort(),
             subCategories: Array.from(new Set(subCategories.map(c => c.name.trim()))).filter(Boolean).sort(),
             ratingTypes: Array.from(new Set(ratingTypes.map(c => c.name.trim()))).filter(Boolean).sort(),
         };
+        return JSON.parse(JSON.stringify(rawResult));
     } catch (error) {
         console.error("Error fetching hierarchy options:", error);
         return { categories: [], subCategories: [], ratingTypes: [] };
@@ -714,48 +714,49 @@ export async function createProductAction(data: {
 }) {
     try {
         const result = await db.transaction(async (tx) => {
-            // 1. Get/Create L1 (Vertical: Lubricants)
-            let [l1] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 1), eq(skuEntity.name, 'Lubricants')));
+            // 1. Get/Create L1 (Vertical: Lubricants) - Level 9
+            let [l1] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 9), eq(skuEntity.name, 'Lubricants')));
             if (!l1) {
-                [l1] = await tx.insert(skuEntity).values({ levelId: 1, name: 'Lubricants', isActive: true }).returning();
+                [l1] = await tx.insert(skuEntity).values({ levelId: 9, name: 'Lubricants', isActive: true, clientId: 1 }).returning();
             }
 
-            // 2. Get/Create L2 (Range: Engine Oil)
-            let [l2] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 2), eq(skuEntity.name, 'Engine Oil'), eq(skuEntity.parentEntityId, l1.id)));
+            // 2. Get/Create L2 (Range: Engine Oil) - Level 10
+            let [l2] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 10), eq(skuEntity.name, 'Engine Oil'), eq(skuEntity.parentEntityId, l1.id)));
             if (!l2) {
-                [l2] = await tx.insert(skuEntity).values({ levelId: 2, name: 'Engine Oil', parentEntityId: l1.id, isActive: true }).returning();
+                [l2] = await tx.insert(skuEntity).values({ levelId: 10, name: 'Engine Oil', parentEntityId: l1.id, isActive: true, clientId: 1 }).returning();
             }
 
-            // 3. Get/Create L3 (Category)
-            let [l3] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 3), ilike(skuEntity.name, data.category), eq(skuEntity.parentEntityId, l2.id)));
+            // 3. Get/Create L3 (Category) - Level 11
+            let [l3] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 11), ilike(skuEntity.name, data.category), eq(skuEntity.parentEntityId, l2.id)));
             if (!l3) {
-                [l3] = await tx.insert(skuEntity).values({ levelId: 3, name: data.category, parentEntityId: l2.id, isActive: true }).returning();
+                [l3] = await tx.insert(skuEntity).values({ levelId: 11, name: data.category, parentEntityId: l2.id, isActive: true, clientId: 1 }).returning();
             }
 
-            // 4. Get/Create L4 (Sub-Category)
-            let [l4] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 4), ilike(skuEntity.name, data.subCategory), eq(skuEntity.parentEntityId, l3.id)));
+            // 4. Get/Create L4 (Sub-Category) - Level 12
+            let [l4] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 12), ilike(skuEntity.name, data.subCategory), eq(skuEntity.parentEntityId, l3.id)));
             if (!l4) {
-                [l4] = await tx.insert(skuEntity).values({ levelId: 4, name: data.subCategory, parentEntityId: l3.id, isActive: true }).returning();
+                [l4] = await tx.insert(skuEntity).values({ levelId: 12, name: data.subCategory, parentEntityId: l3.id, isActive: true, clientId: 1 }).returning();
             }
 
-            // 5. Get/Create L5 (Rating Type)
-            let [l5] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 5), ilike(skuEntity.name, data.ratingType), eq(skuEntity.parentEntityId, l4.id)));
+            // 5. Get/Create L5 (Rating Type) - Level 13
+            let [l5] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 13), ilike(skuEntity.name, data.ratingType), eq(skuEntity.parentEntityId, l4.id)));
             if (!l5) {
-                [l5] = await tx.insert(skuEntity).values({ levelId: 5, name: data.ratingType, parentEntityId: l4.id, isActive: true }).returning();
+                [l5] = await tx.insert(skuEntity).values({ levelId: 13, name: data.ratingType, parentEntityId: l4.id, isActive: true, clientId: 1 }).returning();
             }
 
-            // 6. CHECK FOR GLOBAL SKU CODE UNIQUENESS
-            const [existingSku] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 6), ilike(skuEntity.name, data.productCode)));
+            // 6. CHECK FOR GLOBAL SKU CODE UNIQUENESS - Level 14
+            const [existingSku] = await tx.select().from(skuEntity).where(and(eq(skuEntity.levelId, 14), ilike(skuEntity.name, data.productCode)));
             if (existingSku) {
                 throw new Error(`Product Code "${data.productCode}" already exists in the system. Codes must be unique.`);
             }
 
-            // 7. Create L6 (Product Code)
+            // 7. Create L6 (Product Code) - Level 14
             const [l6] = await tx.insert(skuEntity).values({ 
-                levelId: 6, 
+                levelId: 14, 
                 name: data.productCode, 
                 parentEntityId: l5.id, 
-                isActive: true 
+                isActive: true,
+                clientId: 1
             }).returning();
 
             // 7. Create Variant

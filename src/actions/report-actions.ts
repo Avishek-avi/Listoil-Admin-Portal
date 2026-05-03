@@ -19,6 +19,7 @@ import {
     counterSales,
     otpMaster,
     notificationLogs,
+    notificationTemplates,
     pincodeMaster
 } from '@/db/schema';
 import { desc, eq, sql, and, or, aliasedTable, inArray } from 'drizzle-orm';
@@ -42,32 +43,36 @@ export async function getReportDataAction(category: string, filters: any = {}): 
         if (!session?.user?.id) throw new Error("Unauthorized");
         const scope = await getUserScope(Number(session.user.id));
 
-        switch (category) {
-            case 'registration':
-                return await getRegistrationReport(filters, scope);
-            case 'qr-scans':
-                return await getQrScanReport(filters, scope);
-            case 'redemptions':
-                return await getRedemptionReport(filters, scope);
-            case 'referrals':
-                return await getReferralReport(filters, scope);
-            case 'gamification':
-                return await getGamificationReport(filters, scope); 
-            case 'compliance':
-                return await getComplianceReport(filters, scope);
-            case 'stakeholder':
-                return await getStakeholderReport(filters, scope);
-            case 'sales':
-                return await getSalesReport(filters, scope);
-            case 'bank':
-                return await getBankReport(filters, scope);
-            case 'otp':
-                return await getOtpReport(filters, scope);
-            case 'notifications':
-                return await getNotificationReport(filters, scope);
-            default:
-                return { columns: [], rows: [] };
-        }
+        const result = await (async () => {
+            switch (category) {
+                case 'registration':
+                    return await getRegistrationReport(filters, scope);
+                case 'qr-scans':
+                    return await getQrScanReport(filters, scope);
+                case 'redemptions':
+                    return await getRedemptionReport(filters, scope);
+                case 'referrals':
+                    return await getReferralReport(filters, scope);
+                case 'gamification':
+                    return await getGamificationReport(filters, scope); 
+                case 'compliance':
+                    return await getComplianceReport(filters, scope);
+                case 'stakeholder':
+                    return await getStakeholderReport(filters, scope);
+                case 'sales':
+                    return await getSalesReport(filters, scope);
+                case 'bank':
+                    return await getBankReport(filters, scope);
+                case 'otp':
+                    return await getOtpReport(filters, scope);
+                case 'notifications':
+                    return await getNotificationReport(filters, scope);
+                default:
+                    return { columns: [], rows: [] };
+            }
+        })();
+
+        return JSON.parse(JSON.stringify(result));
     } catch (error) {
         console.error(`Error fetching report for ${category}:`, error);
         return { columns: [], rows: [] };
@@ -534,15 +539,16 @@ async function getOtpReport(filters: any, scope: UserScope): Promise<ReportData>
 
 async function getNotificationReport(filters: any, scope: UserScope): Promise<ReportData> {
     const query = db.select({
-        id: notificationLogs.logId,
-        title: notificationLogs.pushTitle,
-        message: notificationLogs.pushBody,
+        id: notificationLogs.id,
+        title: notificationTemplates.pushTitle,
+        message: notificationTemplates.pushBody,
         status: notificationLogs.status,
         sentAt: notificationLogs.sentAt,
         userName: users.name,
         userPhone: users.phone
     })
         .from(notificationLogs)
+        .leftJoin(notificationTemplates, eq(notificationLogs.templateId, notificationTemplates.id))
         .leftJoin(users, eq(notificationLogs.userId, users.id))
         .leftJoin(retailers, eq(users.id, retailers.userId))
         .leftJoin(mechanics, eq(users.id, mechanics.userId));
@@ -560,7 +566,7 @@ async function getNotificationReport(filters: any, scope: UserScope): Promise<Re
 
     const data = await query.where(and(...conditions))
         .limit(50)
-        .orderBy(desc(notificationLogs.createdAt));
+        .orderBy(desc(notificationLogs.sentAt));
 
     return {
         columns: [
@@ -575,7 +581,7 @@ async function getNotificationReport(filters: any, scope: UserScope): Promise<Re
     };
 }
 
-async function getGamificationReport(filters: any): Promise<ReportData> {
+async function getGamificationReport(filters: any, scope: UserScope): Promise<ReportData> {
     return {
         columns: [
             { key: 'campaign', label: 'Campaign', type: 'text' },
@@ -674,7 +680,7 @@ async function getComplianceReport(filters: any, scope: UserScope): Promise<Repo
 }
 
 
-async function getStakeholderReport(filters: any): Promise<ReportData> {
+async function getStakeholderReport(filters: any, scope: UserScope): Promise<ReportData> {
     const data = await db.select({
         id: userTypeEntity.id,
         type: userTypeEntity.typeName,
@@ -693,7 +699,7 @@ async function getStakeholderReport(filters: any): Promise<ReportData> {
     };
 }
 
-async function getSalesReport(filters: any): Promise<ReportData> {
+async function getSalesReport(filters: any, scope: UserScope): Promise<ReportData> {
     const data = await db.select({
         id: counterSalesTransactions.id,
         sku: counterSalesTransactions.sku,

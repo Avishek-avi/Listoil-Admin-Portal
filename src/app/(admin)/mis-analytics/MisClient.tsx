@@ -1519,8 +1519,8 @@ export default function MisClient() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {analyticsData?.campaignAnalytics?.topCampaigns?.map((row: any) => (
-                                            <tr key={row.name} className="border-b border-gray-100 hover:bg-gray-50">
+                                        {analyticsData?.campaignAnalytics?.topCampaigns?.map((row: any, idx: number) => (
+                                            <tr key={`${row.name}-${idx}`} className="border-b border-gray-100 hover:bg-gray-50">
                                                 <td className="py-3 px-4 text-sm font-medium">{row.name}</td>
                                                 <td className="py-3 px-4"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">{row.type}</span></td>
                                                 <td className="py-3 px-4 text-sm text-gray-500">{row.duration}</td>

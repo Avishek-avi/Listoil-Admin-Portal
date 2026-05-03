@@ -29,7 +29,7 @@ const navSections: NavSection[] = [
     items: [
       { text: 'QR Management',    icon: 'fas fa-qrcode',          path: '/qr-management' },
       { text: 'Process',          icon: 'fas fa-tasks',           path: '/process' },
-      // { text: 'Communication',    icon: 'fas fa-broadcast-tower', path: '/communication' },
+      { text: 'Schemes',          icon: 'fas fa-gift',            path: '/schemes' },
       { text: 'Tickets',          icon: 'fas fa-ticket-alt',      path: '/tickets' },
     ],
   },
@@ -80,6 +80,7 @@ export default function Sidebar({ currentPath, onNavigate, expanded = true }: Si
         '/members': 'members.view',
         '/qr-management': 'qr.view',
         '/process': 'process.manage',
+        '/schemes': 'schemes.view',
         '/communication': 'communication.manage',
         '/tickets': 'tickets.manage',
         '/mis-analytics': 'mis.view',

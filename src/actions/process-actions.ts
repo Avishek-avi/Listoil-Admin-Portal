@@ -14,7 +14,8 @@ import { desc, eq, and, sql, or, ilike, inArray } from "drizzle-orm"
 import {
     redemptionChannels, retailers, mechanics, counterSales,
     qrCodes, skuVariant, skuPointConfig, auditLogs, skuEntity,
-    tblInventory, tblInventoryBatch, qrTypes, userTypeEntity, approvalStatuses
+    tblInventory, tblInventoryBatch, qrTypes, userTypeEntity, approvalStatuses,
+    schemes, schemeTypes, pincodeMaster
 } from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { getUserScope } from "@/lib/scope-utils"
@@ -72,6 +73,7 @@ export interface TransactionRecord {
     qrCode?: string;
     invoiceNo?: string;
     points: number;
+    remarks?: string;
 }
 
 function getInitials(name: string) {
@@ -354,6 +356,8 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
             transactionType: sql<string>`'Scan'`,
             qrCode: mechanicTransactionLogs.qrCode,
             points: mechanicTransactionLogs.points,
+            category: mechanicTransactionLogs.category,
+            remarks: mechanicTransactionLogs.remarks,
             metadata: mechanicTransactionLogs.metadata
         })
         .from(mechanicTransactionLogs)
@@ -371,6 +375,8 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
             transactionType: sql<string>`'Invoice'`,
             qrCode: retailerTransactionLogs.qrCode,
             points: retailerTransactionLogs.points,
+            category: retailerTransactionLogs.category,
+            remarks: retailerTransactionLogs.remarks,
             metadata: retailerTransactionLogs.metadata
         })
         .from(retailerTransactionLogs)
@@ -388,6 +394,8 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
             transactionType: sql<string>`'Transaction'`,
             qrCode: counterSalesTransactionLogs.qrCode,
             points: counterSalesTransactionLogs.points,
+            category: counterSalesTransactionLogs.category,
+            remarks: counterSalesTransactionLogs.remarks,
             metadata: counterSalesTransactionLogs.metadata
         })
         .from(counterSalesTransactionLogs)
@@ -419,10 +427,11 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
                     phone: t.phone || 'N/A',
                     userType: t.userType,
                     createdAt: t.createdAt || '',
-                    transactionType: t.transactionType,
+                    transactionType: (t as any).category === 'SCHEME_BOOSTER' ? 'Booster' : t.transactionType,
                     qrCode: t.qrCode || metadata?.qrCode || metadata?.scannedCode,
                     invoiceNo: metadata?.invoiceNumber || metadata?.invoiceNo || metadata?.billNumber,
-                    points: Number(t.points)
+                    points: Number(t.points),
+                    remarks: (t as any).remarks
                 };
             });
 
@@ -722,6 +731,151 @@ export async function submitManualScanAdjustmentAction(data: {
                     description: `Admin ${session.user.name} added ${data.points} points to mechanic ${user.name} for QR ${data.serialNumber}.`
                 }
             });
+
+            // --- BOOSTER SCHEME LOGIC ---
+            try {
+                const now = new Date().toISOString();
+
+                // 1. Get user location and role
+                const [userMeta] = await tx.select({
+                    roleId: users.roleId,
+                    state: mechanics.state,
+                    city: mechanics.city,
+                    pincode: mechanics.pincode
+                })
+                .from(users)
+                .leftJoin(mechanics, eq(users.id, mechanics.userId))
+                .where(eq(users.id, data.userId))
+                .limit(1);
+
+                let userZone = '';
+                if (userMeta?.pincode) {
+                    const [pin] = await tx.select({ zone: pincodeMaster.zone }).from(pincodeMaster).where(eq(pincodeMaster.pincode, userMeta.pincode)).limit(1);
+                    userZone = pin?.zone || '';
+                }
+
+                // 2. Get SKU hierarchy for the scanned SKU
+                const [entityInfo] = await tx.select({
+                    id: skuEntity.id,
+                    parentId: skuEntity.parentEntityId,
+                    levelId: skuEntity.levelId
+                })
+                .from(skuEntity)
+                .where(ilike(skuEntity.name, sku))
+                .limit(1);
+
+                if (entityInfo) {
+                    // Fetch hierarchy up to 2 levels to catch Category and SubCategory
+                    let parentInfo = null;
+                    if (entityInfo.parentId) {
+                        [parentInfo] = await tx.select({
+                            id: skuEntity.id,
+                            parentId: skuEntity.parentEntityId,
+                            levelId: skuEntity.levelId
+                        }).from(skuEntity).where(eq(skuEntity.id, entityInfo.parentId)).limit(1);
+                    }
+                    
+                    let grandParentInfo = null;
+                    if (parentInfo?.parentId) {
+                        [grandParentInfo] = await tx.select({
+                            id: skuEntity.id,
+                            levelId: skuEntity.levelId
+                        }).from(skuEntity).where(eq(skuEntity.id, parentInfo.parentId)).limit(1);
+                    }
+
+                    // Map level IDs (from master data): Category=11, Sub-Category=12
+                    const categoryId = [entityInfo, parentInfo, grandParentInfo].find(e => e?.levelId === 11)?.id;
+                    const subCategoryId = [entityInfo, parentInfo, grandParentInfo].find(e => e?.levelId === 12)?.id;
+                    const skuVariantIdRes = await tx.select({id: skuVariant.id}).from(skuVariant).where(eq(skuVariant.skuEntityId, entityInfo.id)).limit(1);
+                    const skuVariantId = skuVariantIdRes[0]?.id;
+
+                    // 3. Find Active Booster Schemes
+                    const activeBoosterSchemes = await tx.select({
+                        id: schemes.id,
+                        name: schemes.name,
+                        config: schemes.config
+                    })
+                    .from(schemes)
+                    .innerJoin(schemeTypes, eq(schemes.schemeType, schemeTypes.id))
+                    .where(and(
+                        ilike(schemeTypes.name, 'Booster'),
+                        eq(schemes.isActive, true),
+                        sql`${schemes.startDate} <= ${now}`,
+                        sql`${schemes.endDate} >= ${now}`
+                    ));
+
+                    for (const scheme of activeBoosterSchemes) {
+                        const config = (scheme.config as any)?.booster;
+                        if (!config) continue;
+
+                        // Eligibility Check
+                        // a) Audience
+                        if (config.audienceIds && config.audienceIds.length > 0 && !config.audienceIds.includes(userMeta.roleId)) continue;
+
+                        // b) Geography
+                        const geo = config.geoScope;
+                        if (geo) {
+                            const zoneMatch = !geo.zones?.length || (userZone && geo.zones.includes(userZone));
+                            const stateMatch = !geo.states?.length || (userMeta.state && geo.states.includes(userMeta.state));
+                            const cityMatch = !geo.cities?.length || (userMeta.city && geo.cities.includes(userMeta.city));
+                            if (!zoneMatch || !stateMatch || !cityMatch) continue;
+                        }
+
+                        // c) Product Target
+                        let targetMatch = false;
+                        if (config.targetType === 'Category' && categoryId && config.targetIds.includes(categoryId)) targetMatch = true;
+                        else if (config.targetType === 'SubCategory' && subCategoryId && config.targetIds.includes(subCategoryId)) targetMatch = true;
+                        else if (config.targetType === 'SKU' && skuVariantId && config.targetIds.includes(skuVariantId)) targetMatch = true;
+
+                        if (!targetMatch) continue;
+
+                        // 4. Calculate Points
+                        let boosterPoints = 0;
+                        if (config.rewardType === 'Fixed') {
+                            boosterPoints = Number(config.rewardValue);
+                        } else if (config.rewardType === 'Percentage') {
+                            boosterPoints = Math.round((Number(config.rewardValue) / 100) * data.points);
+                        }
+
+                        if (boosterPoints > 0) {
+                            // 5. Insert Booster Transaction
+                            await tx.insert(mechanicTransactionLogs).values({
+                                userId: data.userId,
+                                earningType: 9, // QR Scan
+                                points: boosterPoints.toString(),
+                                category: 'SCHEME_BOOSTER',
+                                status: 'approved',
+                                qrCode: data.serialNumber,
+                                sku: sku,
+                                schemeId: scheme.id,
+                                remarks: `Booster Reward: ${scheme.name} (${config.rewardValue}${config.rewardType === 'Percentage' ? '%' : ' Pts'})`,
+                                metadata: {
+                                    baseTransactionId: newLog.id,
+                                    schemeName: scheme.name,
+                                    rewardType: config.rewardType,
+                                    rewardValue: config.rewardValue,
+                                    manualEntry: true,
+                                    processedAt: new Date().toISOString()
+                                }
+                            });
+
+                            // 6. Update Balance again
+                            const [m] = await tx.select().from(mechanics).where(eq(mechanics.userId, data.userId)).limit(1);
+                            if (m) {
+                                await tx.update(mechanics)
+                                    .set({
+                                        pointsBalance: (Number(m.pointsBalance) + boosterPoints).toString(),
+                                        totalEarnings: (Number(m.totalEarnings) + boosterPoints).toString(),
+                                        redeemablePoints: (Number(m.redeemablePoints) + boosterPoints).toString()
+                                    })
+                                    .where(eq(mechanics.userId, data.userId));
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error processing booster schemes during manual entry:", err);
+            }
 
             return { success: true };
         });

@@ -67,7 +67,7 @@ export default function DashboardClient() {
         refetchInterval: 30000
     });
 
-    const filteredCities = Array.from(new Map((locations?.cities || [])
+    const filteredCities = Array.from(new Map(((locations?.cities as any[]) || [])
         .filter(c => !selectedState || c.state === selectedState)
         .map(c => [c.city, c])).values());
 
@@ -288,7 +288,7 @@ export default function DashboardClient() {
                                 className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none min-w-[120px]"
                             >
                                 <option value="">All States</option>
-                                {Array.from(new Set(locations?.states || [])).map(s => (
+                                {Array.from(new Set((locations?.states as string[]) || [])).map(s => (
                                     <option key={s} value={s}>{s}</option>
                                 ))}
                             </select>

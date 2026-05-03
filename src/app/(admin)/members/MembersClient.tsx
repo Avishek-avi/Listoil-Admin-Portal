@@ -1443,7 +1443,7 @@ function AddMemberModal({ open, onClose, onSuccess, userScope }: { open: boolean
         if (res.success) {
             onSuccess();
         } else {
-            setError(res.error || 'Failed to create member');
+            setError((res as any).error || 'Failed to create member');
             setLoading(false);
         }
     };

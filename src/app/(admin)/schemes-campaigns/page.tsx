@@ -1,7 +1,7 @@
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query'
 
 export const dynamic = 'force-dynamic'
-import { getSchemesDataAction } from '@/actions/schemes-actions'
+import { getSchemesAction } from '@/actions/schemes-actions'
 import SchemesClient from './SchemesClient'
 
 export default async function SchemesPage() {
@@ -9,7 +9,7 @@ export default async function SchemesPage() {
 
   await queryClient.prefetchQuery({
     queryKey: ['schemes-data'],
-    queryFn: getSchemesDataAction,
+    queryFn: getSchemesAction,
   })
 
   return (

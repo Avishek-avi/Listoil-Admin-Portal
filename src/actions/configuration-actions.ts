@@ -72,7 +72,7 @@ export async function getConfigurationAction() {
         };
     } catch (error) {
         console.error("Error in getConfigurationAction:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -143,7 +143,7 @@ export async function updateReferralGlobalConfigAction(value: any) {
         return { success: true };
     } catch (error) {
         console.error("Error updating global referral config:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -165,6 +165,6 @@ export async function updateUserTypeReferralConfigAction(userTypeId: number, dat
         return { success: true };
     } catch (error) {
         console.error("Error updating user type referral config:", error);
-        throw error;
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
