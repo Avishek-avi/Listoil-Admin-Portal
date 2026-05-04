@@ -46,14 +46,29 @@ function BatchDetails({ batchId }: { batchId: number }) {
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Synced QR Details</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {items.map((item: any) => (
-                    <div key={item.inventoryId} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex justify-between items-center">
-                        <div className="space-y-1">
-                            <p className="text-xs font-mono text-gray-600">{item.serialNumber}</p>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${item.isQrScanned ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                    <div key={item.inventoryId} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-red-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        
+                        <div className="flex justify-between items-start">
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider mb-0.5">Serial Number</p>
+                                <p className="text-sm font-mono font-bold text-gray-900 truncate">{item.serialNumber}</p>
+                            </div>
+                            <span className={`status-dot ${item.isActive ? 'active' : 'blocked'}`}></span>
+                        </div>
+
+                        <div className="space-y-1 bg-gray-50/50 p-2 rounded-lg">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded uppercase">{item.skuCode || 'N/A'}</span>
+                                <p className="text-[11px] font-semibold text-gray-700 truncate">{item.productName || 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-1">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${item.isQrScanned ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                 {item.isQrScanned ? 'Scanned' : 'Not Scanned'}
                             </span>
                         </div>
-                        <span className={`status-dot ${item.isActive ? 'active' : 'blocked'}`}></span>
                     </div>
                 ))}
             </div>
@@ -73,21 +88,41 @@ interface SyncResult {
     message: string;
 }
 
-function SyncStatusModal({ result, onClose }: { result: SyncResult, onClose: () => void }) {
+function SyncStatusModal({ result, onClose }: { result: any, onClose: () => void }) {
+    const handleDownloadReport = () => {
+        if (!result.report) return;
+        const link = document.createElement('a');
+        link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${result.report}`;
+        link.download = result.fileName || 'sync_report.xlsx';
+        link.click();
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-in zoom-in-95 duration-200">
                 <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${result.success ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
                     <i className={`fas ${result.success ? 'fa-check-circle' : 'fa-exclamation-circle'} text-4xl`}></i>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{result.success ? 'Sync Successful' : 'Sync Failed'}</h3>
-                <p className="text-gray-500 mb-8 text-sm leading-relaxed">{result.message}</p>
-                <button 
-                    onClick={onClose}
-                    className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${result.success ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' : 'bg-rose-500 hover:bg-rose-600 shadow-rose-200'}`}
-                >
-                    {result.success ? 'Great, continue' : 'Try again'}
-                </button>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{result.success ? 'Sync Complete' : 'Sync Failed'}</h3>
+                <p className="text-gray-500 mb-6 text-sm leading-relaxed">{result.message}</p>
+                
+                <div className="space-y-3">
+                    {result.report && (
+                        <button 
+                            onClick={handleDownloadReport}
+                            className="w-full py-3 rounded-xl font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-all border border-red-100 flex items-center justify-center gap-2"
+                        >
+                            <i className="fas fa-file-download"></i>
+                            Download Detailed Report
+                        </button>
+                    )}
+                    <button 
+                        onClick={onClose}
+                        className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${result.success ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' : 'bg-rose-500 hover:bg-rose-600 shadow-rose-200'}`}
+                    >
+                        {result.success ? 'Great, continue' : 'Close'}
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -166,7 +201,6 @@ export default function QRGeneration() {
   };
 
   const handleSync = async () => {
-
     if (!selectedFile) { alert('Please select an Excel file'); return; }
     setUploading(true);
     try {
@@ -175,10 +209,18 @@ export default function QRGeneration() {
       
       const result = await syncQrExcelAction(formData);
       setSyncResult(result);
-      if (result.success) {
+      
+      if (result.success && result.report) {
+        // Automatically trigger download of the report
+        const link = document.createElement('a');
+        link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${result.report}`;
+        link.download = result.fileName || 'sync_report.xlsx';
+        link.click();
+        
         setSelectedFile(null);
-        setPage(0); // Reset to first page to show new batch
-        setActiveTab('batches');
+        setPage(0);
+        // Only switch to batches if something was actually imported
+        if (result.batchId) setActiveTab('batches');
       }
 
     } catch (error) {

@@ -983,6 +983,7 @@ export const tblInventory = pgTable("tbl_inventory", {
 	serialNumber: varchar("serial_number", { length: 255 }).notNull(),
 	batchId: integer("batch_id").notNull(),
 	isActive: boolean("is_active").default(true).notNull(),
+	skuCode: varchar("sku_code", { length: 255 }),
 	isQrScanned: boolean("is_qr_scanned").default(false).notNull(),
 }, (table) => [
 	unique("tbl_inventory_serial_number_unique").on(table.serialNumber),

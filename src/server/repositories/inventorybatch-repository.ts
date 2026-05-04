@@ -1,6 +1,6 @@
 import { db } from "@/db/index";
-import { tblInventoryBatch as inventoryBatch, tblInventory as inventory } from "@/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { tblInventoryBatch as inventoryBatch, tblInventory as inventory, skuVariant, skuEntity } from "@/db/schema";
+import { eq, sql, desc, or } from "drizzle-orm";
 import { CustomError } from "../../types";
 
 class InventoryBatchRepository {
@@ -107,6 +107,7 @@ class InventoryBatchRepository {
                         const chunk = items.slice(i, i + chunkSize);
                         await tx.insert(inventory).values(chunk.map(item => ({
                             serialNumber: item.serialNumber,
+                            skuCode: item.skuCode,
                             batchId: batch.id,
                             isActive: item.isActive,
                             isQrScanned: false
@@ -126,11 +127,23 @@ class InventoryBatchRepository {
     async fetchInventoryItemsByBatch(batchId: number, page: number = 0, limit: number = 100): Promise<{ items: any[], total: number }> {
         try {
             const offset = page * limit;
-            const items = await db.select()
-                .from(inventory)
-                .where(eq(inventory.batchId, batchId))
-                .limit(limit)
-                .offset(offset);
+            
+            // Join hierarchy: inventory -> skuEntity (on code/name) -> skuVariant (to get readable name)
+            const items = await db.select({
+                inventoryId: inventory.inventoryId,
+                serialNumber: inventory.serialNumber,
+                skuCode: inventory.skuCode,
+                isActive: inventory.isActive,
+                isQrScanned: inventory.isQrScanned,
+                batchId: inventory.batchId,
+                productName: sql<string>`COALESCE(${skuVariant.variantName}, ${skuEntity.name}, ${inventory.skuCode})`
+            })
+            .from(inventory)
+            .leftJoin(skuEntity, or(eq(inventory.skuCode, skuEntity.name), eq(inventory.skuCode, skuEntity.code)))
+            .leftJoin(skuVariant, or(eq(skuEntity.id, skuVariant.skuEntityId), eq(inventory.skuCode, skuVariant.variantName)))
+            .where(eq(inventory.batchId, batchId))
+            .limit(limit)
+            .offset(offset);
             
             const [totalResult] = await db.select({ count: sql<number>`count(*)` }).from(inventory).where(eq(inventory.batchId, batchId));
             const total = Number(totalResult?.count || 0);

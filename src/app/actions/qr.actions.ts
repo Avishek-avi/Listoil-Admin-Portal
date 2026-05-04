@@ -9,6 +9,7 @@ import { BUS_EVENTS, emitEvent } from "@/server/rabbitMq/broker";
 import { auth } from "@/lib/auth";
 import { tblInventory as inventory } from "@/db/schema";
 import { inArray } from "drizzle-orm";
+import { isValid, parseISO } from 'date-fns';
 
 
 
@@ -70,79 +71,151 @@ export async function syncQrExcelAction(formData: FormData) {
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(sheet) as any[];
+        const rows = XLSX.utils.sheet_to_json(sheet) as any[];
 
-        if (data.length === 0) throw new Error("Excel file is empty");
+        if (rows.length === 0) throw new Error("Excel file is empty");
 
-        const groupedData: { [key: string]: any[] } = {};
-        data.forEach(row => {
-            const productCode = row['Product Code'] || row['product-code'] || row['ProductCode'];
-            const serialNumber = row['Serial Number'] || row['serial-number'] || row['SerialNumber'];
-            const status = row['qr-status'] || row['status'] || row['QRStatus'];
-            
-            if (productCode && serialNumber) {
-                const pc = String(productCode).trim();
-                if (!groupedData[pc]) groupedData[pc] = [];
-                groupedData[pc].push({
-                    serialNumber: String(serialNumber).trim(),
-                    isActive: String(status).toLowerCase() === 'active' || String(status) === '1'
-                });
+        // 1. Identify headers and rows
+        const processedRows: any[] = [];
+        const successItems: { serialNumber: string, isActive: boolean }[] = [];
+        
+        // Collect all unique product codes and serials from file for bulk validation
+        const fileProductCodes = new Set<string>();
+        const fileSerials = new Set<string>();
+        const serialToRowIdx = new Map<string, number[]>();
+
+        rows.forEach((row, idx) => {
+            const pc = String(row['Product Code'] || row['product-code'] || row['ProductCode'] || '').trim();
+            const sn = String(row['Serial Number'] || row['serial-number'] || row['SerialNumber'] || '').trim();
+            if (pc) fileProductCodes.add(pc);
+            if (sn) {
+                fileSerials.add(sn);
+                if (!serialToRowIdx.has(sn)) serialToRowIdx.set(sn, []);
+                serialToRowIdx.get(sn)?.push(idx);
             }
         });
 
-        const productCodes = Object.keys(groupedData);
-        if (productCodes.length === 0) throw new Error("No valid data found in Excel. Please check headers.");
-
-        // Validation 1: All product codes must exist in SKU Master
-        for (const pc of productCodes) {
+        // 2. Bulk Validate SKUs
+        const validSkus = new Set<string>();
+        for (const pc of Array.from(fileProductCodes)) {
             const exists = await skuLevelRepository.doesVariantExist(pc);
-            if (!exists) {
-                throw new Error(`Product Code "${pc}" not found in SKU Master. Sync aborted.`);
-            }
+            if (exists) validSkus.add(pc);
         }
 
-        // Validation 2: Serial numbers must be unique globally
-        const allSerialNumbers = data.map(row => {
-            const sn = row['Serial Number'] || row['serial-number'] || row['SerialNumber'];
-            return sn ? String(sn).trim() : null;
-        }).filter(Boolean) as string[];
-
-        // Check in chunks of 1000 for large files
-        for (let i = 0; i < allSerialNumbers.length; i += 1000) {
-            const chunk = allSerialNumbers.slice(i, i + 1000);
+        // 3. Bulk Validate Serial Uniqueness in DB
+        const existingSerialsInDb = new Set<string>();
+        const allSerialsArr = Array.from(fileSerials);
+        for (let i = 0; i < allSerialsArr.length; i += 1000) {
+            const chunk = allSerialsArr.slice(i, i + 1000);
             const existing = await db.select({ sn: inventory.serialNumber })
                 .from(inventory)
                 .where(inArray(inventory.serialNumber, chunk));
-            
-            if (existing.length > 0) {
-                throw new Error(`Serial Number(s) already exist: ${existing.map(e => e.sn).join(', ')}. Sync aborted.`);
-            }
+            existing.forEach(e => existingSerialsInDb.add(e.sn));
         }
 
+        // 4. Process Rows
+        const duplicateInFile = new Set<string>();
+        serialToRowIdx.forEach((indices, sn) => {
+            if (indices.length > 1) duplicateInFile.add(sn);
+        });
+
+        rows.forEach((row, idx) => {
+            const pc = String(row['Product Code'] || row['product-code'] || row['ProductCode'] || '').trim();
+            const sn = String(row['Serial Number'] || row['serial-number'] || row['SerialNumber'] || '').trim();
+            const genDate = row['generation date'] || row['generation-date'] || row['GenerationDate'];
+            const statusStr = String(row['qr-status'] || row['status'] || row['QRStatus'] || '').toLowerCase();
+            
+            let status = 'Success';
+            let reason = '';
+
+            // Date validation
+            if (genDate) {
+                const dateStr = String(genDate);
+                const d = parseISO(dateStr);
+                
+                // Catch common Excel/String errors
+                const hasInvalidDay = dateStr.split(/[-/]/).some(part => parseInt(part) > 31 && part.length <= 2);
+                
+                if (!isValid(d) || hasInvalidDay) {
+                    status = 'Failed';
+                    reason = `Invalid generation date: ${genDate}`;
+                }
+            }
+
+            if (status === 'Success' && (!pc || !sn)) {
+                status = 'Failed';
+                reason = 'Missing Product Code or Serial Number';
+            } else if (!validSkus.has(pc)) {
+                status = 'Failed';
+                reason = `Product Code "${pc}" not found in SKU Master`;
+            } else if (existingSerialsInDb.has(sn)) {
+                status = 'Failed';
+                reason = 'Serial Number already exists in database';
+            } else if (duplicateInFile.has(sn)) {
+                // Mark only the subsequent duplicates as failed? Or all? 
+                // Usually better to fail all or just keep the first.
+                if (serialToRowIdx.get(sn)?.[0] !== idx) {
+                    status = 'Failed';
+                    reason = 'Duplicate Serial Number in this file';
+                }
+            }
+
+            if (status === 'Success') {
+                successItems.push({
+                    serialNumber: sn,
+                    skuCode: pc,
+                    isActive: statusStr === 'active' || statusStr === '1' || statusStr === 'true'
+                });
+            }
+
+            processedRows.push({
+                ...row,
+                'Sync Status': status,
+                'Error Reason': reason
+            });
+        });
 
         const session = await auth();
         const userId = session?.user?.id ? Number(session.user.id) : undefined;
 
-        const results = [];
-        for (const productCode of productCodes) {
-            const items = groupedData[productCode];
-            const batchId = await inventoryBatchRepository.createBatchWithItems({
-                skuCode: productCode,
-                quantity: items.length,
+        let finalBatchId = null;
+        if (successItems.length > 0) {
+            // Check if there are multiple unique SKUs in the successful items
+            const successSkus = new Set<string>();
+            rows.forEach((row, idx) => {
+                const pc = String(row['Product Code'] || row['product-code'] || row['ProductCode'] || '').trim();
+                const sn = String(row['Serial Number'] || row['serial-number'] || row['SerialNumber'] || '').trim();
+                // Only count SKUs that were actually successful
+                const isSuccess = processedRows[idx]['Sync Status'] === 'Success';
+                if (isSuccess && pc) successSkus.add(pc);
+            });
+
+            const batchSkuDisplay = successSkus.size > 1 
+                ? `Multiple SKUs (${successSkus.size})` 
+                : (Array.from(successSkus)[0] || 'Unknown');
+            
+            finalBatchId = await inventoryBatchRepository.createBatchWithItems({
+                skuCode: batchSkuDisplay,
+                quantity: successItems.length,
                 type: 'inner',
                 createdBy: userId
-            }, items);
-            results.push({ productCode, batchId, quantity: items.length });
+            }, successItems);
         }
 
+        // 5. Generate Report Excel
+        const reportWs = XLSX.utils.json_to_sheet(processedRows);
+        const reportWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(reportWb, reportWs, "Sync Results");
+        const reportBuffer = XLSX.write(reportWb, { type: 'buffer', bookType: 'xlsx' });
+        const reportBase64 = reportBuffer.toString('base64');
 
-        // Emit event for record keeping
-        await emitEvent(BUS_EVENTS.QR_BATCH_PROCESSED, { 
-            batches: results,
-            originalName: file.name 
-        });
-
-        return { success: true, message: `Successfully synced ${results.length} batches with ${data.length} total items.` };
+        return { 
+            success: true, 
+            message: `Processed ${rows.length} rows. Success: ${successItems.length}, Failed: ${rows.length - successItems.length}`,
+            batchId: finalBatchId,
+            report: reportBase64,
+            fileName: `sync_report_${new Date().getTime()}.xlsx`
+        };
     } catch (error: any) {
         console.error("Error syncing QR Excel:", error);
         return { success: false, message: error.message };
