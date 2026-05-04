@@ -24,9 +24,10 @@ export async function processBoosterSchemes(
         serialNumber: string;
         sku: string;
         baseTransactionId?: number;
+        transactionDate?: string;
     }
 ) {
-    const now = new Date().toISOString();
+    const processingDate = data.transactionDate || new Date().toISOString();
 
     // 1. Get user location and role
     const [userMeta] = await tx.select({
@@ -103,9 +104,10 @@ export async function processBoosterSchemes(
     .where(and(
         sql`LOWER(${schemeTypes.name}) IN ('booster', 'slab', 'crosssell')`,
         eq(schemes.isActive, true),
-        sql`${schemes.startDate} <= NOW()`,
-        sql`${schemes.endDate} >= NOW()`
-    ));
+        sql`${schemes.startDate} <= ${processingDate}`,
+        sql`${schemes.endDate} >= ${processingDate}`
+    ))
+    .for('update'); // Prevent budget race conditions
 
     console.log(`[BoosterEngine] Found ${activeSchemes.length} active schemes for processing`);
 
@@ -147,6 +149,22 @@ export async function processBoosterSchemes(
         console.log(`[BoosterEngine] Target Match: ${targetMatch} (Type: ${config.targetType}, ID: ${skuVariantId}, TargetIDs: ${JSON.stringify(config.targetIds)})`);
 
         if (!targetMatch) continue;
+
+        // NEW: Strict Duplicate Check - Prevent multiple rewards for the same QR + Scheme
+        const [existingReward] = await tx.select({ id: mechanicTransactionLogs.id })
+            .from(mechanicTransactionLogs)
+            .where(and(
+                eq(mechanicTransactionLogs.userId, data.userId),
+                eq(mechanicTransactionLogs.schemeId, scheme.id),
+                eq(mechanicTransactionLogs.qrCode, data.serialNumber),
+                inArray(mechanicTransactionLogs.category, ['SCHEME_BOOSTER', 'SCHEME_SLAB', 'SCHEME_CROSSSELL'])
+            ))
+            .limit(1);
+
+        if (existingReward) {
+            console.log(`[BoosterEngine] Reward already processed for Scheme ${scheme.id} on QR ${data.serialNumber}`);
+            continue;
+        }
 
         // d) User Limit Check
         const maxUsers = Number(config.maxUsers || 0);
@@ -346,7 +364,7 @@ export async function processBoosterSchemes(
                         ...metadata, 
                         slabIndex: i,
                         itemProgress,
-                        achievementDate: now
+                        achievementDate: processingDate
                     };
                     break; // Reward only the highest unrewarded slab reached in this scan
                 }
