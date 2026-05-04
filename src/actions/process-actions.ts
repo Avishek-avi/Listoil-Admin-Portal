@@ -429,7 +429,7 @@ export async function getAllTransactionsAction(): Promise<TransactionRecord[]> {
                     phone: t.phone || 'N/A',
                     userType: t.userType,
                     createdAt: t.createdAt || '',
-                    transactionType: t.category === 'SCHEME_BOOSTER' ? 'Booster' : (t.category === 'SCHEME_SLAB' ? 'Slab' : t.transactionType),
+                    transactionType: t.category === 'SCHEME_BOOSTER' ? 'Booster' : (t.category === 'SCHEME_SLAB' ? 'Slab' : (t.category === 'SCHEME_CROSSSELL' ? 'Cross-Sell' : t.transactionType)),
                     qrCode: t.qrCode || metadata?.qrCode || metadata?.scannedCode,
                     invoiceNo: metadata?.invoiceNumber || metadata?.invoiceNo || metadata?.billNumber,
                     points: Number(t.points),
@@ -777,7 +777,7 @@ export async function rollbackTransactionAction(transactionId: number, transacti
             let log;
             if (transactionType === 'Scan') {
                 [log] = await tx.select().from(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.id, transactionId)).limit(1);
-            } else if (transactionType === 'Booster' || transactionType === 'Slab') {
+            } else if (transactionType === 'Booster' || transactionType === 'Slab' || transactionType === 'Cross-Sell') {
                 [log] = await tx.select().from(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.id, transactionId)).limit(1);
             }
 

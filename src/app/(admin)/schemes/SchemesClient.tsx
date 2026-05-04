@@ -64,12 +64,19 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
             states: [] as string[],
             cities: [] as string[]
         },
-        maxBudget: 0,
         maxUsers: 0,
         slabConfig: {
             basis: 'SCAN_COUNT' as 'SCAN_COUNT' | 'POINTS_EARNED',
             disbursalType: 'REALTIME' as 'REALTIME' | 'SCHEME_END',
             slabs: [{ min: 0, max: 0, rewardValue: 0 }]
+        },
+        crossSellConfig: {
+            slabs: [
+                {
+                    rewardValue: 0,
+                    items: [] as { id: number; minScans: number }[]
+                }
+            ]
         }
     });
 
@@ -90,12 +97,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         try {
             // Determine the target level based on depth of selection
             const targetType = formData.selection.skuIds.length > 0 ? 'SKU' :
-                              formData.selection.subCategoryIds.length > 0 ? 'SubCategory' :
-                              'Category';
-            
+                formData.selection.subCategoryIds.length > 0 ? 'SubCategory' :
+                    'Category';
+
             const targetIds = targetType === 'SKU' ? formData.selection.skuIds :
-                             targetType === 'SubCategory' ? formData.selection.subCategoryIds :
-                             formData.selection.categoryIds;
+                targetType === 'SubCategory' ? formData.selection.subCategoryIds :
+                    formData.selection.categoryIds;
 
             if (targetIds.length === 0) {
                 toast.error("Please select at least one Category, Sub-Category, or SKU");
@@ -105,9 +112,16 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
 
             const typeMap: Record<string, string> = {
                 'Booster Scheme': 'Booster',
-                'Slab Based': 'Slab'
+                'Slab Based': 'Slab',
+                'Cross-Sell': 'CrossSell'
             };
             const currentType = typeMap[activeTab] || 'Booster';
+
+            if (currentType === 'CrossSell' && targetIds.length < 2) {
+                toast.error("Cross-Sell scheme requires at least two selections");
+                setLoading(false);
+                return;
+            }
 
             if (editingSchemeId) {
                 const res = await updateSchemeAction(editingSchemeId, currentType, {
@@ -146,81 +160,80 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
     };
 
     const filteredCategories = useMemo(() => {
-        return masterData.categories.filter((cat: any) => 
+        return (masterData.categories || []).filter((cat: any) =>
             cat.name.toLowerCase().includes(searchTerms.category.toLowerCase())
         );
     }, [masterData.categories, searchTerms.category]);
 
     const filteredSubCategories = useMemo(() => {
-        return masterData.subCategories.filter((sc: any) => 
-            (formData.selection.categoryIds.length === 0 || 
-             formData.selection.categoryIds.some(cid => Number(cid) === Number(sc.parentId))) &&
+        return (masterData.subCategories || []).filter((sc: any) =>
+            (formData.selection.categoryIds.length === 0 ||
+                formData.selection.categoryIds.some(cid => Number(cid) === Number(sc.parentId))) &&
             sc.name.toLowerCase().includes(searchTerms.subCategory.toLowerCase())
         );
     }, [masterData.subCategories, formData.selection.categoryIds, searchTerms.subCategory]);
 
     const filteredSkus = useMemo(() => {
-        return masterData.skus.filter((sku: any) => 
-            (formData.selection.subCategoryIds.length === 0 || 
-             formData.selection.subCategoryIds.some(sid => Number(sid) === Number(sku.subCategoryId))) &&
+        return (masterData.skus || []).filter((sku: any) =>
+            (formData.selection.subCategoryIds.length === 0 ||
+                formData.selection.subCategoryIds.some(sid => Number(sid) === Number(sku.subCategoryId))) &&
             sku.name.toLowerCase().includes(searchTerms.sku.toLowerCase())
         );
     }, [masterData.skus, formData.selection.subCategoryIds, searchTerms.sku]);
 
     // Geo Filters
     const filteredZones = useMemo(() => {
-        return masterData.geography.zones.filter((z: string) => 
+        return (masterData.geography?.zones || []).filter((z: string) =>
             z.toLowerCase().includes(searchTerms.zone.toLowerCase())
         );
-    }, [masterData.geography.zones, searchTerms.zone]);
+    }, [masterData.geography?.zones, searchTerms.zone]);
 
     const filteredStates = useMemo(() => {
-        return masterData.geography.states.filter((s: any) => 
+        return (masterData.geography?.states || []).filter((s: any) =>
             (formData.geoScope.zones.length === 0 || formData.geoScope.zones.includes(s.zone)) &&
             s.name.toLowerCase().includes(searchTerms.state.toLowerCase())
         );
-    }, [masterData.geography.states, formData.geoScope.zones, searchTerms.state]);
+    }, [masterData.geography?.states, formData.geoScope.zones, searchTerms.state]);
 
     const filteredCities = useMemo(() => {
-        return masterData.geography.cities.filter((c: any) => 
+        return (masterData.geography?.cities || []).filter((c: any) =>
             (formData.geoScope.states.length === 0 || formData.geoScope.states.includes(c.state)) &&
             c.name.toLowerCase().includes(searchTerms.city.toLowerCase())
         );
-    }, [masterData.geography.cities, formData.geoScope.states, searchTerms.city]);
+    }, [masterData.geography?.cities, formData.geoScope.states, searchTerms.city]);
 
     const toggleSelection = (type: 'category' | 'subCategory' | 'sku', id: number) => {
         setFormData(prev => {
             const selectionKey = `${type}Ids` as keyof typeof prev.selection;
             const current = [...prev.selection[selectionKey]];
             const updated = current.includes(id) ? current.filter(i => i !== id) : [...current, id];
-            
+
             const newSelection = { ...prev.selection, [selectionKey]: updated };
-            
+
             // Auto-clear children if parent is de-selected
             if (type === 'category' && !updated.includes(id)) {
-                const subToClear = masterData.subCategories
+                const subToClear = (masterData.subCategories || [])
                     .filter((sc: any) => Number(sc.parentId) === Number(id))
                     .map((sc: any) => sc.id);
-                newSelection.subCategoryIds = newSelection.subCategoryIds.filter(sid => 
+                newSelection.subCategoryIds = newSelection.subCategoryIds.filter(sid =>
                     !subToClear.some(scid => Number(scid) === Number(sid))
                 );
-                
-                const skusToClear = masterData.skus
+                const skusToClear = (masterData.skus || [])
                     .filter((sku: any) => subToClear.some(scid => Number(scid) === Number(sku.subCategoryId)))
                     .map((sku: any) => sku.id);
-                newSelection.skuIds = newSelection.skuIds.filter(skid => 
+                newSelection.skuIds = newSelection.skuIds.filter(skid =>
                     !skusToClear.some(sckid => Number(sckid) === Number(skid))
                 );
             }
             if (type === 'subCategory' && !updated.includes(id)) {
-                const skusToClear = masterData.skus
+                const skusToClear = (masterData.skus || [])
                     .filter((sku: any) => Number(sku.subCategoryId) === Number(id))
                     .map((sku: any) => sku.id);
-                newSelection.skuIds = newSelection.skuIds.filter(skid => 
+                newSelection.skuIds = newSelection.skuIds.filter(skid =>
                     !skusToClear.some(sckid => Number(sckid) === Number(skid))
                 );
             }
-            
+
             return { ...prev, selection: newSelection };
         });
     };
@@ -228,8 +241,8 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
     const toggleAudienceId = (id: number) => {
         setFormData(prev => ({
             ...prev,
-            audienceIds: prev.audienceIds.includes(id) 
-                ? prev.audienceIds.filter(i => i !== id) 
+            audienceIds: prev.audienceIds.includes(id)
+                ? prev.audienceIds.filter(i => i !== id)
                 : [...prev.audienceIds, id]
         }));
     };
@@ -248,43 +261,94 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
 
     const handleEdit = (scheme: any) => {
         const isSlab = scheme.schemeType === 'Slab' || (scheme.config && 'slab' in scheme.config);
-        const config = isSlab ? scheme.config?.slab : scheme.config?.booster;
-        
+        const isCrossSell = scheme.schemeType === 'CrossSell' || (scheme.config && 'crossSell' in scheme.config);
+
+        const config = isSlab ? scheme.config?.slab :
+            isCrossSell ? scheme.config?.crossSell :
+                scheme.config?.booster;
+
         if (!config) return;
 
         if (isSlab) {
             setActiveTab('Slab Based');
+        } else if (isCrossSell) {
+            setActiveTab('Cross-Sell');
         } else {
             setActiveTab('Booster Scheme');
         }
 
         // Ensure targetIds are numbers for correct comparison with masterData
-        const targetIds = (config.targetIds || []).map((id: any) => Number(id));
+        const targetType = config.targetType || scheme.targetType || 'Category';
+        const targetIds = ((config.targetIds || scheme.targetIds || []) as any[]).map((id: any) => Number(id));
 
-        setFormData({
-            name: scheme.name,
-            description: scheme.description || '',
-            startDate: scheme.startDate ? scheme.startDate.substring(0, 10) : '',
-            endDate: scheme.endDate ? scheme.endDate.substring(0, 10) : '',
-            targetType: config.targetType,
-            targetIds: targetIds,
-            selection: {
-                categoryIds: config.targetType === 'Category' ? targetIds : [],
-                subCategoryIds: config.targetType === 'SubCategory' ? targetIds : [],
-                skuIds: config.targetType === 'SKU' ? targetIds : []
-            },
-            rewardType: config.rewardType || 'Fixed',
-            rewardValue: config.rewardValue || 0,
-            audienceIds: (config.audienceIds || []).map((id: any) => Number(id)),
-            geoScope: config.geoScope || { zones: [], states: [], cities: [] },
-            maxBudget: scheme.budget || 0,
-            maxUsers: config.maxUsers || 0,
-            slabConfig: config.slabConfig || {
-                basis: 'SCAN_COUNT',
-                disbursalType: 'REALTIME',
-                slabs: [{ min: 0, max: 0, rewardValue: 0 }]
-            }
-        });
+        if (isCrossSell) {
+            const rawCrossSell = scheme.config?.crossSell;
+            const crossSellConfig = rawCrossSell?.crossSellConfig;
+            setFormData({
+                name: scheme.name,
+                description: scheme.description || '',
+                startDate: scheme.startDate ? scheme.startDate.substring(0, 10) : '',
+                endDate: scheme.endDate ? scheme.endDate.substring(0, 10) : '',
+                targetType: targetType,
+                targetIds: targetIds,
+                selection: {
+                    categoryIds: targetType === 'Category' ? targetIds : [],
+                    subCategoryIds: targetType === 'SubCategory' ? targetIds : [],
+                    skuIds: targetType === 'SKU' ? targetIds : []
+                },
+                rewardType: config.rewardType || 'Fixed',
+                rewardValue: config.rewardValue || 0,
+                audienceIds: (config.audienceIds || []).map((id: any) => Number(id)),
+                geoScope: config.geoScope || { zones: [], states: [], cities: [] },
+                maxBudget: scheme.budget || 0,
+                maxUsers: config.maxUsers || 0,
+                slabConfig: {
+                    basis: 'SCAN_COUNT',
+                    disbursalType: 'REALTIME',
+                    slabs: [{ min: 0, max: 0, rewardValue: 0 }]
+                },
+                crossSellConfig: {
+                    rewardValue: config.rewardValue || 0,
+                    items: [],
+                    slabs: crossSellConfig?.slabs || [
+                        {
+                            rewardValue: crossSellConfig?.rewardValue || 0,
+                            items: crossSellConfig?.items || targetIds.map((id: number) => ({ id, minScans: 0 }))
+                        }
+                    ]
+                }
+            });
+        } else {
+            setFormData({
+                name: scheme.name,
+                description: scheme.description || '',
+                startDate: scheme.startDate ? scheme.startDate.substring(0, 10) : '',
+                endDate: scheme.endDate ? scheme.endDate.substring(0, 10) : '',
+                targetType: targetType,
+                targetIds: targetIds,
+                selection: {
+                    categoryIds: targetType === 'Category' ? targetIds : [],
+                    subCategoryIds: targetType === 'SubCategory' ? targetIds : [],
+                    skuIds: targetType === 'SKU' ? targetIds : []
+                },
+                rewardType: config.rewardType || 'Fixed',
+                rewardValue: config.rewardValue || 0,
+                audienceIds: (config.audienceIds || []).map((id: any) => Number(id)),
+                geoScope: config.geoScope || { zones: [], states: [], cities: [] },
+                maxBudget: scheme.budget || 0,
+                maxUsers: config.maxUsers || 0,
+                slabConfig: config.slabConfig || {
+                    basis: 'SCAN_COUNT',
+                    disbursalType: 'REALTIME',
+                    slabs: [{ min: 0, max: 0, rewardValue: 0 }]
+                },
+                crossSellConfig: config.crossSellConfig || {
+                    rewardValue: 0,
+                    items: [],
+                    slabs: [{ rewardValue: 0, items: [] }]
+                }
+            });
+        }
         setEditingSchemeId(scheme.id);
         setIsCreateModalOpen(true);
     };
@@ -325,7 +389,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
 
     const getReadableDiff = (oldS: any, newS: any) => {
         const changes: any[] = [];
-        
+
         // Flatten oldState if it has the DB structure
         const oldFlat: any = {
             name: oldS.name,
@@ -405,11 +469,10 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-                                activeTab === tab 
-                                ? 'bg-white text-red-600 shadow-sm border border-gray-100' 
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
-                            }`}
+                            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === tab
+                                    ? 'bg-white text-red-600 shadow-sm border border-gray-100'
+                                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                                }`}
                         >
                             {tab}
                         </button>
@@ -423,7 +486,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                             <h2 className="text-xl font-bold text-gray-800">{activeTab}s</h2>
                             <p className="text-sm text-gray-500 mt-1">Manage your active and upcoming {activeTab.toLowerCase()} programs</p>
                         </div>
-                        <button 
+                        <button
                             onClick={() => setIsCreateModalOpen(true)}
                             className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-200 transition-all active:scale-95"
                         >
@@ -438,12 +501,13 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                 {initialSchemes.filter(s => {
                                     if (activeTab === 'Booster Scheme') return s.schemeType === 'Booster' || !s.schemeType;
                                     if (activeTab === 'Slab Based') return s.schemeType === 'Slab';
+                                    if (activeTab === 'Cross-Sell') return s.schemeType === 'CrossSell';
                                     return false;
                                 }).map((scheme, i) => (
                                     <div key={scheme.id || i} className="group relative bg-white border border-gray-100 rounded-3xl p-6 hover:shadow-xl hover:shadow-gray-100 transition-all duration-500 border-b-4 border-b-red-500/20">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="p-3 bg-red-50 rounded-2xl text-red-600 group-hover:scale-110 transition-transform">
-                                                <i className={`fas ${activeTab === 'Slab Based' ? 'fa-layer-group' : 'fa-rocket'} text-xl`}></i>
+                                                <i className={`fas ${activeTab === 'Slab Based' ? 'fa-layer-group' : activeTab === 'Cross-Sell' ? 'fa-random' : 'fa-rocket'} text-xl`}></i>
                                             </div>
                                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${scheme.isActive ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
                                                 {scheme.isActive ? 'Active' : 'Inactive'}
@@ -451,7 +515,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <h3 className="font-bold text-gray-800 text-lg leading-tight mb-2">{scheme.name}</h3>
                                         <p className="text-xs text-gray-500 line-clamp-2 mb-4 h-8">{scheme.description || 'No description provided'}</p>
-                                        
+
                                         <div className="space-y-3 pt-4 border-t border-gray-50">
                                             <div className="flex items-center gap-2 text-xs font-medium">
                                                 <i className="far fa-calendar text-gray-400 w-4"></i>
@@ -467,17 +531,23 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                             {scheme.config?.booster?.rewardValue}
                                                             {scheme.config?.booster?.rewardType === 'Percentage' ? '%' : ' Pts'} Top-up
                                                         </>
-                                                    ) : (
+                                                    ) : activeTab === 'Slab Based' ? (
                                                         <>
                                                             {scheme.config?.slab?.slabConfig?.slabs?.length || 0} Tiers ({scheme.config?.slab?.slabConfig?.basis?.replace('_', ' ')})
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {(scheme.config?.crossSell?.crossSellConfig?.slabs?.length || 0) > 0
+                                                                ? `${scheme.config?.crossSell?.crossSellConfig?.slabs?.length} Slabs`
+                                                                : `${scheme.config?.crossSell?.crossSellConfig?.items?.length || 0} Items Combination`}
                                                         </>
                                                     )}
                                                 </span>
                                             </div>
                                         </div>
 
-                                        <button 
-                                            type="button" 
+                                        <button
+                                            type="button"
                                             onClick={() => handleEdit(scheme)}
                                             className="w-full mt-6 py-3 bg-gray-50 text-gray-500 rounded-2xl text-[10px] font-black hover:bg-red-50 hover:text-red-600 transition-all duration-300 uppercase tracking-widest border border-transparent hover:border-red-100 flex items-center justify-center gap-2"
                                         >
@@ -490,11 +560,67 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                 {initialSchemes.filter(s => {
                                     if (activeTab === 'Booster Scheme') return s.schemeType === 'Booster' || !s.schemeType;
                                     if (activeTab === 'Slab Based') return s.schemeType === 'Slab';
+                                    if (activeTab === 'Cross-Sell') return s.schemeType === 'CrossSell';
                                     return false;
                                 }).length === 0 && (
+                                        <div className="col-span-full flex flex-col items-center justify-center py-20 opacity-40">
+                                            <i className="fas fa-gift text-6xl text-gray-300 mb-4"></i>
+                                            <p className="text-gray-500 font-medium italic">No {activeTab.toLowerCase()} programs found.</p>
+                                        </div>
+                                    )}
+                            </div>
+                        ) : activeTab === 'Cross-Sell' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {initialSchemes.filter(s => s.schemeType === 'CrossSell').map((scheme, i) => (
+                                    <div key={scheme.id || i} className="group relative bg-white border border-gray-100 rounded-3xl p-6 hover:shadow-xl hover:shadow-gray-100 transition-all duration-500 border-b-4 border-b-red-500/20">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="p-3 bg-red-50 rounded-2xl text-red-600 group-hover:scale-110 transition-transform">
+                                                <i className="fas fa-random text-xl"></i>
+                                            </div>
+                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${scheme.isActive ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                                                {scheme.isActive ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-bold text-gray-800 text-lg leading-tight mb-2">{scheme.name}</h3>
+                                        <p className="text-xs text-gray-500 line-clamp-2 mb-4 h-8">{scheme.description || 'No description provided'}</p>
+
+                                        <div className="space-y-3 pt-4 border-t border-gray-50">
+                                            <div className="flex items-center gap-2 text-xs font-medium">
+                                                <i className="far fa-calendar text-gray-400 w-4"></i>
+                                                <span className="text-gray-400">Validity:</span>
+                                                <span className="text-gray-700">{formatDate(scheme.startDate)} - {formatDate(scheme.endDate)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs font-medium">
+                                                <i className="fas fa-coins text-red-500 w-4"></i>
+                                                <span className="text-gray-400">Reward:</span>
+                                                <span className="text-red-600 font-bold">
+                                                    {(scheme.config?.crossSell?.crossSellConfig?.slabs?.length || 0) > 0
+                                                        ? `${scheme.config?.crossSell?.crossSellConfig?.slabs?.length} Achievement Levels`
+                                                        : `${scheme.config?.crossSell?.crossSellConfig?.rewardValue || 0} Pts Top-up`}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs font-medium">
+                                                <i className="fas fa-tags text-gray-400 w-4"></i>
+                                                <span className="text-gray-400">Combination:</span>
+                                                <span className="text-gray-700 font-bold">{scheme.config?.crossSell?.crossSellConfig?.items?.length || 0} Items</span>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleEdit(scheme)}
+                                            className="w-full mt-6 py-3 bg-gray-50 text-gray-500 rounded-2xl text-[10px] font-black hover:bg-red-50 hover:text-red-600 transition-all duration-300 uppercase tracking-widest border border-transparent hover:border-red-100 flex items-center justify-center gap-2"
+                                        >
+                                            View Details / Edit
+                                            <i className="fas fa-chevron-right text-[8px]"></i>
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {initialSchemes.filter(s => s.schemeType === 'CrossSell').length === 0 && (
                                     <div className="col-span-full flex flex-col items-center justify-center py-20 opacity-40">
-                                        <i className="fas fa-gift text-6xl text-gray-300 mb-4"></i>
-                                        <p className="text-gray-500 font-medium italic">No {activeTab.toLowerCase()} programs found.</p>
+                                        <i className="fas fa-random text-6xl text-gray-300 mb-4"></i>
+                                        <p className="text-gray-500 font-medium italic">No cross-sell programs found.</p>
                                     </div>
                                 )}
                             </div>
@@ -505,7 +631,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight">Scheme Audit Logs</h3>
                                         <p className="text-xs text-gray-400 font-medium mt-1">History of all scheme creations and modifications</p>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={fetchLogs}
                                         disabled={logsLoading}
                                         className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
@@ -539,9 +665,8 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                         </div>
                                                     </td>
                                                     <td className="px-8 py-5">
-                                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
-                                                            log.operation === 'INSERT' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
-                                                        }`}>
+                                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${log.operation === 'INSERT' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                                                            }`}>
                                                             {log.action?.replace(/_/g, ' ') || log.operation}
                                                         </span>
                                                     </td>
@@ -550,7 +675,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                         {new Date(log.createdAt).toLocaleString()}
                                                     </td>
                                                     <td className="px-8 py-5">
-                                                        <button 
+                                                        <button
                                                             className="text-[10px] font-black text-red-600 hover:underline uppercase tracking-widest"
                                                             onClick={() => setSelectedLog(log)}
                                                         >
@@ -561,20 +686,20 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                             ))}
                                         </tbody>
                                     </table>
-                                            {schemeLogs.length === 0 && !logsLoading && (
-                                                <div className="p-20 text-center">
-                                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                        <i className="fas fa-history text-2xl text-gray-200"></i>
-                                                    </div>
-                                                    <p className="text-sm font-bold text-gray-400">No logs found for schemes</p>
-                                                    <button 
-                                                        onClick={fetchLogs}
-                                                        className="mt-4 text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline"
-                                                    >
-                                                        Click here to try again
-                                                    </button>
-                                                </div>
-                                            )}
+                                    {schemeLogs.length === 0 && !logsLoading && (
+                                        <div className="p-20 text-center">
+                                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <i className="fas fa-history text-2xl text-gray-200"></i>
+                                            </div>
+                                            <p className="text-sm font-bold text-gray-400">No logs found for schemes</p>
+                                            <button
+                                                onClick={fetchLogs}
+                                                className="mt-4 text-[10px] font-black text-red-600 uppercase tracking-widest hover:underline"
+                                            >
+                                                Click here to try again
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ) : (
@@ -597,25 +722,27 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                         {/* Header */}
                         <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <div className="flex items-center gap-4">
-                                <div className={`w-12 h-12 ${activeTab === 'Slab Based' ? 'bg-gray-800' : 'bg-red-600'} rounded-2xl flex items-center justify-center text-white shadow-lg shadow-red-200`}>
-                                    <i className={`fas ${activeTab === 'Slab Based' ? 'fa-layer-group' : 'fa-rocket'} text-xl`}></i>
+                                <div className={`w-12 h-12 ${activeTab === 'Slab Based' ? 'bg-gray-800' : activeTab === 'Cross-Sell' ? 'bg-indigo-600' : 'bg-red-600'} rounded-2xl flex items-center justify-center text-white shadow-lg shadow-red-200`}>
+                                    <i className={`fas ${activeTab === 'Slab Based' ? 'fa-layer-group' : activeTab === 'Cross-Sell' ? 'fa-random' : 'fa-rocket'} text-xl`}></i>
                                 </div>
                                 <div>
                                     <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">
                                         {editingSchemeId ? `Edit ${activeTab}` : `Create ${activeTab}`}
                                     </h2>
                                     <p className="text-sm text-gray-500 font-medium">
-                                        {activeTab === 'Slab Based' 
-                                            ? 'Configure tiered rewards based on volume or points' 
-                                            : 'Configure top-up rewards for specific targets'}
+                                        {activeTab === 'Slab Based'
+                                            ? 'Configure tiered rewards based on volume or points'
+                                            : activeTab === 'Cross-Sell'
+                                                ? 'Configure rewards for multi-item purchase combinations'
+                                                : 'Configure top-up rewards for specific targets'}
                                     </p>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => {
                                     setIsCreateModalOpen(false);
                                     setEditingSchemeId(null);
-                                }} 
+                                }}
                                 className="p-2 hover:bg-white rounded-full transition-colors"
                             >
                                 <i className="fas fa-times text-gray-400"></i>
@@ -628,34 +755,34 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Scheme Name</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         required
                                         className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-red-500 font-bold transition-all"
                                         placeholder="e.g. Monsoon Special Booster"
                                         value={formData.name}
-                                        onChange={e => setFormData({...formData, name: e.target.value})}
+                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Start Date</label>
-                                        <input 
-                                            type="date" 
+                                        <input
+                                            type="date"
                                             required
                                             className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-red-500 font-bold"
                                             value={formData.startDate}
-                                            onChange={e => setFormData({...formData, startDate: e.target.value})}
+                                            onChange={e => setFormData({ ...formData, startDate: e.target.value })}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">End Date</label>
-                                        <input 
-                                            type="date" 
+                                        <input
+                                            type="date"
                                             required
                                             className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-red-500 font-bold"
                                             value={formData.endDate}
-                                            onChange={e => setFormData({...formData, endDate: e.target.value})}
+                                            onChange={e => setFormData({ ...formData, endDate: e.target.value })}
                                         />
                                     </div>
                                 </div>
@@ -667,7 +794,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     <span className="w-1.5 h-6 bg-red-600 rounded-full"></span>
                                     1. Target Selection (Category &gt; Sub-Category &gt; SKU)
                                 </label>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {/* Categories */}
                                     <div className="space-y-3">
@@ -677,12 +804,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <div className="relative mb-2 mt-1">
                                             <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Search Category..." 
+                                            <input
+                                                type="text"
+                                                placeholder="Search Category..."
                                                 className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
                                                 value={searchTerms.category}
-                                                onChange={e => setSearchTerms({...searchTerms, category: e.target.value})}
+                                                onChange={e => setSearchTerms({ ...searchTerms, category: e.target.value })}
                                             />
                                         </div>
                                         <div className="h-[450px] overflow-y-auto p-2 bg-gray-50 rounded-3xl border border-gray-100 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-200">
@@ -691,11 +818,10 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                     key={item.id}
                                                     type="button"
                                                     onClick={() => toggleSelection('category', item.id)}
-                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${
-                                                        formData.selection.categoryIds.includes(item.id)
-                                                        ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
-                                                        : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
-                                                    }`}
+                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${formData.selection.categoryIds.includes(item.id)
+                                                            ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
+                                                            : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
+                                                        }`}
                                                 >
                                                     <p className="text-[10px] font-black uppercase truncate">{item.name}</p>
                                                 </button>
@@ -711,12 +837,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <div className="relative mb-2 mt-1">
                                             <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Search Sub-Category..." 
+                                            <input
+                                                type="text"
+                                                placeholder="Search Sub-Category..."
                                                 className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
                                                 value={searchTerms.subCategory}
-                                                onChange={e => setSearchTerms({...searchTerms, subCategory: e.target.value})}
+                                                onChange={e => setSearchTerms({ ...searchTerms, subCategory: e.target.value })}
                                             />
                                         </div>
                                         <div className="h-[450px] overflow-y-auto p-2 rounded-3xl border space-y-1.5 transition-all bg-gray-50 border-gray-100 scrollbar-thin scrollbar-thumb-gray-200">
@@ -725,11 +851,10 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                     key={item.id}
                                                     type="button"
                                                     onClick={() => toggleSelection('subCategory', item.id)}
-                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${
-                                                        formData.selection.subCategoryIds.includes(item.id)
-                                                        ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
-                                                        : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
-                                                    }`}
+                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${formData.selection.subCategoryIds.includes(item.id)
+                                                            ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
+                                                            : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
+                                                        }`}
                                                 >
                                                     <p className="text-[10px] font-black uppercase truncate">{item.name}</p>
                                                 </button>
@@ -745,12 +870,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <div className="relative mb-2 mt-1">
                                             <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Search SKU..." 
+                                            <input
+                                                type="text"
+                                                placeholder="Search SKU..."
                                                 className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
                                                 value={searchTerms.sku}
-                                                onChange={e => setSearchTerms({...searchTerms, sku: e.target.value})}
+                                                onChange={e => setSearchTerms({ ...searchTerms, sku: e.target.value })}
                                             />
                                         </div>
                                         <div className="h-[450px] overflow-y-auto p-2 rounded-3xl border space-y-1.5 transition-all bg-gray-50 border-gray-100 scrollbar-thin scrollbar-thumb-gray-200">
@@ -759,11 +884,10 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                     key={item.id}
                                                     type="button"
                                                     onClick={() => toggleSelection('sku', item.id)}
-                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${
-                                                        formData.selection.skuIds.includes(item.id)
-                                                        ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
-                                                        : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
-                                                    }`}
+                                                    className={`w-full p-3 rounded-xl text-left transition-all duration-200 border-2 ${formData.selection.skuIds.includes(item.id)
+                                                            ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
+                                                            : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
+                                                        }`}
                                                 >
                                                     <p className="text-[10px] font-black uppercase truncate">{item.name}</p>
                                                     {item.skuCode && <p className="text-[8px] opacity-60 mt-0.5">{item.skuCode}</p>}
@@ -782,10 +906,10 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                             <h3 className="text-sm font-black uppercase tracking-widest text-white/90">2. Reward Config</h3>
                                             <div className="flex bg-white/20 p-1 rounded-xl">
                                                 {['Fixed', 'Percentage'].map(r => (
-                                                    <button 
+                                                    <button
                                                         key={r}
                                                         type="button"
-                                                        onClick={() => setFormData({...formData, rewardType: r as any})}
+                                                        onClick={() => setFormData({ ...formData, rewardType: r as any })}
                                                         className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all ${formData.rewardType === r ? 'bg-white text-red-600 shadow-md' : 'text-white/80'}`}
                                                     >
                                                         {r === 'Fixed' ? 'Direct Amount' : '% of Base'}
@@ -795,12 +919,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <div className="flex items-center gap-6">
                                             <div className="flex-1">
-                                                <input 
-                                                    type="number" 
+                                                <input
+                                                    type="number"
                                                     className="w-full bg-white/10 border-2 border-white/20 rounded-2xl px-6 py-4 text-3xl font-black text-white focus:ring-0 focus:border-white transition-all placeholder:text-white/30"
                                                     placeholder="0.00"
                                                     value={formData.rewardValue || ''}
-                                                    onChange={e => setFormData({...formData, rewardValue: parseFloat(e.target.value) || 0})}
+                                                    onChange={e => setFormData({ ...formData, rewardValue: parseFloat(e.target.value) || 0 })}
                                                 />
                                             </div>
                                             <div className="text-4xl font-black opacity-40 text-white">
@@ -809,11 +933,151 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <p className="text-[10px] font-bold mt-4 text-white/70 italic">* This reward will be added as a top-up on top of the base points.</p>
                                     </div>
+                                ) : activeTab === 'Cross-Sell' ? (
+                                    <div className="md:col-span-2 space-y-8">
+                                        {(formData.crossSellConfig?.slabs || []).map((slab, slabIndex) => (
+                                            <div key={slabIndex} className="bg-indigo-900 rounded-[32px] p-8 shadow-xl shadow-indigo-200 text-white relative">
+                                                {(formData.crossSellConfig?.slabs || []).length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newSlabs = [...formData.crossSellConfig.slabs];
+                                                            newSlabs.splice(slabIndex, 1);
+                                                            setFormData({
+                                                                ...formData,
+                                                                crossSellConfig: { ...formData.crossSellConfig, slabs: newSlabs }
+                                                            });
+                                                        }}
+                                                        className="absolute top-6 right-6 w-10 h-10 bg-white/10 hover:bg-red-500 rounded-full flex items-center justify-center transition-colors"
+                                                    >
+                                                        <i className="fas fa-times"></i>
+                                                    </button>
+                                                )}
+
+                                                <div className="flex items-center gap-4 mb-8">
+                                                    <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-xl font-black">
+                                                        {slabIndex + 1}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-xl font-bold">Achievement Slab {slabIndex + 1}</h4>
+                                                        <p className="text-indigo-200 text-sm">Define thresholds for this reward level</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid md:grid-cols-2 gap-8">
+                                                    <div className="space-y-6">
+                                                        <label className="block text-sm font-bold text-indigo-200 uppercase tracking-wider">Item Thresholds (Min Scans)</label>
+                                                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                                            {(formData.selection.skuIds.length > 0 ? formData.selection.skuIds :
+                                                                formData.selection.subCategoryIds.length > 0 ? formData.selection.subCategoryIds :
+                                                                    formData.selection.categoryIds).map(id => {
+                                                                        const isSku = formData.selection.skuIds.length > 0;
+                                                                        const isSubCat = formData.selection.subCategoryIds.length > 0;
+
+                                                                        const itemData = isSku
+                                                                            ? (masterData.skus || []).find((v: any) => v.id === id)
+                                                                            : isSubCat
+                                                                                ? (masterData.subCategories || []).find((e: any) => e.id === id)
+                                                                                : (masterData.categories || []).find((e: any) => e.id === id);
+
+                                                                        const existingItem = (slab.items || []).find(i => i.id === id);
+
+                                                                        return (
+                                                                            <div key={id} className="grid grid-cols-[1fr_100px] items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
+                                                                                <div className="min-w-0">
+                                                                                    <p className="font-bold truncate text-sm text-white">
+                                                                                        {itemData?.name || `Item #${id}`}
+                                                                                    </p>
+                                                                                    <p className="text-[10px] text-indigo-300 font-black uppercase tracking-widest">
+                                                                                        Target {isSku ? 'SKU' : isSubCat ? 'Sub-Category' : 'Category'}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div className="flex flex-col items-end gap-1">
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min="0"
+                                                                                        value={existingItem?.minScans ?? 0}
+                                                                                        onChange={(e) => {
+                                                                                            const val = parseInt(e.target.value) || 0;
+                                                                                            const newSlabs = [...(formData.crossSellConfig?.slabs || [])];
+                                                                                            const items = [...(newSlabs[slabIndex]?.items || [])];
+                                                                                            const itemIdx = items.findIndex(i => i.id === id);
+                                                                                            if (itemIdx > -1) {
+                                                                                                items[itemIdx] = { ...items[itemIdx], minScans: val };
+                                                                                            } else {
+                                                                                                items.push({ id, minScans: val });
+                                                                                            }
+                                                                                            newSlabs[slabIndex] = { ...newSlabs[slabIndex], items };
+                                                                                            setFormData({ ...formData, crossSellConfig: { ...formData.crossSellConfig, slabs: newSlabs } });
+                                                                                        }}
+                                                                                        className="w-full bg-white border-2 border-indigo-400/30 rounded-xl px-3 py-1.5 text-right font-black text-indigo-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-inner text-xs"
+                                                                                        placeholder="0"
+                                                                                    />
+                                                                                    <span className="text-[8px] font-black text-indigo-300 uppercase tracking-tighter">Min Scans</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col justify-center space-y-6">
+                                                        <div className="p-8 bg-white/10 rounded-[32px] border border-white/20 backdrop-blur-md">
+                                                            <label className="block text-sm font-bold text-indigo-200 uppercase tracking-wider mb-4">Top-up Reward Points</label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="number"
+                                                                    value={slab.rewardValue ?? 0}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value) || 0;
+                                                                        const newSlabs = [...(formData.crossSellConfig?.slabs || [])];
+                                                                        newSlabs[slabIndex] = { ...newSlabs[slabIndex], rewardValue: val };
+                                                                        setFormData({ ...formData, crossSellConfig: { ...formData.crossSellConfig, slabs: newSlabs } });
+                                                                    }}
+                                                                    className="w-full bg-white border-2 border-indigo-400/30 rounded-2xl px-6 py-4 text-3xl font-black text-indigo-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-indigo-200 shadow-inner"
+                                                                    placeholder="0"
+                                                                />
+                                                                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-indigo-300 font-bold">PTS</div>
+                                                            </div>
+                                                            <p className="mt-4 text-xs text-indigo-300 italic">This reward is given once all item thresholds above are met.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const targetIds = formData.selection.skuIds.length > 0 ? formData.selection.skuIds :
+                                                    formData.selection.subCategoryIds.length > 0 ? formData.selection.subCategoryIds :
+                                                        formData.selection.categoryIds;
+
+                                                setFormData({
+                                                    ...formData,
+                                                    crossSellConfig: {
+                                                        ...formData.crossSellConfig,
+                                                        slabs: [
+                                                            ...formData.crossSellConfig.slabs,
+                                                            {
+                                                                rewardValue: 0,
+                                                                items: targetIds.map(id => ({ id, minScans: 0 }))
+                                                            }
+                                                        ]
+                                                    }
+                                                });
+                                            }}
+                                            className="w-full py-6 border-2 border-dashed border-indigo-200 rounded-[32px] text-indigo-600 font-bold hover:bg-indigo-50 hover:border-indigo-300 transition-all flex items-center justify-center gap-3"
+                                        >
+                                            <i className="fas fa-plus-circle text-xl"></i>
+                                            Add Achievement Slab
+                                        </button>
+                                    </div>
                                 ) : (
                                     <div className="md:col-span-2 space-y-8 bg-gray-900 rounded-[32px] p-8 shadow-xl shadow-gray-200 text-white">
                                         <div className="flex justify-between items-center">
                                             <h3 className="text-sm font-black uppercase tracking-widest text-white/90">2. Slab Config</h3>
-                                            <button 
+                                            <button
                                                 type="button"
                                                 onClick={addSlab}
                                                 className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-300"
@@ -833,10 +1097,9 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                         <button
                                                             key={basis.id}
                                                             type="button"
-                                                            onClick={() => setFormData({...formData, slabConfig: { ...formData.slabConfig, basis: basis.id as any }})}
-                                                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                                                formData.slabConfig.basis === basis.id ? 'bg-white text-gray-900 shadow-lg' : 'text-white/40 hover:text-white'
-                                                            }`}
+                                                            onClick={() => setFormData({ ...formData, slabConfig: { ...formData.slabConfig, basis: basis.id as any } })}
+                                                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${formData.slabConfig.basis === basis.id ? 'bg-white text-gray-900 shadow-lg' : 'text-white/40 hover:text-white'
+                                                                }`}
                                                         >
                                                             {basis.label}
                                                         </button>
@@ -853,10 +1116,9 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                         <button
                                                             key={type.id}
                                                             type="button"
-                                                            onClick={() => setFormData({...formData, slabConfig: { ...formData.slabConfig, disbursalType: type.id as any }})}
-                                                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                                                formData.slabConfig.disbursalType === type.id ? 'bg-red-600 text-white shadow-lg' : 'text-white/40 hover:text-white'
-                                                            }`}
+                                                            onClick={() => setFormData({ ...formData, slabConfig: { ...formData.slabConfig, disbursalType: type.id as any } })}
+                                                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${formData.slabConfig.disbursalType === type.id ? 'bg-red-600 text-white shadow-lg' : 'text-white/40 hover:text-white'
+                                                                }`}
                                                         >
                                                             {type.label}
                                                         </button>
@@ -870,7 +1132,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                 <div key={index} className="grid grid-cols-4 gap-4 p-5 bg-white/5 rounded-2xl border border-white/10 group animate-in slide-in-from-right-2">
                                                     <div className="space-y-1">
                                                         <p className="text-[9px] font-black text-white/30 uppercase ml-1">Min {formData.slabConfig.basis === 'SCAN_COUNT' ? 'Scans' : 'Points'}</p>
-                                                        <input 
+                                                        <input
                                                             type="number"
                                                             value={slab.min}
                                                             onChange={e => updateSlab(index, 'min', Number(e.target.value))}
@@ -879,7 +1141,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                     </div>
                                                     <div className="space-y-1">
                                                         <p className="text-[9px] font-black text-white/30 uppercase ml-1">Max {formData.slabConfig.basis === 'SCAN_COUNT' ? 'Scans' : 'Points'}</p>
-                                                        <input 
+                                                        <input
                                                             type="number"
                                                             value={slab.max}
                                                             onChange={e => updateSlab(index, 'max', Number(e.target.value))}
@@ -888,7 +1150,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                     </div>
                                                     <div className="space-y-1">
                                                         <p className="text-[9px] font-black text-white/30 uppercase ml-1">Bonus</p>
-                                                        <input 
+                                                        <input
                                                             type="number"
                                                             value={slab.rewardValue}
                                                             onChange={e => updateSlab(index, 'rewardValue', Number(e.target.value))}
@@ -896,7 +1158,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                                         />
                                                     </div>
                                                     <div className="flex items-end justify-center pb-1">
-                                                        <button 
+                                                        <button
                                                             type="button"
                                                             onClick={() => removeSlab(index)}
                                                             className="w-8 h-8 rounded-lg bg-white/5 text-white/20 hover:bg-red-500/20 hover:text-red-500 transition-colors"
@@ -917,44 +1179,43 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                             3. Audience & Limits
                                         </label>
                                         <div className="flex flex-wrap gap-2">
-                                            {masterData.userTypes
+                                            {(masterData.userTypes || [])
                                                 .filter((ut: any) => ['retailer', 'mechanic'].includes(ut.name.toLowerCase()))
                                                 .map((ut: any) => (
-                                                <button
-                                                    key={ut.id}
-                                                    type="button"
-                                                    onClick={() => toggleAudienceId(ut.id)}
-                                                    className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border-2 ${
-                                                        formData.audienceIds.includes(ut.id)
-                                                        ? 'bg-gray-800 border-gray-800 text-white shadow-lg'
-                                                        : 'bg-white border-gray-100 text-gray-500 hover:border-gray-300'
-                                                    }`}
-                                                >
-                                                    {ut.name}
-                                                </button>
-                                            ))}
+                                                    <button
+                                                        key={ut.id}
+                                                        type="button"
+                                                        onClick={() => toggleAudienceId(ut.id)}
+                                                        className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border-2 ${formData.audienceIds.includes(ut.id)
+                                                                ? 'bg-gray-800 border-gray-800 text-white shadow-lg'
+                                                                : 'bg-white border-gray-100 text-gray-500 hover:border-gray-300'
+                                                            }`}
+                                                    >
+                                                        {ut.name}
+                                                    </button>
+                                                ))}
                                         </div>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Points Budget</label>
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 placeholder="Unlimited"
                                                 className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
                                                 value={formData.maxBudget || ''}
-                                                onChange={e => setFormData({...formData, maxBudget: parseInt(e.target.value) || 0})}
+                                                onChange={e => setFormData({ ...formData, maxBudget: parseInt(e.target.value) || 0 })}
                                             />
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">User Limit</label>
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 placeholder="Unlimited"
                                                 className="w-full px-6 py-3 bg-gray-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-red-500"
                                                 value={formData.maxUsers || ''}
-                                                onChange={e => setFormData({...formData, maxUsers: parseInt(e.target.value) || 0})}
+                                                onChange={e => setFormData({ ...formData, maxUsers: parseInt(e.target.value) || 0 })}
                                             />
                                         </div>
                                     </div>
@@ -975,12 +1236,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <div className="relative mb-2">
                                             <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Search Zone..." 
+                                            <input
+                                                type="text"
+                                                placeholder="Search Zone..."
                                                 className="w-full pl-9 pr-3 py-2 bg-white border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
                                                 value={searchTerms.zone}
-                                                onChange={e => setSearchTerms({...searchTerms, zone: e.target.value})}
+                                                onChange={e => setSearchTerms({ ...searchTerms, zone: e.target.value })}
                                             />
                                         </div>
                                         <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto p-2 bg-white rounded-2xl border border-gray-100">
@@ -998,12 +1259,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <div className="relative mb-2">
                                             <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Search State..." 
+                                            <input
+                                                type="text"
+                                                placeholder="Search State..."
                                                 className="w-full pl-9 pr-3 py-2 bg-white border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
                                                 value={searchTerms.state}
-                                                onChange={e => setSearchTerms({...searchTerms, state: e.target.value})}
+                                                onChange={e => setSearchTerms({ ...searchTerms, state: e.target.value })}
                                             />
                                         </div>
                                         <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto p-2 bg-white rounded-2xl border border-gray-100">
@@ -1021,12 +1282,12 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                         </div>
                                         <div className="relative mb-2">
                                             <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-[10px]"></i>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Search City..." 
+                                            <input
+                                                type="text"
+                                                placeholder="Search City..."
                                                 className="w-full pl-9 pr-3 py-2 bg-white border border-gray-100 rounded-xl text-[10px] focus:ring-1 focus:ring-red-500 outline-none"
                                                 value={searchTerms.city}
-                                                onChange={e => setSearchTerms({...searchTerms, city: e.target.value})}
+                                                onChange={e => setSearchTerms({ ...searchTerms, city: e.target.value })}
                                             />
                                         </div>
                                         <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto p-2 bg-white rounded-2xl border border-gray-100">
@@ -1042,14 +1303,14 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
 
                             {/* Actions */}
                             <div className="pt-8 border-t border-gray-100 flex justify-end gap-4">
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => setIsCreateModalOpen(false)}
                                     className="px-8 py-4 text-gray-500 font-bold hover:text-gray-800 transition-colors"
                                 >
                                     Cancel
                                 </button>
-                                <button 
+                                <button
                                     type="submit"
                                     disabled={loading}
                                     className="w-full py-5 bg-red-600 text-white rounded-3xl text-sm font-black uppercase tracking-widest shadow-xl shadow-red-200 hover:bg-red-700 transition-all disabled:opacity-50"
@@ -1076,14 +1337,14 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     <p className="text-sm text-gray-500 font-medium">Comparing version #{selectedLog.id} for Scheme #{selectedLog.recordId}</p>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setSelectedLog(null)}
                                 className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
                             >
                                 <i className="fas fa-times text-gray-400"></i>
                             </button>
                         </div>
-                        
+
                         <div className="flex-1 overflow-y-auto p-8">
                             <div className="space-y-4">
                                 <div className="grid grid-cols-3 gap-4 px-6 py-3 bg-gray-50 rounded-2xl text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -1110,9 +1371,9 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="p-8 border-t border-gray-100 bg-gray-50/50 flex justify-end">
-                            <button 
+                            <button
                                 onClick={() => setSelectedLog(null)}
                                 className="px-8 py-3 bg-white border border-gray-200 rounded-2xl text-xs font-black text-gray-600 uppercase tracking-widest hover:bg-gray-50 transition-all"
                             >

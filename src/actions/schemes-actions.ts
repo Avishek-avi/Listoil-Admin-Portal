@@ -134,6 +134,15 @@ export async function createSchemeAction(type: string, data: any) {
                 geoScope: data.geoScope,
                 maxUsers: data.maxUsers || 0
             };
+        } else if (type === 'CrossSell') {
+            config.crossSell = {
+                targetType: data.targetType,
+                targetIds: data.targetIds,
+                crossSellConfig: data.crossSellConfig,
+                audienceIds: data.audienceIds,
+                geoScope: data.geoScope,
+                maxUsers: data.maxUsers || 0
+            };
         }
 
         const [result] = await db.insert(schemes).values({
@@ -143,6 +152,8 @@ export async function createSchemeAction(type: string, data: any) {
             startDate: data.startDate,
             endDate: data.endDate,
             budget: data.maxBudget || 0,
+            targetType: data.targetType,
+            targetIds: data.targetIds,
             config: config
         }).returning();
 
@@ -194,6 +205,15 @@ export async function updateSchemeAction(id: number, type: string, data: any) {
                     geoScope: data.geoScope,
                     maxUsers: data.maxUsers || 0
                 };
+            } else if (type === 'CrossSell') {
+                config.crossSell = {
+                    targetType: data.targetType,
+                    targetIds: data.targetIds,
+                    crossSellConfig: data.crossSellConfig,
+                    audienceIds: data.audienceIds,
+                    geoScope: data.geoScope,
+                    maxUsers: data.maxUsers || 0
+                };
             }
 
             await tx.update(schemes).set({
@@ -202,6 +222,8 @@ export async function updateSchemeAction(id: number, type: string, data: any) {
                 startDate: data.startDate,
                 endDate: data.endDate,
                 budget: data.maxBudget || 0,
+                targetType: data.targetType,
+                targetIds: data.targetIds,
                 config: config
             }).where(eq(schemes.id, id));
 

@@ -10,6 +10,7 @@ import {
     skuVariant 
 } from "@/db/schema";
 import { eq, and, ilike, sql, inArray, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 /**
  * Central engine to process Booster Schemes for a given transaction.
@@ -100,7 +101,7 @@ export async function processBoosterSchemes(
     .from(schemes)
     .innerJoin(schemeTypes, eq(schemes.schemeType, schemeTypes.id))
     .where(and(
-        inArray(schemeTypes.name, ['Booster', 'Slab']),
+        sql`LOWER(${schemeTypes.name}) IN ('booster', 'slab', 'crosssell')`,
         eq(schemes.isActive, true),
         sql`${schemes.startDate} <= NOW()`,
         sql`${schemes.endDate} >= NOW()`
@@ -110,9 +111,10 @@ export async function processBoosterSchemes(
 
     for (const scheme of activeSchemes) {
         const type = scheme.typeName;
-        const config = (scheme.config as any)?.[type === 'Booster' ? 'booster' : 'slab'];
+        console.log(`[BoosterEngine] Checking scheme: ${scheme.name} (ID: ${scheme.id}, Type: ${type})`);
+        const config = (scheme.config as any)?.[type === 'Booster' ? 'booster' : type === 'Slab' ? 'slab' : 'crossSell'];
         if (!config) {
-            console.log(`[BoosterEngine] No config found for scheme ${scheme.id} type ${type}`);
+            console.log(`[BoosterEngine] No config found for scheme ${scheme.id} type ${type}. Available keys:`, Object.keys(scheme.config || {}));
             continue;
         }
 
@@ -188,34 +190,53 @@ export async function processBoosterSchemes(
             const slabConfig = config.slabConfig;
             if (!slabConfig || slabConfig.disbursalType !== 'REALTIME') continue;
 
-            // Get current progress
-            const [progressRes] = await tx.select({
+            // Get current progress - MUST filter by targetIds
+            const targetType = config.targetType;
+            const l6 = alias(skuEntity, 'l6');
+            const l5 = alias(skuEntity, 'l5');
+            const l4 = alias(skuEntity, 'l4');
+
+            let progressQuery = tx.select({
                 totalPoints: sql<number>`sum(cast(points as integer))`,
                 scanCount: sql<number>`count(*)`
             })
             .from(mechanicTransactionLogs)
-            .where(and(
+            .innerJoin(skuVariant, sql`(${mechanicTransactionLogs.sku} = ${skuVariant.variantName} OR EXISTS (SELECT 1 FROM ${skuEntity} WHERE ${skuEntity.id} = ${skuVariant.skuEntityId} AND (${skuEntity.name} = ${mechanicTransactionLogs.sku} OR ${skuEntity.code} = ${mechanicTransactionLogs.sku})))`)
+            .innerJoin(l6, eq(skuVariant.skuEntityId, l6.id))
+            .$dynamic();
+
+            const conditions = [
                 eq(mechanicTransactionLogs.userId, data.userId),
                 eq(mechanicTransactionLogs.category, 'QR_SCAN'),
-                // We should ideally filter by scheme date range but the query above already does that for active schemes
-                // For slab progress, we count ALL scans during the scheme's validity
                 sql`${mechanicTransactionLogs.createdAt} >= ${scheme.startDate}`, 
                 sql`${mechanicTransactionLogs.createdAt} <= ${scheme.endDate}`
-            ));
+            ];
+
+            if (targetType === 'Category') {
+                progressQuery.leftJoin(l5, eq(l6.parentEntityId, l5.id))
+                             .leftJoin(l4, eq(l5.parentEntityId, l4.id))
+                             .where(and(...conditions, inArray(l4.id, config.targetIds)));
+            } else if (targetType === 'SubCategory') {
+                progressQuery.leftJoin(l5, eq(l6.parentEntityId, l5.id))
+                             .where(and(...conditions, inArray(l5.id, config.targetIds)));
+            } else if (targetType === 'SKU') {
+                progressQuery.where(and(...conditions, inArray(skuVariant.id, config.targetIds)));
+            } else {
+                progressQuery.where(and(...conditions));
+            }
+
+            const [progressRes] = await progressQuery;
 
             const currentBasisValue = slabConfig.basis === 'SCAN_COUNT' 
                 ? Number(progressRes?.scanCount || 0)
                 : Number(progressRes?.totalPoints || 0);
 
-            console.log(`[BoosterEngine] Slab Progress for ${scheme.id}: Basis=${slabConfig.basis}, CurrentValue=${currentBasisValue} (Scans: ${progressRes?.scanCount}, Points: ${progressRes?.totalPoints})`);
+            console.log(`[BoosterEngine] Slab Progress for ${scheme.id}: Basis=${slabConfig.basis}, CurrentValue=${currentBasisValue}`);
 
-            // Find matching slab - Only trigger if the user has REACHED the max of a slab
-            const matchingSlab = slabConfig.slabs.find((s: any) => 
-                currentBasisValue === Number(s.max)
-            );
+            // Find matching slab
+            const matchingSlab = slabConfig.slabs.find((s: any) => currentBasisValue === Number(s.max));
 
             if (matchingSlab) {
-                // Double check if this slab was already rewarded to prevent duplicates
                 const [alreadyRewarded] = await tx.select({ id: mechanicTransactionLogs.id })
                     .from(mechanicTransactionLogs)
                     .where(and(
@@ -228,15 +249,106 @@ export async function processBoosterSchemes(
 
                 if (!alreadyRewarded) {
                     bonusPoints = Number(matchingSlab.rewardValue);
-                    remarks = `Slab Reward Completion: ${scheme.name} (Milestone: ${matchingSlab.max} ${slabConfig.basis === 'SCAN_COUNT' ? 'Scans' : 'Pts'})`;
-                    // Store the milestone in metadata so we don't repeat it
+                    remarks = `Slab Reward Completion: ${scheme.name} (Milestone: ${matchingSlab.max})`;
+                    metadata = { ...metadata, slabMax: matchingSlab.max, basisValue: currentBasisValue };
+                }
+            }
+        }
+        else if (type === 'CrossSell') {
+            category = 'SCHEME_CROSSSELL';
+            const crossSellConfig = config.crossSellConfig;
+            
+            // Support both old format (items directly in config) and new format (slabs array)
+            const slabs = crossSellConfig.slabs || (crossSellConfig.items ? [{ 
+                rewardValue: crossSellConfig.rewardValue, 
+                items: crossSellConfig.items 
+            }] : []);
+
+            if (!slabs.length) {
+                console.log(`[BoosterEngine] CrossSell scheme ${scheme.id} has no valid slabs/items`);
+                continue;
+            }
+
+            console.log(`[BoosterEngine] Checking CrossSell achievement for scheme ${scheme.id} (${slabs.length} slabs)`);
+
+            // 1. Pre-calculate counts for all target items in this scheme to avoid redundant queries
+            const targetIds = config.targetIds || [];
+            const countsMap = new Map<number, number>();
+            const targetType = config.targetType;
+
+            for (const id of targetIds) {
+                const conditions = [
+                    eq(mechanicTransactionLogs.userId, data.userId),
+                    eq(mechanicTransactionLogs.category, 'QR_SCAN'),
+                    sql`${mechanicTransactionLogs.createdAt} >= ${scheme.startDate}`,
+                    sql`${mechanicTransactionLogs.createdAt} <= ${scheme.endDate}`
+                ];
+
+                const l6 = alias(skuEntity, 'l6');
+                const l5 = alias(skuEntity, 'l5');
+                const l4 = alias(skuEntity, 'l4');
+
+                let query = tx.select({ count: sql<number>`count(*)` })
+                    .from(mechanicTransactionLogs)
+                    .innerJoin(skuVariant, sql`(${mechanicTransactionLogs.sku} = ${skuVariant.variantName} OR EXISTS (SELECT 1 FROM ${skuEntity} WHERE ${skuEntity.id} = ${skuVariant.skuEntityId} AND (${skuEntity.name} = ${mechanicTransactionLogs.sku} OR ${skuEntity.code} = ${mechanicTransactionLogs.sku})))`)
+                    .innerJoin(l6, eq(skuVariant.skuEntityId, l6.id))
+                    .$dynamic();
+
+                if (targetType === 'Category') {
+                    query.leftJoin(l5, eq(l6.parentEntityId, l5.id))
+                         .leftJoin(l4, eq(l5.parentEntityId, l4.id))
+                         .where(and(...conditions, eq(l4.id, id)));
+                } else if (targetType === 'SubCategory') {
+                    query.leftJoin(l5, eq(l6.parentEntityId, l5.id))
+                         .where(and(...conditions, eq(l5.id, id)));
+                } else { // SKU
+                    query.where(and(...conditions, eq(skuVariant.id, id)));
+                }
+
+                const [res] = await query;
+                countsMap.set(id, Number(res?.count || 0));
+            }
+
+            // 2. Check each slab in order
+            for (let i = 0; i < slabs.length; i++) {
+                const slab = slabs[i];
+                if (!slab.items?.length) continue;
+
+                // Check if already rewarded for this specific slab
+                const [alreadyRewarded] = await tx.select({ id: mechanicTransactionLogs.id })
+                    .from(mechanicTransactionLogs)
+                    .where(and(
+                        eq(mechanicTransactionLogs.userId, data.userId),
+                        eq(mechanicTransactionLogs.schemeId, scheme.id),
+                        eq(mechanicTransactionLogs.category, 'SCHEME_CROSSSELL'),
+                        sql`metadata->>'slabIndex' = ${i.toString()}`
+                    ))
+                    .limit(1);
+
+                if (alreadyRewarded) continue;
+
+                let allMet = true;
+                const itemProgress = [];
+                for (const item of slab.items) {
+                    const count = countsMap.get(item.id) || 0;
+                    itemProgress.push({ id: item.id, count, required: item.minScans });
+                    if (count < item.minScans) {
+                        allMet = false;
+                        break;
+                    }
+                }
+
+                if (allMet) {
+                    console.log(`[BoosterEngine] Cross-Sell Slab ${i + 1} achievement UNLOCKED for scheme ${scheme.id}`);
+                    bonusPoints = Number(slab.rewardValue);
+                    remarks = `Cross-Sell Reward: ${scheme.name} (Slab ${i + 1} Achievement)`;
                     metadata = { 
                         ...metadata, 
-                        slabMax: matchingSlab.max,
-                        basisValue: currentBasisValue
+                        slabIndex: i,
+                        itemProgress,
+                        achievementDate: now
                     };
-                } else {
-                    console.log(`[BoosterEngine] Slab milestone ${matchingSlab.max} already rewarded for user ${data.userId}`);
+                    break; // Reward only the highest unrewarded slab reached in this scan
                 }
             }
         }
