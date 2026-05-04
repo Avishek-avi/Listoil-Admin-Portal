@@ -67,7 +67,13 @@ export default function DashboardClient() {
         refetchInterval: 30000
     });
 
-    const filteredCities = Array.from(new Map(((locations?.cities as any[]) || [])
+    const allCities = locations?.citiesByState 
+        ? Object.entries(locations.citiesByState).flatMap(([state, cities]) => 
+            (cities as string[]).map(city => ({ city, state }))
+          )
+        : [];
+
+    const filteredCities = Array.from(new Map(allCities
         .filter(c => !selectedState || c.state === selectedState)
         .map(c => [c.city, c])).values());
 
@@ -266,49 +272,51 @@ export default function DashboardClient() {
     return (
         <div className="space-y-6">
             {/* ① Context & Filter Bar */}
-            <div className="widget-card rounded-xl p-4 bg-white shadow-sm border border-gray-100">
-                <div className="flex flex-wrap gap-4 items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-xs font-bold flex items-center gap-2">
-                            <i className="fas fa-user-shield"></i> Admin View
+            {session?.user?.permissions?.includes('all') && (
+                <div className="widget-card rounded-xl p-4 bg-white shadow-sm border border-gray-100">
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="px-3 py-1 bg-red-50 text-red-700 rounded-full text-xs font-bold flex items-center gap-2">
+                                <i className="fas fa-user-shield"></i> Admin View
+                            </div>
+                            <div className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold flex items-center gap-1">
+                                <i className="fas fa-globe"></i> National
+                            </div>
                         </div>
-                        <div className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold flex items-center gap-1">
-                            <i className="fas fa-globe"></i> National
-                        </div>
-                    </div>
-                    <div className="flex flex-wrap gap-3 items-center">
-                        <div className="flex items-center gap-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase">State</label>
-                            <select 
-                                value={selectedState}
-                                onChange={(e) => {
-                                    setSelectedState(e.target.value);
-                                    setSelectedCity(''); // Reset city on state change
-                                }}
-                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none min-w-[120px]"
-                            >
-                                <option value="">All States</option>
-                                {Array.from(new Set((locations?.states as string[]) || [])).map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase">City</label>
-                            <select 
-                                value={selectedCity}
-                                onChange={(e) => setSelectedCity(e.target.value)}
-                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none min-w-[120px]"
-                            >
-                                <option value="">All Cities</option>
-                                {filteredCities.map(c => (
-                                    <option key={`${c.state}-${c.city}`} value={c.city}>{c.city}</option>
-                                ))}
-                            </select>
+                        <div className="flex flex-wrap gap-3 items-center">
+                            <div className="flex items-center gap-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">State</label>
+                                <select 
+                                    value={selectedState}
+                                    onChange={(e) => {
+                                        setSelectedState(e.target.value);
+                                        setSelectedCity(''); // Reset city on state change
+                                    }}
+                                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none min-w-[120px]"
+                                >
+                                    <option value="">All States</option>
+                                    {Array.from(new Set((locations?.states as string[]) || [])).map(s => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase">City</label>
+                                <select 
+                                    value={selectedCity}
+                                    onChange={(e) => setSelectedCity(e.target.value)}
+                                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-red-500 outline-none min-w-[120px]"
+                                >
+                                    <option value="">All Cities</option>
+                                    {filteredCities.map(c => (
+                                        <option key={`${c.state}-${c.city}`} value={c.city}>{c.city}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* ② Top Level Health KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-stretch">
