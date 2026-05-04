@@ -19,7 +19,7 @@ import {
     Box, Grid, Typography, Tabs, Tab, Button, Avatar,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, TextField, Menu, MenuItem, Dialog, DialogTitle,
-    DialogContent, DialogActions, Chip, CircularProgress, Snackbar,
+    DialogContent, DialogContentText, DialogActions, Chip, CircularProgress, Snackbar,
     Alert, Select, FormControl, InputLabel, Divider, Stepper,
     Step, StepLabel, Tooltip, Paper,
 } from '@mui/material'
@@ -874,11 +874,22 @@ function TransactionsTab() {
     });
     const queryClient = useQueryClient();
     const [rollbackLoading, setRollbackLoading] = useState<number | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; id: number | null; type: string }>({
+        open: false,
+        id: null,
+        type: ''
+    });
     const [alert, setAlert] = useState<{ open: boolean; msg: string; type: 'success' | 'error' }>({ open: false, msg: '', type: 'success' });
 
-    const handleRollback = async (id: number, type: string) => {
-        if (!confirm('Are you sure you want to rollback this transaction? This will also revert user balance and reset QR status if applicable.')) return;
+    const handleRollbackClick = (id: number, type: string) => {
+        setConfirmDialog({ open: true, id, type });
+    };
+
+    const confirmRollback = async () => {
+        if (confirmDialog.id === null) return;
         
+        const { id, type } = confirmDialog;
+        setConfirmDialog(p => ({ ...p, open: false }));
         setRollbackLoading(id);
         const res = await rollbackTransactionAction(id, type);
         setRollbackLoading(null);
@@ -911,6 +922,7 @@ function TransactionsTab() {
                             <TableCell>Reference (QR / Invoice)</TableCell>
                             <TableCell>Remarks</TableCell>
                             <TableCell align="right">Points</TableCell>
+                            <TableCell align="center">Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -952,20 +964,30 @@ function TransactionsTab() {
                                     </Typography>
                                 </TableCell>
                                 <TableCell align="right">
-                                    <Box display="flex" flexDirection="column" alignItems="flex-end">
-                                        <Typography variant="body2" fontWeight={700} color="success.main">
-                                            +{t.points}
-                                        </Typography>
-                                        <Button 
-                                            size="small" 
-                                            color="error" 
-                                            onClick={() => handleRollback(t.id, t.transactionType)}
-                                            disabled={rollbackLoading === t.id}
-                                            sx={{ textTransform: 'none', fontSize: '0.65rem', p: 0, mt: 0.5, minWidth: 0 }}
-                                        >
-                                            {rollbackLoading === t.id ? 'Wait...' : 'Rollback'}
-                                        </Button>
-                                    </Box>
+                                    <Typography variant="body2" fontWeight={700} color="success.main">
+                                        +{t.points}
+                                    </Typography>
+                                </TableCell>
+                                <TableCell align="center">
+                                    <Button 
+                                        size="small" 
+                                        variant="outlined"
+                                        color="error" 
+                                        onClick={() => handleRollbackClick(t.id, t.transactionType)}
+                                        disabled={rollbackLoading === t.id}
+                                        startIcon={rollbackLoading === t.id ? <CircularProgress size={12} color="inherit" /> : <i className="fas fa-undo-alt" style={{ fontSize: '0.65rem' }}></i>}
+                                        sx={{ 
+                                            textTransform: 'none', 
+                                            fontSize: '0.65rem', 
+                                            px: 1.5, 
+                                            py: 0.5,
+                                            borderRadius: '6px',
+                                            fontWeight: 600,
+                                            '&:hover': { bgcolor: '#fff5f5' }
+                                        }}
+                                    >
+                                        {rollbackLoading === t.id ? 'Wait...' : 'Rollback'}
+                                    </Button>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -990,6 +1012,37 @@ function TransactionsTab() {
                     {alert.msg}
                 </Alert>
             </Snackbar>
+
+            <Dialog 
+                open={confirmDialog.open} 
+                onClose={() => setConfirmDialog(p => ({ ...p, open: false }))}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Confirm Rollback</DialogTitle>
+                <DialogContent>
+                    <DialogContentText sx={{ fontSize: '0.9rem' }}>
+                        Are you sure you want to rollback this transaction? 
+                        This will deduct points from the mechanic's balance and reset the QR code status.
+                        This action cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button 
+                        onClick={() => setConfirmDialog(p => ({ ...p, open: false }))}
+                        sx={{ color: 'text.secondary', textTransform: 'none', fontWeight: 600 }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={confirmRollback} 
+                        variant="contained" 
+                        color="error"
+                        sx={{ textTransform: 'none', fontWeight: 600, px: 3, borderRadius: '8px' }}
+                    >
+                        Rollback Transaction
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </div>
     );
 }

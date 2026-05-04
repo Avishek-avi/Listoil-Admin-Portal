@@ -437,7 +437,10 @@ export default function DashboardClient() {
                                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
                                     <i className="fas fa-user-gear text-blue-600 text-lg"></i>
                                 </div>
-                                Exception and QR Scan · Points per Scan
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 leading-tight">Mechanics</h3>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Exception and QR Scan · Points per Scan</p>
+                                </div>
                             </div>
                             <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 uppercase tracking-wider">Scan-based</span>
                         </div>
