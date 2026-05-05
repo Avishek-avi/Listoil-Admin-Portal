@@ -1,12 +1,24 @@
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
-import { createSchemeAction, updateSchemeAction, getSchemeAuditLogsAction } from "@/actions/schemes-actions";
+import { 
+    createSchemeAction, 
+    updateSchemeAction, 
+    getSchemeAuditLogsAction, 
+    getSchemeParticipationReportAction 
+} from "@/actions/schemes-actions";
 import { toast } from "react-hot-toast";
 
 interface SchemesClientProps {
     initialSchemes: any[];
     masterData: any;
+    dashboardStats: {
+        liveSchemesCount: number;
+        totalBudget: number;
+        totalSpent: number;
+        eligibleUsersCount: number;
+        efficiency: number;
+    };
 }
 
 const formatDate = (dateString: string) => {
@@ -34,13 +46,15 @@ const FIELD_LABELS: Record<string, string> = {
     audienceIds: 'Target Audience'
 };
 
-export default function SchemesClient({ initialSchemes, masterData }: SchemesClientProps) {
+export default function SchemesClient({ initialSchemes, masterData, dashboardStats }: SchemesClientProps) {
     const [activeTab, setActiveTab] = useState('Booster Scheme');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [editingSchemeId, setEditingSchemeId] = useState<number | null>(null);
     const [schemeLogs, setSchemeLogs] = useState<any[]>([]);
     const [logsLoading, setLogsLoading] = useState(false);
+    const [participationReport, setParticipationReport] = useState<any[]>([]);
+    const [reportLoading, setReportLoading] = useState(false);
     const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
     // Form State
@@ -89,7 +103,24 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
         city: ''
     });
 
-    const tabs = ['Booster Scheme', 'Slab Based', 'Cross-Sell', 'Scheme Logs'];
+    const fetchParticipationReport = async () => {
+        setReportLoading(true);
+        try {
+            const res = await getSchemeParticipationReportAction();
+            if (res.success) {
+                setParticipationReport(res.data || []);
+            } else {
+                toast.error(res.error || "Failed to fetch report");
+            }
+        } catch (err: any) {
+            console.error("Fetch report error:", err);
+            toast.error("An unexpected error occurred while fetching report");
+        } finally {
+            setReportLoading(false);
+        }
+    };
+
+    const tabs = ['Booster Scheme', 'Slab Based', 'Cross-Sell', 'Participation Report', 'Scheme Logs'];
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -462,13 +493,102 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
 
     return (
         <>
-            <div className="space-y-6">
+            <div className="space-y-8">
+                {/* Dashboard Stats Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Live Schemes Card */}
+                    <div className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+                        <div className="flex items-center gap-4 relative z-10">
+                            <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 group-hover:scale-110 transition-transform duration-500">
+                                <i className="fas fa-rocket text-2xl"></i>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Live Schemes</p>
+                                <h4 className="text-3xl font-black text-gray-800 tracking-tighter">{dashboardStats.liveSchemesCount}</h4>
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 text-[11px] font-bold text-green-600 bg-green-50 w-fit px-3 py-1 rounded-full relative z-10">
+                            <i className="fas fa-check-circle"></i>
+                            <span>Currently Active</span>
+                        </div>
+                        <i className="fas fa-rocket absolute -right-4 -bottom-4 text-7xl text-gray-50/50 -rotate-12 group-hover:rotate-0 transition-all duration-700"></i>
+                    </div>
+
+                    {/* Budget Consumption Card */}
+                    <div className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+                        <div className="flex items-center gap-4 relative z-10">
+                            <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform duration-500">
+                                <i className="fas fa-chart-pie text-2xl"></i>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Points Distributed</p>
+                                <h4 className="text-2xl font-black text-gray-800 tracking-tighter">
+                                    {dashboardStats.totalSpent.toLocaleString()} <span className="text-sm text-gray-400">/ {dashboardStats.totalBudget === 0 ? '∞' : dashboardStats.totalBudget.toLocaleString()}</span>
+                                </h4>
+                            </div>
+                        </div>
+                        <div className="mt-4 relative z-10">
+                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div 
+                                    className="h-full bg-blue-600 rounded-full transition-all duration-1000" 
+                                    style={{ width: `${dashboardStats.totalBudget === 0 ? 100 : Math.min(dashboardStats.efficiency, 100)}%` }}
+                                />
+                            </div>
+                            <div className="flex justify-between mt-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                <span>Budget Usage</span>
+                                <span className="text-blue-600">{dashboardStats.totalBudget === 0 ? 'Unlimited' : `${dashboardStats.efficiency.toFixed(1)}%`}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Eligible Users Card */}
+                    <div className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+                        <div className="flex items-center gap-4 relative z-10">
+                            <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform duration-500">
+                                <i className="fas fa-users text-2xl"></i>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Target Audience</p>
+                                <h4 className="text-3xl font-black text-gray-800 tracking-tighter">{dashboardStats.eligibleUsersCount.toLocaleString()}</h4>
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 text-[11px] font-bold text-indigo-600 bg-indigo-50 w-fit px-3 py-1 rounded-full relative z-10">
+                            <i className="fas fa-bullseye"></i>
+                            <span>Potential Reach</span>
+                        </div>
+                        <i className="fas fa-users absolute -right-4 -bottom-4 text-7xl text-gray-50/50 -rotate-12 group-hover:rotate-0 transition-all duration-700"></i>
+                    </div>
+
+                    {/* Quick Action Card */}
+                    <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-[32px] p-6 shadow-lg shadow-red-200 group cursor-pointer active:scale-95 transition-all" onClick={() => setIsCreateModalOpen(true)}>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-md">
+                                <i className="fas fa-plus text-xl"></i>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-red-100 uppercase tracking-widest">New Program</p>
+                                <h4 className="text-xl font-black text-white leading-tight">Create New Scheme</h4>
+                            </div>
+                        </div>
+                        <p className="text-xs text-red-100 leading-relaxed font-medium">Launch a new booster or slab-based program to drive sales.</p>
+                        <div className="mt-4 flex items-center gap-2 text-[10px] font-black text-white uppercase tracking-[0.2em]">
+                            <span>Configure Now</span>
+                            <i className="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
                 {/* Tabs */}
                 <div className="flex gap-2 p-1 bg-gray-100/50 rounded-2xl w-fit border border-gray-200/50 backdrop-blur-sm">
                     {tabs.map(tab => (
                         <button
                             key={tab}
-                            onClick={() => setActiveTab(tab)}
+                            onClick={() => {
+                                setActiveTab(tab);
+                                if (tab === 'Scheme Logs') fetchLogs();
+                                if (tab === 'Participation Report') fetchParticipationReport();
+                            }}
                             className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === tab
                                     ? 'bg-white text-red-600 shadow-sm border border-gray-100'
                                     : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
@@ -486,13 +606,15 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                             <h2 className="text-xl font-bold text-gray-800">{activeTab}s</h2>
                             <p className="text-sm text-gray-500 mt-1">Manage your active and upcoming {activeTab.toLowerCase()} programs</p>
                         </div>
-                        <button
-                            onClick={() => setIsCreateModalOpen(true)}
-                            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-200 transition-all active:scale-95"
-                        >
-                            <i className="fas fa-plus-circle"></i>
-                            Create {activeTab}
-                        </button>
+                        {!['Participation Report', 'Scheme Logs'].includes(activeTab) && (
+                            <button
+                                onClick={() => setIsCreateModalOpen(true)}
+                                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-red-200 transition-all active:scale-95"
+                            >
+                                <i className="fas fa-plus-circle"></i>
+                                Create {activeTab}
+                            </button>
+                        )}
                     </div>
 
                     <div className="p-8">
@@ -624,6 +746,106 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                                     </div>
                                 )}
                             </div>
+                        ) : activeTab === 'Participation Report' ? (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="flex justify-between items-center mb-8">
+                                    <div>
+                                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Scheme Participation Report</h3>
+                                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">Tracking live progress for Slab & Cross-Sell schemes</p>
+                                    </div>
+                                    <button 
+                                        onClick={fetchParticipationReport}
+                                        disabled={reportLoading}
+                                        className="px-5 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border border-gray-100"
+                                    >
+                                        <i className={`fas fa-sync-alt ${reportLoading ? 'animate-spin' : ''}`}></i>
+                                        Refresh Report
+                                    </button>
+                                </div>
+
+                                <div className="overflow-x-auto rounded-[32px] border border-gray-100 bg-white shadow-sm overflow-hidden">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-gray-50/50 border-b border-gray-100">
+                                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Participant</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Scheme</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Type</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Achievement</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Current Slab</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Next Target</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {participationReport.map((row, idx) => (
+                                                <tr key={idx} className="hover:bg-gray-50/30 transition-colors group">
+                                                    <td className="px-8 py-5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-black text-red-600">
+                                                                {row.userName?.substring(0, 2).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-black text-gray-800">{row.userName}</p>
+                                                                <p className="text-[9px] font-bold text-gray-400">ID: {row.userId}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <p className="text-[11px] font-bold text-gray-700">{row.schemeName}</p>
+                                                        <p className="text-[9px] font-medium text-gray-400 uppercase tracking-tighter">ID: {row.schemeId}</p>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${row.schemeType === 'Slab' ? 'bg-blue-50 text-blue-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                                            {row.schemeType}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <p className="text-[12px] font-black text-gray-800">{row.currentValue}</p>
+                                                            <p className="text-[9px] font-bold text-gray-400 uppercase">{row.basis}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className="px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                                            {row.currentSlab}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <div className="space-y-1">
+                                                            <p className="text-[11px] font-bold text-gray-800">{row.nextSlab}</p>
+                                                            <p className="text-[9px] font-bold text-red-500 uppercase tracking-tighter leading-tight max-w-[150px]">
+                                                                {row.pendingToNext === 0 ? 'Max Milestone Reached' : `Pending: ${row.pendingToNext}`}
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <div className="w-32">
+                                                            <div className="flex justify-between text-[9px] font-black text-gray-400 uppercase mb-1">
+                                                                <span>Progress</span>
+                                                                <span>{row.progress}%</span>
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-1000 ${Number(row.progress) >= 100 ? 'bg-green-500' : 'bg-red-500'}`}
+                                                                    style={{ width: `${row.progress}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {participationReport.length === 0 && !reportLoading && (
+                                        <div className="p-20 text-center">
+                                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <i className="fas fa-users-slash text-2xl text-gray-200"></i>
+                                            </div>
+                                            <p className="text-sm font-bold text-gray-400">No participation data found</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         ) : activeTab === 'Scheme Logs' ? (
                             <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
                                 <div className="p-8 border-b border-gray-50 flex justify-between items-center">
@@ -714,6 +936,7 @@ export default function SchemesClient({ initialSchemes, masterData }: SchemesCli
                     </div>
                 </div>
             </div>
+        </div>
 
             {/* Create Modal */}
             {isCreateModalOpen && (

@@ -32,8 +32,19 @@ import {
     Search as SearchIcon,
     ArrowBack as ArrowBackIcon,
     Badge as BadgeIcon,
-    Groups as GroupsIcon
+    Groups as GroupsIcon,
+    TableChart as TableChartIcon,
+    FilterList as FilterListIcon,
+    MoreVert as MoreVertIcon
 } from '@mui/icons-material';
+import { 
+    Table, 
+    TableBody, 
+    TableCell, 
+    TableContainer, 
+    TableHead, 
+    TableRow,
+} from '@mui/material';
 import { getTeamHierarchyAction, TeamMember } from '@/actions/team-actions';
 
 export default function TeamHierarchyClient() {
@@ -175,7 +186,7 @@ export default function TeamHierarchyClient() {
                 </Box>
             )}
 
-            {/* Grid of Members */}
+            {/* Table View of Members */}
             {filteredMembers.length === 0 ? (
                 <Paper sx={{ p: 8, textAlign: 'center', borderRadius: '24px', bgcolor: alpha('#f1f5f9', 0.5), border: '2px dashed #cbd5e1' }}>
                     <GroupsIcon sx={{ fontSize: 48, color: '#94a3b8', mb: 2 }} />
@@ -183,131 +194,163 @@ export default function TeamHierarchyClient() {
                     <Typography variant="body2" color="textSecondary">Try adjusting your search or navigation.</Typography>
                 </Paper>
             ) : (
-                <Grid container spacing={3}>
-                    {filteredMembers.map((member) => (
-                        <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={member.id}>
-                            <MemberDrillCard 
-                                member={member} 
-                                onDrillDown={() => handleDrillDown(member)}
-                            />
-                        </Grid>
-                    ))}
-                </Grid>
+                <TableContainer 
+                    component={Paper} 
+                    sx={{ 
+                        borderRadius: '20px', 
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+                        border: '1px solid #e2e8f0',
+                        overflow: 'hidden'
+                    }}
+                >
+                    <Table sx={{ minWidth: 650 }} aria-label="team hierarchy table">
+                        <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: 800, color: '#64748b', py: 2.5 }}>MEMBER</TableCell>
+                                <TableCell sx={{ fontWeight: 800, color: '#64748b' }}>ROLE</TableCell>
+                                <TableCell sx={{ fontWeight: 800, color: '#64748b' }}>LOCATION / SCOPE</TableCell>
+                                <TableCell sx={{ fontWeight: 800, color: '#64748b' }} align="center">MAPPED MEMBERS</TableCell>
+                                <TableCell align="right"></TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {filteredMembers.map((member) => (
+                                <HierarchyTableRow 
+                                    key={member.id} 
+                                    member={member} 
+                                    onDrillDown={() => handleDrillDown(member)} 
+                                />
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
             )}
         </Box>
     );
 }
 
-function MemberDrillCard({ member, onDrillDown }: { member: TeamMember, onDrillDown: () => void }) {
+function HierarchyTableRow({ member, onDrillDown }: { member: TeamMember, onDrillDown: () => void }) {
     const hasChildren = member.children && member.children.length > 0;
     
     const roleColors: Record<string, string> = {
+        'SALES HEAD': '#0f172a',
         'TSM': '#3b82f6',
         'SR': '#8b5cf6',
+        'Distributor': '#0ea5e9',
         'Retailer': '#10b981',
         'Mechanic': '#f59e0b'
     };
 
     const roleIcons: Record<string, React.ReactNode> = {
-        'TSM': <BadgeIcon />,
-        'SR': <PersonIcon />,
-        'Retailer': <StorefrontIcon />,
-        'Mechanic': <EngineeringIcon />
+        'SALES HEAD': <GroupsIcon sx={{ fontSize: '1.2rem' }} />,
+        'TSM': <BadgeIcon sx={{ fontSize: '1.2rem' }} />,
+        'SR': <PersonIcon sx={{ fontSize: '1.2rem' }} />,
+        'Distributor': <StorefrontIcon sx={{ fontSize: '1.2rem' }} />,
+        'Retailer': <StorefrontIcon sx={{ fontSize: '1.2rem' }} />,
+        'Mechanic': <EngineeringIcon sx={{ fontSize: '1.2rem' }} />
     };
 
     const color = roleColors[member.role] || '#64748b';
 
     return (
-        <Card 
+        <TableRow
+            hover
             onClick={hasChildren ? onDrillDown : undefined}
             sx={{ 
-                height: '100%', 
-                borderRadius: '20px',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 cursor: hasChildren ? 'pointer' : 'default',
-                border: '1px solid #e2e8f0',
-                position: 'relative',
-                overflow: 'visible',
-                '&:hover': hasChildren ? {
-                    transform: 'translateY(-4px)',
-                    boxShadow: `0 12px 24px ${alpha(color, 0.1)}`,
-                    borderColor: color
-                } : {}
+                '&:hover': {
+                    bgcolor: alpha(color, 0.02) + ' !important'
+                },
+                transition: 'background-color 0.2s'
             }}
         >
-            <CardContent sx={{ p: 3 }}>
-                <Box display="flex" alignItems="center" mb={2}>
+            <TableCell sx={{ py: 2 }}>
+                <Box display="flex" alignItems="center" gap={2}>
                     <Avatar 
                         sx={{ 
                             bgcolor: alpha(color, 0.1), 
                             color: color,
-                            width: 52, 
-                            height: 52,
-                            borderRadius: '16px',
-                            mr: 2
+                            width: 44, 
+                            height: 44,
+                            borderRadius: '12px',
+                            fontWeight: 700,
+                            fontSize: '1rem'
                         }}
                     >
-                        {roleIcons[member.role] || <PersonIcon />}
+                        {member.name.charAt(0)}
                     </Avatar>
-                    <Box sx={{ flex: 1 }}>
-                        <Typography variant="h6" fontWeight="800" sx={{ color: '#1e293b', lineHeight: 1.2 }}>
+                    <Box>
+                        <Typography variant="body1" fontWeight="700" sx={{ color: '#1e293b' }}>
                             {member.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: color, fontWeight: 700, textTransform: 'uppercase' }}>
-                            {member.role}
+                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 500 }}>
+                            ID: #{Math.abs(member.id).toString().slice(-6)}
                         </Typography>
                     </Box>
-                    {hasChildren && (
-                        <IconButton size="small" sx={{ bgcolor: '#f8fafc' }}>
-                            <ChevronRightIcon />
-                        </IconButton>
-                    )}
                 </Box>
-
-                <Divider sx={{ my: 2, opacity: 0.5 }} />
-
-                <Box display="flex" flexDirection="column" gap={1.5}>
-                    <Box display="flex" alignItems="center" gap={1}>
-                        <LocationIcon sx={{ fontSize: '0.9rem', color: '#64748b' }} />
-                        <Typography variant="body2" color="textSecondary" sx={{ fontWeight: 500 }}>
+            </TableCell>
+            <TableCell>
+                <Chip 
+                    icon={roleIcons[member.role] || <PersonIcon />}
+                    label={member.role}
+                    size="small"
+                    sx={{ 
+                        bgcolor: alpha(color, 0.1), 
+                        color: color, 
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        '& .MuiChip-icon': { color: color }
+                    }} 
+                />
+            </TableCell>
+            <TableCell>
+                <Box display="flex" alignItems="center" gap={1}>
+                    <LocationIcon sx={{ fontSize: '1rem', color: '#94a3b8' }} />
+                    <Box>
+                        <Typography variant="body2" fontWeight="600" color="textPrimary">
                             {member.scopeName}
                         </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                            {member.scopeType}
+                        </Typography>
                     </Box>
-                    
-                    {hasChildren && (
-                        <Box display="flex" alignItems="center" gap={1} sx={{ mt: 1 }}>
-                            <Box 
-                                sx={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    bgcolor: alpha(color, 0.05), 
-                                    px: 1.5, 
-                                    py: 0.5, 
-                                    borderRadius: '8px' 
-                                }}
-                            >
-                                <Typography variant="caption" sx={{ color: color, fontWeight: 700 }}>
-                                    {member.children?.length} Members Mapped
-                                </Typography>
-                            </Box>
-                        </Box>
-                    )}
                 </Box>
-            </CardContent>
-            
-            {/* Role indicator strip */}
-            <Box 
-                sx={{ 
-                    position: 'absolute', 
-                    top: 20, 
-                    right: -4, 
-                    width: 4, 
-                    height: 40, 
-                    bgcolor: color, 
-                    borderRadius: '4px 0 0 4px' 
-                }} 
-            />
-        </Card>
+            </TableCell>
+            <TableCell align="center">
+                {hasChildren ? (
+                    <Box 
+                        sx={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            bgcolor: '#f1f5f9', 
+                            px: 2, 
+                            py: 0.5, 
+                            borderRadius: '20px',
+                            border: '1px solid #e2e8f0'
+                        }}
+                    >
+                        <Typography variant="body2" fontWeight="700" color="primary">
+                            {member.children?.length}
+                        </Typography>
+                        <Typography variant="caption" sx={{ ml: 0.5, color: '#64748b', fontWeight: 600 }}>
+                            Mapped
+                        </Typography>
+                    </Box>
+                ) : (
+                    <Typography variant="caption" color="textDisabled" sx={{ fontWeight: 600 }}>
+                        Leaf Node
+                    </Typography>
+                )}
+            </TableCell>
+            <TableCell align="right">
+                {hasChildren && (
+                    <IconButton size="small" sx={{ color: '#94a3b8' }}>
+                        <ChevronRightIcon />
+                    </IconButton>
+                )}
+            </TableCell>
+        </TableRow>
     );
 }
 

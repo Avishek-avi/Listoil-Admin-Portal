@@ -1,5 +1,5 @@
 import SchemesClient from "./SchemesClient";
-import { getSchemesAction, getSchemeMasterDataAction } from "@/actions/schemes-actions";
+import { getSchemesAction, getSchemeMasterDataAction, getSchemeDashboardStatsAction } from "@/actions/schemes-actions";
 
 export const metadata = {
     title: 'Schemes Management | Listoil Admin',
@@ -7,15 +7,17 @@ export const metadata = {
 };
 
 export default async function SchemesPage() {
-    const [schemes, masterData] = await Promise.all([
+    const [schemes, masterData, dashboardStats] = await Promise.all([
         getSchemesAction(),
-        getSchemeMasterDataAction()
+        getSchemeMasterDataAction(),
+        getSchemeDashboardStatsAction()
     ]);
 
     return (
         <SchemesClient 
             initialSchemes={schemes} 
             masterData={masterData} 
+            dashboardStats={dashboardStats}
         />
     );
 }

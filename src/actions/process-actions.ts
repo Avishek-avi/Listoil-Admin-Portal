@@ -510,7 +510,7 @@ export async function getQrCodeDetailsAction(serialNumber: string) {
             const [inv] = await db.select({
                 id: tblInventory.inventoryId,
                 code: tblInventory.serialNumber,
-                sku: tblInventoryBatch.skuCode,
+                sku: tblInventory.skuCode,
                 isScanned: tblInventory.isQrScanned,
                 isActive: tblInventory.isActive,
                 batchActive: tblInventoryBatch.isActive
@@ -637,7 +637,7 @@ export async function submitManualScanAdjustmentAction(data: { userId: number; s
                     isScanned: tblInventory.isQrScanned,
                     isActive: tblInventory.isActive,
                     batchActive: tblInventoryBatch.isActive,
-                    sku: tblInventoryBatch.skuCode
+                    sku: tblInventory.skuCode
                 })
                 .from(tblInventory)
                 .innerJoin(tblInventoryBatch, eq(tblInventory.batchId, tblInventoryBatch.batchId))
@@ -826,6 +826,13 @@ export async function rollbackTransactionAction(transactionId: number, transacti
                     redeemablePoints: sql`${mechanics.redeemablePoints} - ${points}`
                 })
                 .where(eq(mechanics.userId, log.userId));
+
+            // 3.1 Revert scheme budget if applicable
+            if (log.schemeId) {
+                await tx.update(schemes)
+                    .set({ spentBudget: sql`${schemes.spentBudget} - ${points}` })
+                    .where(eq(schemes.id, log.schemeId));
+            }
 
             // 4. Delete the main log
             await tx.delete(mechanicTransactionLogs).where(eq(mechanicTransactionLogs.id, transactionId));
